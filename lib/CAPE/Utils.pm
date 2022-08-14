@@ -3,19 +3,25 @@ package CAPE::Utils;
 use 5.006;
 use strict;
 use warnings;
+use JSON;
+use Config::Tiny;
+use DBI;
+use File::Slurp;
+use Config::Tiny;
+use Hash::Merge;
+use IPC::Cmd qw[ run ];
 
 =head1 NAME
 
-CAPE::Utils - The great new CAPE::Utils!
+CAPE::Utils - A helpful library for with CAPE.
 
 =head1 VERSION
 
-Version 0.01
+Version 0.0.1
 
 =cut
 
-our $VERSION = '0.01';
-
+our $VERSION = '0.0.1';
 
 =head1 SYNOPSIS
 
@@ -28,25 +34,99 @@ Perhaps a little code snippet.
     my $foo = CAPE::Utils->new();
     ...
 
-=head1 EXPORT
+=head1 METHODS
 
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
-
-=head1 SUBROUTINES/METHODS
-
-=head2 function1
+=head2 new
 
 =cut
 
-sub function1 {
+sub new {
+	my $ini = $_[1];
+
+	if ( !defined($ini) ) {
+		$ini = '/usr/local/etc/cape_utils.ini';
+	}
+
+	my $base_config = {
+		'_' => {
+			dsn    => 'dbi:Pg:dbname=cape',
+			user   => 'cape',
+			pass   => '',
+			base   => '/opt/CAPEv2/',
+			poetry => 1,
+		},
+	};
+
+	my $config = Config::Tiny->read( $ini, 'utf8' );
+	if ( !defined($config) ) {
+		$config = $base_config;
+	}
+	else {
+		$config = %{ merge( $base_config, $config ) };
+	}
+
+	# init the object
+	my $self = { config => $config, };
+	bless $self;
+
+	return $self;
 }
 
-=head2 function2
+=head2 connect
+
+Return a DBH from DBI->connect for the CAPE SQL server.
+
+This will die with the output from $DBI::errstr if it fails.
+
+    my $dbh = $cape->connect;
 
 =cut
 
-sub function2 {
+sub connect {
+	my $self = $_[0];
+
+	my $dbh = DBI->connect( $self->{config}->{_}->{dsn}, $self->{config}->{_}->{user}, $self->{config}->{_}->{pass} )
+		|| die($DBI::errstr);
+
+	return $dbh;
+}
+
+=head2 get_pending_count
+
+=cut
+
+sub get_pending_count{
+	my $self=$_[0];
+
+	my $dbh=$self->connect;
+
+	my $sth = $dbh->prepare("select * from tasks where status = 'pending'");
+	$sth->execute;
+
+	my $rows = $sth->rows;
+
+	$sth->finish();
+	$dbh->disconnect();
+
+	return $rows;
+};
+
+=head2 get_pending
+
+=cut
+
+sub get_pending{
+	my $self=$_[0];
+
+	my $dbh=$self->connect;
+
+	my $sth = $dbh->prepare("select * from tasks where status = 'pending'");
+	$sth->execute;
+	use Data::Dumper;
+	my $row;
+	while ($row = $sth->fetchrow_hashref) {
+		print Dumper($row);
+	}
 }
 
 =head1 AUTHOR
@@ -58,9 +138,6 @@ Zane C. Bowers-Hadley, C<< <vvelox at vvelox.net> >>
 Please report any bugs or feature requests to C<bug-cape-utils at rt.cpan.org>, or through
 the web interface at L<https://rt.cpan.org/NoAuth/ReportBug.html?Queue=CAPE-Utils>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
-
-
-
 
 =head1 SUPPORT
 
@@ -85,6 +162,14 @@ L<https://cpanratings.perl.org/d/CAPE-Utils>
 
 L<https://metacpan.org/release/CAPE-Utils>
 
+=head * Git
+
+L<git@github.com:VVelox/CAPE-Utils.git>
+
+=item * Web
+
+L<https://github.com/VVelox/CAPE-Utils>
+
 =back
 
 
@@ -102,4 +187,4 @@ This is free software, licensed under:
 
 =cut
 
-1; # End of CAPE::Utils
+1;    # End of CAPE::Utils
