@@ -302,7 +302,7 @@ sub get_running_table {
 	$tb->border_style( $opts{table_border} );
 	$tb->color_theme( $opts{table_color} );
 
-	my @columns    = split( /,/, $opts{pending_columns} );
+	my @columns    = split( /,/, $opts{running_columns} );
 	my $header_int = 0;
 	my $padding    = 0;
 	foreach my $header (@columns) {
