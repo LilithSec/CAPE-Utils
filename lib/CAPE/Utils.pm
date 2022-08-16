@@ -55,9 +55,13 @@ sub new {
 			pass                => '',
 			base                => '/opt/CAPEv2/',
 			poetry              => 1,
-			pending_columns     => 'id,target,package,route,options,clock,added_on',
+			pending_columns     => 'id,target,package,timeout,route,options,clock,added_on',
 			pending_target_clip => 1,
 			pending_time_clip   => 1,
+			table_color         => 'Text::ANSITable::Standard::NoGradation',
+				table_border        => 'ASCII::None',
+				set_clock_to_now => 1,
+				
 		},
 	};
 
@@ -146,20 +150,34 @@ sub get_pending {
 
 Generates a ASCII table for pending.
 
-One options
+The following config variables can are relevant to this and
+may be overriden.
+
+    table_border
+    table_color
+    pending_columns
+
+    print $cape_util->get_pending_table( pending_columns=>'id,package');
 
 =cut
 
 sub get_pending_table {
-	my $self = $_[0];
+	my ( $self, %opts ) = @_;
+
+	my @overrides=('table_border', 'table_color', 'pending_columns');
+	foreach my $override (@overrides) {
+		if (!defined($opts{$override})) {
+			$opts{$override}=$self->{config}->{_}->{$override};
+		}
+	}
 
 	my $rows = $self->get_pending;
 
 	my $tb = Text::ANSITable->new;
-	$tb->border_style('ASCII::None');
-	$tb->color_theme('NoColor');
+	$tb->border_style( $opts{table_border} );
+	$tb->color_theme( $opts{table_color} );
 
-	my @columns    = split( /,/, $self->{config}->{_}->{pending_columns} );
+	my @columns    = split( /,/, $opts{pending_columns} );
 	my $header_int = 0;
 	my $padding    = 0;
 	foreach my $header (@columns) {
@@ -178,14 +196,11 @@ sub get_pending_table {
 		my @new_line;
 		foreach my $column (@columns) {
 			if ( defined( $row->{$column} ) ) {
-				if (
-					($column eq 'clock' || $column eq 'added_on') && $self->{config}->{_}->{pending_time_clip}
-					) {
-					$row->{$column}=~s/\.[0-9]+$//;
-				}elsif (
-						$column eq 'target' && $self->{config}->{_}->{pending_target_clip}
-						) {
-					$row->{target}=~s/^.*\///;
+				if ( ( $column eq 'clock' || $column eq 'added_on' ) && $self->{config}->{_}->{pending_time_clip} ) {
+					$row->{$column} =~ s/\.[0-9]+$//;
+				}
+				elsif ( $column eq 'target' && $self->{config}->{_}->{pending_target_clip} ) {
+					$row->{target} =~ s/^.*\///;
 				}
 				push( @new_line, $row->{$column} );
 			}
@@ -201,6 +216,10 @@ sub get_pending_table {
 
 	return $tb->draw;
 }
+
+=head2 submit
+
+=cut
 
 =head1 AUTHOR
 
