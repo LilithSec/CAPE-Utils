@@ -57,6 +57,7 @@ sub new {
 			poetry              => 1,
 			pending_columns     => 'id,target,package,route,options,clock,added_on',
 			pending_target_clip => 1,
+			pending_time_clip   => 1,
 		},
 	};
 
@@ -177,6 +178,15 @@ sub get_pending_table {
 		my @new_line;
 		foreach my $column (@columns) {
 			if ( defined( $row->{$column} ) ) {
+				if (
+					($column eq 'added_on' || $column eq 'added_on') && $self->{config}->{_}->{pending_time_clip}
+					) {
+					$row->{$column}=~s/\.[0-9]+$//;
+				}elsif (
+						$column eq 'target' && $self->{config}->{_}->{pending_target_clip}
+						) {
+					$row->{target}=~s/^.*\///;
+				}
 				push( @new_line, $row->{$column} );
 			}
 			else {
