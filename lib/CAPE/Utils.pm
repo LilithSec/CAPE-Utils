@@ -56,7 +56,10 @@ sub new {
 			pass                => '',
 			base                => '/opt/CAPEv2/',
 			poetry              => 1,
-			pending_columns     => 'id,target,package,timeout,route,options,clock,added_on',
+				pending_columns     => 'id,target,package,timeout,route,options,clock,added_on',
+				running_columns     => 'id,target,package,timeout,route,options,clock,added_on,analysis_started_on,analysis_finished_on,processing_started_on,processing_finished_on,signatures_started_on,signatures_finished_on,reporting_started_on,reporting_finished_on',
+							running_target_clip => 1,
+				running_time_clip   => 1,
 			pending_target_clip => 1,
 			pending_time_clip   => 1,
 			table_color         => 'Text::ANSITable::Standard::NoGradation',
@@ -209,10 +212,10 @@ sub get_pending_table {
 		my @new_line;
 		foreach my $column (@columns) {
 			if ( defined( $row->{$column} ) ) {
-				if ( ( $column eq 'clock' || $column eq 'added_on' ) && $self->{config}->{_}->{pending_time_clip} ) {
+				if ( ( $column eq 'clock' || $column eq 'added_on' ) && $opts{pending_time_clip} ) {
 					$row->{$column} =~ s/\.[0-9]+$//;
 				}
-				elsif ( $column eq 'target' && $self->{config}->{_}->{pending_target_clip} ) {
+				elsif ( $column eq 'target' && $opts{pending_target_clip} ) {
 					$row->{target} =~ s/^.*\///;
 				}
 				push( @new_line, $row->{$column} );
@@ -229,6 +232,116 @@ sub get_pending_table {
 
 	return $tb->draw;
 }
+
+=head2 get_pending
+
+Returns a arrah ref of hash refs of rows from the tasks table where the
+status is set to pending.
+
+=cut
+
+sub get_running {
+	my ( $self, %opts ) = @_;
+
+	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	}
+
+	my $dbh = $self->connect;
+
+	my $statement = "select * from tasks where (status = 'running' or status = 'completed')";
+	if ( defined( $opts{where} ) ) {
+		$statement = $statement . ' AND ' . $opts{where};
+	}
+
+	my $sth = $dbh->prepare($statement);
+	$sth->execute;
+
+	my $row;
+	my @rows;
+	while ( $row = $sth->fetchrow_hashref ) {
+		push( @rows, $row );
+	}
+
+	$sth->finish;
+	$dbh->disconnect;
+
+	return \@rows;
+}
+
+=head2 get_running_table
+
+Generates a ASCII table for pending.
+
+The following config variables can are relevant to this and
+may be overriden.
+
+    table_border
+    table_color
+    pending_columns
+    pending_target_clip
+    pending_time_clip
+
+    print $cape_util->get_pending_table( pending_columns=>'id,package');
+
+=cut
+
+sub get_running_table {
+	my ( $self, %opts ) = @_;
+
+	my @overrides = ( 'table_border', 'table_color', 'running_columns', 'running_target_clip', 'running_time_clip' );
+	foreach my $override (@overrides) {
+		if ( !defined( $opts{$override} ) ) {
+			$opts{$override} = $self->{config}->{_}->{$override};
+		}
+	}
+
+	my $rows = $self->get_running( where => $opts{where} );
+
+	my $tb = Text::ANSITable->new;
+	$tb->border_style( $opts{table_border} );
+	$tb->color_theme( $opts{table_color} );
+
+	my @columns    = split( /,/, $opts{pending_columns} );
+	my $header_int = 0;
+	my $padding    = 0;
+	foreach my $header (@columns) {
+		if   ( ( $header_int % 2 ) != 0 ) { $padding = 1; }
+		else                              { $padding = 0; }
+
+		$tb->set_column_style( $header_int, pad => $padding );
+
+		$header_int++;
+	}
+
+	$tb->columns( \@columns );
+
+	my @td;
+	foreach my $row ( @{$rows} ) {
+		my @new_line;
+		foreach my $column (@columns) {
+			if ( defined( $row->{$column} ) ) {
+				if ( ( $column eq 'clock' || $column eq 'added_on' ) && $opts{running_time_clip} ) {
+					$row->{$column} =~ s/\.[0-9]+$//;
+				}
+				elsif ( $column eq 'target' && $opts{running_target_clip} ) {
+					$row->{target} =~ s/^.*\///;
+				}
+				push( @new_line, $row->{$column} );
+			}
+			else {
+				push( @new_line, '' );
+			}
+		}
+
+		push( @td, \@new_line );
+	}
+
+	$tb->add_rows( \@td );
+
+	return $tb->draw;
+}
+
 
 =head2 submit
 
