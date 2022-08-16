@@ -59,9 +59,9 @@ sub new {
 			pending_target_clip => 1,
 			pending_time_clip   => 1,
 			table_color         => 'Text::ANSITable::Standard::NoGradation',
-				table_border        => 'ASCII::None',
-				set_clock_to_now => 1,
-				
+			table_border        => 'ASCII::None',
+			set_clock_to_now    => 1,
+
 		},
 	};
 
@@ -127,11 +127,20 @@ status is set to pending.
 =cut
 
 sub get_pending {
-	my $self = $_[0];
+	my ( $self, %opts ) = @_;
+
+	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	}
 
 	my $dbh = $self->connect;
 
-	my $sth = $dbh->prepare("select * from tasks where status = 'pending'");
+	my $statement = "select * from tasks where status = 'pending'";
+	if ( defined( $opts{where} ) ) {
+		$statement = $statement . ' AND ' . $opts{where};
+	}
+
+	my $sth = $dbh->prepare($statement);
 	$sth->execute;
 
 	my $row;
@@ -164,10 +173,10 @@ may be overriden.
 sub get_pending_table {
 	my ( $self, %opts ) = @_;
 
-	my @overrides=('table_border', 'table_color', 'pending_columns');
+	my @overrides = ( 'table_border', 'table_color', 'pending_columns' );
 	foreach my $override (@overrides) {
-		if (!defined($opts{$override})) {
-			$opts{$override}=$self->{config}->{_}->{$override};
+		if ( !defined( $opts{$override} ) ) {
+			$opts{$override} = $self->{config}->{_}->{$override};
 		}
 	}
 
