@@ -292,7 +292,7 @@ sub submit {
 		$opts{clock}=$self->timestamp;
 	}
 
-	if (!defined($opts{clock})) {
+	if (!defined($opts{timeout})) {
 		$opts{timeout}=$self->{config}->{_}->{timeout};
 	}
 
@@ -318,7 +318,7 @@ sub submit {
 
 	chdir( $self->{config}->{_}->{base} ) || die( 'Unable to CD to "' . $self->{config}->{_}->{base} . '"' );
 
-	my @to_run=('sudo', '-u', 'cape');
+	my @to_run=();
 
 	if ($self->{config}->{_}->{poetry}) {
 		push(@to_run, 'poetry', 'run');
