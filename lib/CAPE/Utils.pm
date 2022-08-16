@@ -10,6 +10,7 @@ use File::Slurp;
 use Config::Tiny;
 use Hash::Merge;
 use IPC::Cmd qw[ run ];
+use Text::ANSITable;
 
 =head1 NAME
 
@@ -49,11 +50,13 @@ sub new {
 
 	my $base_config = {
 		'_' => {
-			dsn    => 'dbi:Pg:dbname=cape',
-			user   => 'cape',
-			pass   => '',
-			base   => '/opt/CAPEv2/',
-			poetry => 1,
+			dsn                 => 'dbi:Pg:dbname=cape',
+			user                => 'cape',
+			pass                => '',
+			base                => '/opt/CAPEv2/',
+			poetry              => 1,
+			pending_columns     => 'id,target,package,route,options,clock,added_on',
+			pending_target_clip => 1,
 		},
 	};
 
@@ -95,38 +98,98 @@ sub connect {
 
 =cut
 
-sub get_pending_count{
-	my $self=$_[0];
+sub get_pending_count {
+	my $self = $_[0];
 
-	my $dbh=$self->connect;
+	my $dbh = $self->connect;
 
 	my $sth = $dbh->prepare("select * from tasks where status = 'pending'");
 	$sth->execute;
 
 	my $rows = $sth->rows;
 
-	$sth->finish();
-	$dbh->disconnect();
+	$sth->finish;
+	$dbh->disconnect;
 
 	return $rows;
-};
+}
 
 =head2 get_pending
 
+Returns a arrah ref of hash refs of rows from the tasks table where the
+status is set to pending.
+
 =cut
 
-sub get_pending{
-	my $self=$_[0];
+sub get_pending {
+	my $self = $_[0];
 
-	my $dbh=$self->connect;
+	my $dbh = $self->connect;
 
 	my $sth = $dbh->prepare("select * from tasks where status = 'pending'");
 	$sth->execute;
-	use Data::Dumper;
+
 	my $row;
-	while ($row = $sth->fetchrow_hashref) {
-		print Dumper($row);
+	my @rows;
+	while ( $row = $sth->fetchrow_hashref ) {
+		push( @rows, $row );
 	}
+
+	$sth->finish;
+	$dbh->disconnect;
+
+	return \@rows;
+}
+
+=head2 get_pending_table
+
+Generates a ASCII table for pending.
+
+One options
+
+=cut
+
+sub get_pending_table {
+	my $self = $_[0];
+
+	my $rows = $self->get_pending;
+
+	my $tb = Text::ANSITable->new;
+	$tb->border_style('ASCII::None');
+	$tb->color_theme('NoColor');
+
+	my @columns    = split( /,/, $self->{config}->{_}->{pending_columns} );
+	my $header_int = 0;
+	my $padding    = 0;
+	foreach my $header (@columns) {
+		if   ( ( $header_int % 2 ) != 0 ) { $padding = 1; }
+		else                              { $padding = 0; }
+
+		$tb->set_column_style( $header_int, pad => $padding );
+
+		$header_int++;
+	}
+
+	$tb->columns = ( \@columns );
+
+	my @td;
+	foreach my $row ( @{$rows} ) {
+		my @new_line;
+		foreach my $column (@columns) {
+			if ( defined( $row->{$column} ) ) {
+				push( @new_line, $row->{$column} );
+			}
+			else {
+				push( @new_line, '' );
+			}
+		}
+
+		push( @td, \@new_line );
+	}
+
+	$tb->add_rows( \@td );
+
+	return $tb->draw;
 }
 
 =head1 AUTHOR
