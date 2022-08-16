@@ -170,7 +170,7 @@ sub get_pending_table {
 		$header_int++;
 	}
 
-	$tb->columns = ( \@columns );
+	$tb->columns( \@columns );
 
 	my @td;
 	foreach my $row ( @{$rows} ) {
