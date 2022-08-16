@@ -57,7 +57,7 @@ sub new {
 			base                => '/opt/CAPEv2/',
 			poetry              => 1,
 				pending_columns     => 'id,target,package,timeout,route,options,clock,added_on',
-				running_columns     => 'id,target,package,timeout,route,options,clock,added_on,analysis_started_on,analysis_finished_on,processing_started_on,processing_finished_on,signatures_started_on,signatures_finished_on,reporting_started_on,reporting_finished_on',
+				running_columns     => 'id,target,package,timeout,route,options,clock,added_on,started_on',
 							running_target_clip => 1,
 				running_time_clip   => 1,
 			pending_target_clip => 1,
