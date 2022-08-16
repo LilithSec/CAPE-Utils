@@ -211,6 +211,10 @@ sub get_pending_table {
 	foreach my $row ( @{$rows} ) {
 		my @new_line;
 		foreach my $column (@columns) {
+			if ($column eq 'ET') {
+				$row->{ET}=$row->{enforce_timeout}
+			}
+
 			if ( defined( $row->{$column} ) ) {
 				if ($column eq 'ET') {
 					$row->{ET}=$row->{enforce_timeout}
@@ -324,6 +328,10 @@ sub get_running_table {
 	foreach my $row ( @{$rows} ) {
 		my @new_line;
 		foreach my $column (@columns) {
+			if ($column eq 'ET') {
+				$row->{ET}=$row->{enforce_timeout}
+			}
+
 			if ( defined( $row->{$column} ) ) {
 				if ($column eq 'ET') {
 					$row->{ET}=$row->{enforce_timeout}
