@@ -179,7 +179,7 @@ sub get_pending_table {
 		foreach my $column (@columns) {
 			if ( defined( $row->{$column} ) ) {
 				if (
-					($column eq 'added_on' || $column eq 'added_on') && $self->{config}->{_}->{pending_time_clip}
+					($column eq 'clock' || $column eq 'added_on') && $self->{config}->{_}->{pending_time_clip}
 					) {
 					$row->{$column}=~s/\.[0-9]+$//;
 				}elsif (
