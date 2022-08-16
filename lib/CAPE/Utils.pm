@@ -180,7 +180,7 @@ sub get_pending_table {
 		}
 	}
 
-	my $rows = $self->get_pending;
+	my $rows = $self->get_pending(where=>$opts{where});
 
 	my $tb = Text::ANSITable->new;
 	$tb->border_style( $opts{table_border} );
