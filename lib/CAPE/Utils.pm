@@ -56,17 +56,17 @@ sub new {
 			pass                => '',
 			base                => '/opt/CAPEv2/',
 			poetry              => 1,
-				pending_columns     => 'id,target,package,timeout,route,options,clock,added_on',
-				running_columns     => 'id,target,package,timeout,route,options,clock,added_on,started_on',
-							running_target_clip => 1,
-				running_time_clip   => 1,
+			pending_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on',
+			running_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on,started_on,machine',
+			running_target_clip => 1,
+			running_time_clip   => 1,
 			pending_target_clip => 1,
 			pending_time_clip   => 1,
 			table_color         => 'Text::ANSITable::Standard::NoGradation',
 			table_border        => 'ASCII::None',
 			set_clock_to_now    => 1,
 			timeout             => 200,
-				enforce_timeout => 0,
+			enforce_timeout     => 0,
 		},
 	};
 
@@ -212,6 +212,10 @@ sub get_pending_table {
 		my @new_line;
 		foreach my $column (@columns) {
 			if ( defined( $row->{$column} ) ) {
+				if ($column eq 'ET') {
+					$row->{ET}=$row->{enforce_timeout}
+				}
+
 				if ( ( $column eq 'clock' || $column eq 'added_on' ) && $opts{pending_time_clip} ) {
 					$row->{$column} =~ s/\.[0-9]+$//;
 				}
@@ -321,7 +325,13 @@ sub get_running_table {
 		my @new_line;
 		foreach my $column (@columns) {
 			if ( defined( $row->{$column} ) ) {
-				if ( ( $column eq 'clock' || $column eq 'added_on' ) && $opts{running_time_clip} ) {
+				if ($column eq 'ET') {
+					$row->{ET}=$row->{enforce_timeout}
+				}
+
+				if ( ( $column eq 'clock' || $column eq 'added_on' || $column eq 'started_on' )
+					&& $opts{running_time_clip} )
+				{
 					$row->{$column} =~ s/\.[0-9]+$//;
 				}
 				elsif ( $column eq 'target' && $opts{running_target_clip} ) {
@@ -341,7 +351,6 @@ sub get_running_table {
 
 	return $tb->draw;
 }
-
 
 =head2 submit
 
@@ -397,32 +406,33 @@ Submits files to cape.
 sub submit {
 	my ( $self, %opts ) = @_;
 
-	if (!defined($opts{items}[0])) {
+	if ( !defined( $opts{items}[0] ) ) {
 		die 'No items to submit passed';
 	}
 
-	if (!defined($opts{clock}) && $self->{config}->{_}->{set_clock_to_now} ) {
-		$opts{clock}=$self->timestamp;
+	if ( !defined( $opts{clock} ) && $self->{config}->{_}->{set_clock_to_now} ) {
+		$opts{clock} = $self->timestamp;
 	}
 
-	if (!defined($opts{timeout})) {
-		$opts{timeout}=$self->{config}->{_}->{timeout};
+	if ( !defined( $opts{timeout} ) ) {
+		$opts{timeout} = $self->{config}->{_}->{timeout};
 	}
 
-	if (!defined($opts{enforce_timeout})) {
-		$opts{enforce_timeout}=$self->{config}->{_}->{enforce_timeout};
+	if ( !defined( $opts{enforce_timeout} ) ) {
+		$opts{enforce_timeout} = $self->{config}->{_}->{enforce_timeout};
 	}
 
 	my @to_submit;
 
-	foreach my $item (@{ $opts{items} }) {
-		if (-f $item) {
-			push(@to_submit, File::Spec->rel2abs($item));
-		}elsif( -d $item){
-			opendir(my $dh, $item);
-			while (readdir($dh)) {
-				if (-f $item.'/'.$_) {
-					push(@to_submit, File::Spec->rel2abs($item.'/'.$_));
+	foreach my $item ( @{ $opts{items} } ) {
+		if ( -f $item ) {
+			push( @to_submit, File::Spec->rel2abs($item) );
+		}
+		elsif ( -d $item ) {
+			opendir( my $dh, $item );
+			while ( readdir($dh) ) {
+				if ( -f $item . '/' . $_ ) {
+					push( @to_submit, File::Spec->rel2abs( $item . '/' . $_ ) );
 				}
 			}
 			closedir($dh);
@@ -431,44 +441,44 @@ sub submit {
 
 	chdir( $self->{config}->{_}->{base} ) || die( 'Unable to CD to "' . $self->{config}->{_}->{base} . '"' );
 
-	my @to_run=();
+	my @to_run = ();
 
-	if ($self->{config}->{_}->{poetry}) {
-		push(@to_run, 'poetry', 'run');
+	if ( $self->{config}->{_}->{poetry} ) {
+		push( @to_run, 'poetry', 'run' );
 	}
 
-	push(@to_run, 'python3', $self->{config}->{_}->{base}.'/utils/submit.py');
+	push( @to_run, 'python3', $self->{config}->{_}->{base} . '/utils/submit.py' );
 
-	if (defined($opts{clock})) {
-		push(@to_run, '--clock', $opts{clock});
+	if ( defined( $opts{clock} ) ) {
+		push( @to_run, '--clock', $opts{clock} );
 	}
 
-	if (defined($opts{timeout})) {
-		push(@to_run, '--timeout', $opts{timeout});
+	if ( defined( $opts{timeout} ) ) {
+		push( @to_run, '--timeout', $opts{timeout} );
 	}
 
-	if ($opts{enforce_timeout}) {
-		push(@to_run, '--enforce-timeout');
+	if ( $opts{enforce_timeout} ) {
+		push( @to_run, '--enforce-timeout' );
 	}
 
-	if (defined($opts{package})) {
-		push(@to_run, '--package', $opts{package});
+	if ( defined( $opts{package} ) ) {
+		push( @to_run, '--package', $opts{package} );
 	}
 
-	if (defined($opts{machine})) {
-		push(@to_run, '--machine', $opts{machine});
+	if ( defined( $opts{machine} ) ) {
+		push( @to_run, '--machine', $opts{machine} );
 	}
 
-	if (defined($opts{options})) {
-		push(@to_run, '--options', $opts{options});
+	if ( defined( $opts{options} ) ) {
+		push( @to_run, '--options', $opts{options} );
 	}
 
-	if (defined($opts{tags})) {
-		push(@to_run, '--tags', $opts{tags});
+	if ( defined( $opts{tags} ) ) {
+		push( @to_run, '--tags', $opts{tags} );
 	}
 
 	foreach (@to_submit) {
-		system(@to_run, $_);
+		system( @to_run, $_ );
 	}
 }
 
@@ -508,14 +518,14 @@ Performa a Fisher Yates shuffle on the passed array ref.
 =cut
 
 sub shuffle {
-	my $self = shift;
-    my $array = shift;
-    my $i;
-    for ($i = @$array; --$i; ) {
-        my $j = int rand ($i+1);
-        next if $i == $j;
-        @$array[$i,$j] = @$array[$j,$i];
-    }
+	my $self  = shift;
+	my $array = shift;
+	my $i;
+	for ( $i = @$array; --$i; ) {
+		my $j = int rand( $i + 1 );
+		next if $i == $j;
+		@$array[ $i, $j ] = @$array[ $j, $i ];
+	}
 	return $array;
 }
 
