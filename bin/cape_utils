@@ -1,0 +1,46 @@
+#!/usr/bin/env perl
+
+use CAPE::Utils;
+use strict;
+use warnings;
+use Getopt::Long;
+
+sub version {
+	print "cape_utils v. 0.0.1\n";
+}
+
+sub help {
+	&version;
+
+	print '
+-c <ini>     Config INI file.
+             Default: /usr/local/etc/cape_utils.ini
+';
+}
+
+# get the commandline options
+my $help     = 0;
+my $version  = 0;
+my $ini_file;
+my $action;
+Getopt::Long::Configure('no_ignore_case');
+Getopt::Long::Configure('bundling');
+GetOptions(
+	'version' => \$version,
+	'v'       => \$version,
+	'help'    => \$help,
+	'h'       => \$help,
+		   'i=s'     => \$ini_file,
+		   'a=s'     => \$action,
+);
+
+# print version or help if requested
+if ($help) {
+	&help;
+	exit 42;
+}
+if ($version) {
+	&version;
+	exit 42;
+}
+

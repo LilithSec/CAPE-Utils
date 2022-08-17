@@ -40,6 +40,12 @@ Perhaps a little code snippet.
 
 =head2 new
 
+Initiates the object. One argument is taken and that is the
+path to the INI config file. The default is '/usr/local/etc/cape_utils.ini'
+and if not found, the defaults will be used.
+
+    my $cape_util=CAPE::Utils->new('/path/to/some/config.ini');
+
 =cut
 
 sub new {
@@ -106,6 +112,8 @@ sub connect {
 }
 
 =head2 fail
+
+Set a pending 
 
 =cut
 
