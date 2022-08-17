@@ -56,6 +56,7 @@ sub new {
 			pass                => '',
 			base                => '/opt/CAPEv2/',
 			poetry              => 1,
+			fail_all            => 0,
 			pending_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on',
 			running_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on,started_on,machine',
 			running_target_clip => 1,
@@ -102,6 +103,43 @@ sub connect {
 		|| die($DBI::errstr);
 
 	return $dbh;
+}
+
+=head2 fail
+
+=cut
+
+sub fail {
+	my ( $self, %opts ) = @_;
+
+	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	}
+
+	if (!defined($opts{where}) && ! $self->{config}->{_}->{fail_all}) {
+		die "fail_all is disabled and nothing specified for where";
+	}
+
+	my $dbh= $self->connect;
+
+	my $statement="update tasks set status='failed_processing'";
+
+	if (defined($opts{where})) {
+		$statement=$statement.' AND '.$opts{where};
+	}
+
+	$statement=$statement.';';
+
+	my $sth = $dbh->prepare($statement);
+
+	$sth->execute;
+
+	my $rows = $sth->rows;
+
+	$sth->finish;
+	$dbh->disconnect;
+
+	return $rows;
 }
 
 =head2 get_pending_count
@@ -211,13 +249,13 @@ sub get_pending_table {
 	foreach my $row ( @{$rows} ) {
 		my @new_line;
 		foreach my $column (@columns) {
-			if ($column eq 'ET') {
-				$row->{ET}=$row->{enforce_timeout}
+			if ( $column eq 'ET' ) {
+				$row->{ET} = $row->{enforce_timeout};
 			}
 
 			if ( defined( $row->{$column} ) ) {
-				if ($column eq 'ET') {
-					$row->{ET}=$row->{enforce_timeout}
+				if ( $column eq 'ET' ) {
+					$row->{ET} = $row->{enforce_timeout};
 				}
 
 				if ( ( $column eq 'clock' || $column eq 'added_on' ) && $opts{pending_time_clip} ) {
@@ -286,9 +324,9 @@ may be overriden.
 
     table_border
     table_color
-    pending_columns
-    pending_target_clip
-    pending_time_clip
+    running_columns
+    running_target_clip
+    running_time_clip
 
     print $cape_util->get_pending_table( pending_columns=>'id,package');
 
@@ -328,13 +366,13 @@ sub get_running_table {
 	foreach my $row ( @{$rows} ) {
 		my @new_line;
 		foreach my $column (@columns) {
-			if ($column eq 'ET') {
-				$row->{ET}=$row->{enforce_timeout}
+			if ( $column eq 'ET' ) {
+				$row->{ET} = $row->{enforce_timeout};
 			}
 
 			if ( defined( $row->{$column} ) ) {
-				if ($column eq 'ET') {
-					$row->{ET}=$row->{enforce_timeout}
+				if ( $column eq 'ET' ) {
+					$row->{ET} = $row->{enforce_timeout};
 				}
 
 				if ( ( $column eq 'clock' || $column eq 'added_on' || $column eq 'started_on' )
