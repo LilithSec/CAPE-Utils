@@ -4,6 +4,7 @@ use CAPE::Utils;
 use strict;
 use warnings;
 use Getopt::Long;
+use JSON;
 
 sub version {
 	print "cape_utils v. 0.0.1\n";
@@ -19,10 +20,13 @@ sub help {
 }
 
 # get the commandline options
-my $help     = 0;
-my $version  = 0;
+my $help    = 0;
+my $version = 0;
 my $ini_file;
 my $action;
+my $count;
+my $use_json;
+my $where;
 Getopt::Long::Configure('no_ignore_case');
 Getopt::Long::Configure('bundling');
 GetOptions(
@@ -30,9 +34,16 @@ GetOptions(
 	'v'       => \$version,
 	'help'    => \$help,
 	'h'       => \$help,
-		   'i=s'     => \$ini_file,
-		   'a=s'     => \$action,
+	'i=s'     => \$ini_file,
+	'a=s'     => \$action,
+	'C'       => \$count,
+	'j'       => \$count,
+	'w=s'     => \$where,
 );
+
+if ( !defined($action) ) {
+	$action = 'pending';
+}
 
 # print version or help if requested
 if ($help) {
@@ -44,3 +55,28 @@ if ($version) {
 	exit 42;
 }
 
+my $cape_utils = CAPE::Utils->new($ini_file);
+
+if ( $action eq 'pending' ) {
+	if ($count) {
+		print $cape_utils->get_pending_count(where => $where);
+	}
+	else {
+		print $cape_utils->get_pending_table(where => $where);
+	}
+	exit 0;
+}
+
+if ( $action eq 'running' ) {
+	if ($count) {
+		print $cape_utils->get_running_count(where => $where);
+	}
+	else {
+		print $cape_utils->get_running_table(where => $where);
+	}
+	exit 0;
+}
+
+if ($action eq 'submit') {
+	$cape_utils->submit(items=>\@ARGV);
+}
