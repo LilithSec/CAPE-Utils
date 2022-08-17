@@ -122,7 +122,7 @@ sub fail {
 
 	my $dbh= $self->connect;
 
-	my $statement="update tasks set status='failed_processing'";
+	my $statement="UPDATE tasks SET status = 'failed_processing' WHERE status = 'pending'";
 
 	if (defined($opts{where})) {
 		$statement=$statement.' AND '.$opts{where};
