@@ -165,7 +165,8 @@ if ( $action eq 'submit' ) {
 		random          => $random,
 		tags            => $tags,
 		enforce_timeout => $enforce_timeout,
-	);
+						);
+	exit 0;
 }
 
 if ( $action eq 'fail' ) {
