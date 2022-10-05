@@ -117,6 +117,16 @@ GetOptions(
 	'custom'          => \$custom,
 );
 
+if ($version) {
+	&version;
+	exit 255;
+}
+
+if ($help) {
+	&help;
+	exit 255;
+}
+
 my $cape_utils = CAPE::Utils->new($ini_file);
 
 if (! defined($action)) {
