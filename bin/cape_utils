@@ -27,56 +27,87 @@ my $action;
 my $count;
 my $use_json;
 my $where;
+my $clock;
+my $timeout;
+my $machine;
+my $package;
+my $options;
+my $random = 1;
+my $tags;
+my $platform;
+my $enforce_timeout;
+my $custom;
 Getopt::Long::Configure('no_ignore_case');
 Getopt::Long::Configure('bundling');
 GetOptions(
-	'version' => \$version,
-	'v'       => \$version,
-	'help'    => \$help,
-	'h'       => \$help,
-	'i=s'     => \$ini_file,
-	'a=s'     => \$action,
-	'C'       => \$count,
-	'j'       => \$count,
-	'w=s'     => \$where,
+	'version'         => \$version,
+	'v'               => \$version,
+	'help'            => \$help,
+	'h'               => \$help,
+	'i=s'             => \$ini_file,
+	'a=s'             => \$action,
+	'C'               => \$count,
+	'w=s'             => \$where,
+	'clock=s'         => \$clock,
+	'timeout=i'       => \$timeout,
+	'machine=s'       => \$machine,
+	'package=s'       => \$package,
+	'options=s'       => \$options,
+	'random=i'        => \$random,
+	'tags=s'          => \$tags,
+	'platform=s'      => \$tags,
+	'et'              => \$enforce_timeout,
+	'enforce_timeout' => \$enforce_timeout,
+	'custom'          => \$custom,
 );
-
-if ( !defined($action) ) {
-	$action = 'pending';
-}
-
-# print version or help if requested
-if ($help) {
-	&help;
-	exit 42;
-}
-if ($version) {
-	&version;
-	exit 42;
-}
 
 my $cape_utils = CAPE::Utils->new($ini_file);
 
+if (! defined($action)) {
+	print "No action specified via -a";
+	exit 1;
+}
+
 if ( $action eq 'pending' ) {
 	if ($count) {
-		print $cape_utils->get_pending_count(where => $where);
+		print $cape_utils->get_pending_count( where => $where ) . "\n";
 	}
 	else {
-		print $cape_utils->get_pending_table(where => $where);
+		print $cape_utils->get_pending_table( where => $where );
 	}
 	exit 0;
 }
 
 if ( $action eq 'running' ) {
 	if ($count) {
-		print $cape_utils->get_running_count(where => $where);
+		print $cape_utils->get_running_count( where => $where ) . "\n";
 	}
 	else {
-		print $cape_utils->get_running_table(where => $where);
+		print $cape_utils->get_running_table( where => $where );
 	}
 	exit 0;
 }
 
-if ($action eq 'submit') {
-	$cape_utils->submit(items=>\@ARGV);
+if ( $action eq 'submit' ) {
+	$cape_utils->submit(
+		items           => \@ARGV,
+		clock           => $clock,
+		timeout         => $timeout,
+		machine         => $machine,
+		package         => $package,
+		options         => $options,
+		random          => $random,
+		tags            => $tags,
+		enforce_timeout => $enforce_timeout,
+	);
+}
+
+if ( $action eq 'fail' ) {
+	if ($count) {
+		print $cape_utils->fail( where => $where ) . "\n";
+	}
+	else {
+		print $cape_utils->fail( where => $where );
+	}
+	exit 0;
 }
