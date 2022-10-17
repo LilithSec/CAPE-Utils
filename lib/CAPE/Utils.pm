@@ -124,19 +124,19 @@ sub fail {
 		die '$opts{where},"' . $opts{where} . '", contains a ";"';
 	}
 
-	if (!defined($opts{where}) && ! $self->{config}->{_}->{fail_all}) {
+	if ( !defined( $opts{where} ) && !$self->{config}->{_}->{fail_all} ) {
 		die "fail_all is disabled and nothing specified for where";
 	}
 
-	my $dbh= $self->connect;
+	my $dbh = $self->connect;
 
-	my $statement="UPDATE tasks SET status = 'failed_processing' WHERE status = 'pending'";
+	my $statement = "UPDATE tasks SET status = 'failed_processing' WHERE status = 'pending'";
 
-	if (defined($opts{where})) {
-		$statement=$statement.' AND '.$opts{where};
+	if ( defined( $opts{where} ) ) {
+		$statement = $statement . ' AND ' . $opts{where};
 	}
 
-	$statement=$statement.';';
+	$statement = $statement . ';';
 
 	my $sth = $dbh->prepare($statement);
 
@@ -165,7 +165,7 @@ sub get_pending_count {
 
 	my $dbh = $self->connect;
 
-	my $statement="select * from tasks where status = 'pending'";
+	my $statement = "select * from tasks where status = 'pending'";
 	if ( defined( $opts{where} ) ) {
 		$statement = $statement . ' AND ' . $opts{where};
 	}
@@ -353,7 +353,7 @@ sub get_running_count {
 
 	my $dbh = $self->connect;
 
-	my $statement="select * from tasks where status = 'pending'";
+	my $statement = "select * from tasks where status = 'pending'";
 	if ( defined( $opts{where} ) ) {
 		$statement = $statement . ' AND ' . $opts{where};
 	}
@@ -454,6 +454,158 @@ sub get_running_table {
 	$tb->add_rows( \@td );
 
 	return $tb->draw;
+}
+
+=head2 search
+
+Set a pending tasks to failed.
+
+=cut
+
+sub search {
+	my ( $self, %opts ) = @_;
+
+	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	}
+
+	#
+	# make sure all the set variables are not dangerous or potentially dangerous
+	#
+
+	if ( !defined( $opts{where} ) && !$self->{config}->{_}->{fail_all} ) {
+		die "fail_all is disabled and nothing specified for where";
+	}
+
+	my @to_check = (
+		'id',            'target',                 'route',            'machine',
+		'timeout',       'priority',               'route',            'tags_tasks',
+		'options',       'clock',                  'added_on',         'started_on',
+		'completed_on',  'status',                 'dropped_files',    'running_processes',
+		'api_calls',     'domains',                'signatures_total', 'signatures_alert',
+		'files_written', 'registry_keys_modified', 'crash_issues',     'anti_issues',
+		'timedout',      'sample_id',              'machine_id',       'parent_id',
+		'tlp',           'category',               'package'
+	);
+
+	foreach my $var_to_check (@to_check) {
+		if ( defined( $opts{$var_to_check} ) && $opts{$var_to_check} =~ /[\\\']/ ) {
+			die( '"' . $opts{$var_to_check} . '" for "' . $var_to_check . '" matched /[\\\']/' );
+		}
+	}
+
+	#
+	# init the SQL statement
+	#
+
+	my $sql = "select * from tasks where id >= 0";
+
+	if ( defined( $opts{where} ) ) {
+		$sql = $sql . ' AND ' . $opts{where};
+	}
+
+	#
+	# add simple items
+	#
+
+	my @simple = ( 'timeout', 'memory', 'enforce_timeout', 'timedout' );
+
+	foreach my $item (@simple) {
+		if ( defined( $opts{$item} ) ) {
+			$sql = $sql . " and " . $item . " = '" . $opts{$item} . "'";
+		}
+	}
+
+	#
+	# add numeric items
+	#
+
+	my @numeric = (
+		'id',                'timeout',       'priority',               'dropped_files',
+		'running_processes', 'api_calls',     'domains',                'signatures_total',
+		'signatures_alert',  'files_written', 'registry_keys_modified', 'crash_issues',
+		'anti_issues',       'sample_id',     'machine_id'
+	);
+
+	foreach my $item (@numeric) {
+		if ( defined( $opts{$item} ) ) {
+
+			# remove and tabs or spaces
+			$opts{$item} =~ s/[\ \t]//g;
+			my @arg_split = split( /\,/, $opts{$item} );
+
+			# process each item
+			foreach my $arg (@arg_split) {
+
+				# match the start of the item
+				if ( $arg =~ /^[0-9]+$/ ) {
+					$sql = $sql . " and " . $item . " = '" . $arg . "'";
+				}
+				elsif ( $arg =~ /^\<\=[0-9]+$/ ) {
+					$arg =~ s/^\<\=//;
+					$sql = $sql . " and " . $item . " <= '" . $arg . "'";
+				}
+				elsif ( $arg =~ /^\<[0-9]+$/ ) {
+					$arg =~ s/^\<//;
+					$sql = $sql . " and " . $item . " < '" . $arg . "'";
+				}
+				elsif ( $arg =~ /^\>\=[0-9]+$/ ) {
+					$arg =~ s/^\>\=//;
+					$sql = $sql . " and " . $item . " >= '" . $arg . "'";
+				}
+				elsif ( $arg =~ /^\>[0-9]+$/ ) {
+					$arg =~ s/^\>\=//;
+					$sql = $sql . " and " . $item . " > '" . $arg . "'";
+				}
+				elsif ( $arg =~ /^\![0-9]+$/ ) {
+					$arg =~ s/^\!//;
+					$sql = $sql . " and " . $item . " != '" . $arg . "'";
+				}
+				elsif ( $arg =~ /^$/ ) {
+
+					# only exists for skipping when some one has passes something starting
+					# with a ,, ending with a,, or with ,, in it.
+				}
+				else {
+					# if we get here, it means we don't have a valid use case for what ever was passed and should error
+					die( '"' . $arg . '" does not appear to be a valid item for a numeric search for the ' . $item );
+				}
+			}
+		}
+	}
+
+	#
+	# handle string items
+	#
+
+	my @strings
+		= ( 'target', 'category', 'custom', 'machine', 'package', 'route', 'tags_tasks', 'options', 'platform', );
+
+	foreach my $item (@strings) {
+		if ( defined( $opts{$item} ) ) {
+			if ( defined( $opts{ $item . '_like' } ) && $opts{ $item . '_like' } ) {
+				$sql = $sql . " and host like '" . $opts{$item} . "'";
+			}
+			else {
+				$sql = $sql . " and " . $item . " = '" . $opts{$item} . "'";
+			}
+		}
+	}
+
+	#
+	# finalize it and search
+	#
+
+	$sql = $sql . ';';
+
+	my $dbh = $self->connect;
+	my $sth = $dbh->prepare($sql);
+
+	$sth->execute;
+
+	my $rows;
+
+	return $rows;
 }
 
 =head2 submit
