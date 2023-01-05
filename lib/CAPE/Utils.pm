@@ -113,7 +113,15 @@ sub connect {
 
 =head2 fail
 
-Set a pending tasks to failed.
+Set one or more pending tasks to failed.
+
+The following options are also supported.
+
+    - where :: Additional SQL where statements to add. Something must
+               be specified for this, unless fail_all in the config is
+               true. Otherwise this method will die.
+
+    my $rows=$cape_util->fail( pending_columns=>'id,package');
 
 =cut
 
@@ -152,7 +160,9 @@ sub fail {
 
 =head2 get_pending_count
 
-Get pending count of 
+Get pending count pending tasks.
+
+    my $count=$cape_util->get_pending_count;
 
 =cut
 
@@ -306,8 +316,13 @@ sub get_pending_table {
 
 =head2 get_running
 
-Returns a arrah ref of hash refs of rows from the tasks table where the
+Returns a array ref of hash refs of rows from the tasks table where the
 status is set to pending.
+
+    use Data::Dumper;
+
+    my $running=$cape_utils->get_running;
+    print Dumper($running);
 
 =cut
 
@@ -341,6 +356,10 @@ sub get_running {
 }
 
 =head2 get_running_count
+
+Get pending count running tasks.
+
+    my $count=$cape_util->get_running_count;
 
 =cut
 
@@ -456,9 +475,266 @@ sub get_running_table {
 	return $tb->draw;
 }
 
+=head2 mangle
+
+Manges the specified report JSON. Requires either file or string
+to be defined.
+
+    - file :: The specified file to operate on.
+      - Default :: undef
+
+    - string :: If specified, this is parsed as JSON.
+      - Default :: undef
+
+    - rules :: A array ref of rules to process.
+      - Default :: undef
+
+=head2 Mangle Rules
+
+First it figures out how to match the items based on the keys configured
+for that rule. If all specified matches are true, then it performs
+the specified action.
+
+The ones used for matching are as below.
+
+=over 4
+
+=item package
+
+A regexp for matching $json->{info}{package}.
+
+    package=>'^pdf$'
+
+=item sig_name
+
+Matches the hash value 'name' from a signature.
+
+    sig_name=>'^dead_connect$'
+
+=item data_count
+
+Number of entries in the data array for a sig. 0 means it is undef
+or non are present.
+
+    data_count=20
+
+=item jsonpath
+
+Uses L<JSON::Path> to grab a path and then process it.
+
+For if a single value is returned(and not a hash or array),
+the matching is evaluated as normal.
+
+If the value returned is a array, each item in the array
+will be evaulauted. The path_match variable is used for
+controlling it expects the value to all return true, any
+to return true, or none of them to return true. To match
+both need to be true. If that is not clear, see the
+tables below for a few examples.
+
+    All, All
+    | Paths | Values | Result |
+    |-------|--------|--------|
+    | 0     | 0      | 0      |
+    | 1     | 0      | 0      |
+    | 0     | 1      | 0      |
+    | 1     | 1      | 1      |
+
+    Any, All
+    | Paths | Values | Result |
+    |-------|--------|--------|
+    | 00    | 0      | 0      |
+    | 01    | 0      | 0      |
+    | 01    | 1      | 1      |
+    | 11    | 0      | 0      |
+    | 11    | 1      | 1      |
+
+    All, Any
+    | Paths | Values | Result |
+    |-------|--------|--------|
+    | 0     | 00     | 0      |
+    | 01    | 0      | 0      |
+    | 01    | 1      | 1      |
+    | 11    | 0      | 0      |
+    | 11    | 1      | 1      |
+
+    Any, Any
+    | Paths | Values | Result |
+    |-------|--------|--------|
+    | 00    | 00     | 0      |
+    | 01    | 00     | 0      |
+    | 11    | 00     | 0      |
+    | 00    | 01     | 0      |
+    | 00    | 11     | 0      |
+    | 01    | 01     | 1      |
+    | 11    | 01     | 1      |
+    | 01    | 11     | 1      |
+    | 11    | 11     | 1      |
+
+If the value returned is a array, then this matching rules
+is considered false and no further processing is done.
+
+If values is not a array, it will be turned into one
+while processing. So "value=>'^pdf$'" would become
+"value=>['^pdf$']".
+
+    jsonpath=>{
+        path=>'.info.package',
+        type=>'regex',
+        value=>'^pdf$',
+        value_match=>'all'
+        path_match=>'all'
+    }
+
+If 'sub_path' is specified, first the path will be handled
+and then sub_path will be used against what is found.
+
+    jsonpath=>{
+        path=>'.info',
+        sub_path=>'.package',
+        type=>'regex',
+        value=>'^pdf$',
+        value_match=>'all'
+        path_match=>'all'
+    }
+
+The following types are supported. The default
+is 'eq'.
+
+    - regex :: Value will be evaluated as a regex.
+
+    - eq :: String equal.
+
+    - !eq :: String not equal.
+
+    - = :: Numeric equal.
+
+    - != :: Numeric not equal.
+
+    - > :: Numeric greater than.
+
+    - >= :: Numeric greater or equal to.
+
+    - < :: Numeric less than.
+
+    - <= :: Numeric less than or equal to.
+
+    - subnet :: Check if a subnet matches.
+
+The following matches are supported for both path
+and value matching. The default for both is 'all'.
+
+    - all :: All must match.
+
+    - any :: Any may match.
+
+    - none :: All must not match.
+
+=item jsonpath_sig
+
+Like jsonpath, but relative to the the sig.
+
+A single return is expected.
+
+    jsonpath_sig=>{
+        path=>'.name',
+        type=>'regex',
+        value=>'^dead_connect$'
+    }
+
+=back
+
+Actions are specified via the key 'action'.
+
+=over 4
+
+=item remove
+
+Drops that sig.
+
+=item remove_all
+
+Drops all sigs.
+
+=item set
+
+Changes severity, weight, and/or confidence of a sig.
+
+    action=>'set',
+    action_data=>{ confidence=>50 },
+
+=back
+
+=cut
+
+sub mangle{
+
+}
+
 =head2 search
 
-Set a pending tasks to failed.
+Searches the list of tasks. By default everything will be return ed.
+
+    - where :: Additional SQL where statements to use for searching.
+               May not contain a ';'.
+      - Default :: undef
+
+Addtionally there are also helpers for searching. These may not contain either a /\'/
+or a /\\/. They will be joined via and.
+
+The following are handled as a simple equality.
+
+    - timeout
+    - memory
+    - enforce_timeout
+    - timedout
+
+The following are numeric. Each one may accept multiple
+comma sperated values. The equalities =, >,>=, <=, and !
+are supported. If no equality is specified, then = is used.
+
+    - id
+    - timeout
+    - priority
+    - dropped_files
+    - running_processes
+    - api_calls
+    - domains
+    - signatures_total
+    - signatures_alert
+    - files_written
+    - registry_keys_modified
+    - crash_issues
+    - anti_issues
+    - sample_id
+    - machine_id
+
+    # will result in id >= 3 and id < 44
+    id => '>=3,<44'
+
+    # either of these will be id = 4
+    id => '=4'
+    id => '4'
+
+The following are string items. As is, they
+are evaluated as a simple equality. If ending with
+ending in '_like', they will be evaluated as a like.
+
+    - target
+    - category
+    - custom
+    - machine
+    - package
+    - route
+    - tags_tasks
+    - options
+    - platform
+
+    # becomes... target = 'foo'
+    target => 'foo'
+
+    # becomes... target like 'foo%'
+    target_like => 'foo%'
 
 =cut
 
@@ -472,10 +748,6 @@ sub search {
 	#
 	# make sure all the set variables are not dangerous or potentially dangerous
 	#
-
-	if ( !defined( $opts{where} ) && !$self->{config}->{_}->{fail_all} ) {
-		die "fail_all is disabled and nothing specified for where";
-	}
 
 	my @to_check = (
 		'id',            'target',                 'route',            'machine',
@@ -540,6 +812,10 @@ sub search {
 				# match the start of the item
 				if ( $arg =~ /^[0-9]+$/ ) {
 					$sql = $sql . " and " . $item . " = '" . $arg . "'";
+				}
+				elsif ( $arg =~ /^\=[0-9]+$/ ) {
+					$arg =~ s/^\=//;
+					$sql = $sql . " and " . $item . " <= '" . $arg . "'";
 				}
 				elsif ( $arg =~ /^\<\=[0-9]+$/ ) {
 					$arg =~ s/^\<\=//;
@@ -740,7 +1016,10 @@ sub submit {
 
 =head2 timestamp
 
-Creates a timestamp to be used with submit.
+Creates a timestamp to be used with utils/submit. localtime
+is used to get the current time.
+
+    print $cape_util->timestamp."\n";
 
 =cut
 
