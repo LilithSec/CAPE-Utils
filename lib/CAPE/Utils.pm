@@ -668,6 +668,11 @@ Changes severity, weight, and/or confidence of a sig.
 =cut
 
 sub mangle{
+	my ( $self, %opts ) = @_;
+
+	if (defined($opts{file}) && defined($opts{string})) {
+		die('Both file and string are defined. Must be one or the other.');
+	}
 
 }
 

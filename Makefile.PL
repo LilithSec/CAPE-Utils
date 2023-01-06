@@ -4,13 +4,15 @@ use warnings;
 use ExtUtils::MakeMaker;
 
 my %WriteMakefileArgs = (
-	NAME               => 'CAPE::Utils',
-	AUTHOR             => q{Zane C. Bowers-Hadley <vvelox@vvelox.net>},
-	VERSION_FROM       => 'lib/CAPE/Utils.pm',
-	ABSTRACT_FROM      => 'lib/CAPE/Utils.pm',
-	LICENSE            => 'artistic_2',
-	MIN_PERL_VERSION   => '5.006',
-	INST_SCRIPT        => 'bin',
+	NAME             => 'CAPE::Utils',
+	AUTHOR           => q{Zane C. Bowers-Hadley <vvelox@vvelox.net>},
+	VERSION_FROM     => 'lib/CAPE/Utils.pm',
+	ABSTRACT_FROM    => 'lib/CAPE/Utils.pm',
+	LICENSE          => 'artistic_2',
+	MIN_PERL_VERSION => '5.006',
+	INST_SCRIPT      => 'bin',
+	EXE_FILES        => ['src_bin/lilith'],
+
 	CONFIGURE_REQUIRES => {
 		'ExtUtils::MakeMaker' => '0',
 	},
@@ -25,6 +27,7 @@ my %WriteMakefileArgs = (
 		'Config::Tiny'    => '2.28',
 		'Hash::Merge'     => '0',
 		'Text::ANSITable' => '0.608',
+		'YAML'            => 0,
 	},
 	dist       => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
 	clean      => { FILES    => 'CAPE-Utils-*' },
