@@ -12,6 +12,11 @@ use Hash::Merge;
 use IPC::Cmd qw[ run ];
 use Text::ANSITable;
 use File::Spec;
+use Data::Dumper;
+use JSON::Path;
+
+$Data::Dumper::Sortkeys = 1;
+$Data::Dumper::Terse    = 1;
 
 =head1 NAME
 
@@ -475,206 +480,222 @@ sub get_running_table {
 	return $tb->draw;
 }
 
-=head2 mangle
-
-Manges the specified report JSON. Requires either file or string
-to be defined.
-
-    - file :: The specified file to operate on.
-      - Default :: undef
-
-    - string :: If specified, this is parsed as JSON.
-      - Default :: undef
-
-    - rules :: A array ref of rules to process.
-      - Default :: undef
-
-=head2 Mangle Rules
-
-First it figures out how to match the items based on the keys configured
-for that rule. If all specified matches are true, then it performs
-the specified action.
-
-The ones used for matching are as below.
-
-=over 4
-
-=item package
-
-A regexp for matching $json->{info}{package}.
-
-    package=>'^pdf$'
-
-=item sig_name
-
-Matches the hash value 'name' from a signature.
-
-    sig_name=>'^dead_connect$'
-
-=item data_count
-
-Number of entries in the data array for a sig. 0 means it is undef
-or non are present.
-
-    data_count=20
-
-=item jsonpath
-
-Uses L<JSON::Path> to grab a path and then process it.
-
-For if a single value is returned(and not a hash or array),
-the matching is evaluated as normal.
-
-If the value returned is a array, each item in the array
-will be evaulauted. The path_match variable is used for
-controlling it expects the value to all return true, any
-to return true, or none of them to return true. To match
-both need to be true. If that is not clear, see the
-tables below for a few examples.
-
-    All, All
-    | Paths | Values | Result |
-    |-------|--------|--------|
-    | 0     | 0      | 0      |
-    | 1     | 0      | 0      |
-    | 0     | 1      | 0      |
-    | 1     | 1      | 1      |
-
-    Any, All
-    | Paths | Values | Result |
-    |-------|--------|--------|
-    | 00    | 0      | 0      |
-    | 01    | 0      | 0      |
-    | 01    | 1      | 1      |
-    | 11    | 0      | 0      |
-    | 11    | 1      | 1      |
-
-    All, Any
-    | Paths | Values | Result |
-    |-------|--------|--------|
-    | 0     | 00     | 0      |
-    | 01    | 0      | 0      |
-    | 01    | 1      | 1      |
-    | 11    | 0      | 0      |
-    | 11    | 1      | 1      |
-
-    Any, Any
-    | Paths | Values | Result |
-    |-------|--------|--------|
-    | 00    | 00     | 0      |
-    | 01    | 00     | 0      |
-    | 11    | 00     | 0      |
-    | 00    | 01     | 0      |
-    | 00    | 11     | 0      |
-    | 01    | 01     | 1      |
-    | 11    | 01     | 1      |
-    | 01    | 11     | 1      |
-    | 11    | 11     | 1      |
-
-If the value returned is a array, then this matching rules
-is considered false and no further processing is done.
-
-If values is not a array, it will be turned into one
-while processing. So "value=>'^pdf$'" would become
-"value=>['^pdf$']".
-
-    jsonpath=>{
-        path=>'.info.package',
-        type=>'regex',
-        value=>'^pdf$',
-        value_match=>'all'
-        path_match=>'all'
-    }
-
-If 'sub_path' is specified, first the path will be handled
-and then sub_path will be used against what is found.
-
-    jsonpath=>{
-        path=>'.info',
-        sub_path=>'.package',
-        type=>'regex',
-        value=>'^pdf$',
-        value_match=>'all'
-        path_match=>'all'
-    }
-
-The following types are supported. The default
-is 'eq'.
-
-    - regex :: Value will be evaluated as a regex.
-
-    - eq :: String equal.
-
-    - !eq :: String not equal.
-
-    - = :: Numeric equal.
-
-    - != :: Numeric not equal.
-
-    - > :: Numeric greater than.
-
-    - >= :: Numeric greater or equal to.
-
-    - < :: Numeric less than.
-
-    - <= :: Numeric less than or equal to.
-
-    - subnet :: Check if a subnet matches.
-
-The following matches are supported for both path
-and value matching. The default for both is 'all'.
-
-    - all :: All must match.
-
-    - any :: Any may match.
-
-    - none :: All must not match.
-
-=item jsonpath_sig
-
-Like jsonpath, but relative to the the sig.
-
-A single return is expected.
-
-    jsonpath_sig=>{
-        path=>'.name',
-        type=>'regex',
-        value=>'^dead_connect$'
-    }
-
-=back
-
-Actions are specified via the key 'action'.
-
-=over 4
-
-=item remove
-
-Drops that sig.
-
-=item remove_all
-
-Drops all sigs.
-
-=item set
-
-Changes severity, weight, and/or confidence of a sig.
-
-    action=>'set',
-    action_data=>{ confidence=>50 },
-
-=back
-
-=cut
-
-sub mangle{
-	my ( $self, %opts ) = @_;
-
-	if (defined($opts{file}) && defined($opts{string})) {
-		die('Both file and string are defined. Must be one or the other.');
-	}
-
-}
+# =head2 mangle
+
+# Manges the specified report JSON. Requires either file or string
+# to be defined.
+
+#     - file :: The specified file to operate on.
+#       - Default :: undef
+
+#     - string :: If specified, this is parsed as JSON.
+#       - Default :: undef
+
+#     - rules :: A array ref of rules to process.
+#       - Default :: undef
+
+# =cut
+
+# sub mangle {
+# 	my ( $self, %opts ) = @_;
+
+# 	# make sure we have a file or string specified
+# 	if ( defined( $opts{file} ) && defined( $opts{string} ) ) {
+# 		die('Both file and string are defined. Must be one or the other.');
+# 	}
+
+# 	# check to see if we have a rules array and see if it is sane
+# 	if ( !defined( $opts{rules} ) ) {
+# 		die('rules is not defined');
+# 	}
+# 	elsif ( ref( $opts{rules} ) ne 'ARRAY' ) {
+# 		die( 'rules is not a array, but a ' . ref( $opts{rules} ) );
+# 	}
+# 	else {
+# 		my $int = 0;
+# 		while ( defined( $opts{rules}[$int] ) ) {
+
+# 			# make sure the specified rule is a hash
+# 			if ( ref( $opts{rules}[$int] ) ne 'HASH' ) {
+# 				die(      '$rules['
+# 						. $int
+# 						. '] is not a hash, but a '
+# 						. ref( $opts{rules}[$int] ) . '... '
+# 						. Dumper( $opts{rules}[$int] ) );
+# 			}
+
+# 			# make sure we have a action
+# 			if ( !defined( $opts{rules}[$int]{action} ) ) {
+# 				die( '$rules[' . $int . '] lacks a action key... ' . Dumper( $opts{rules}[$int] ) );
+# 			}
+
+# 			# make sure the action is valid
+# 			if (   $opts{rules}[$int]{action} ne 'remove'
+# 				&& $opts{rules}[$int]{action} ne 'remove_all'
+# 				&& $opts{rules}[$int]{action} ne 'set' )
+# 			{
+# 				die(      '$rules['
+# 						. $int
+# 						. ']{action}="'
+# 						. $opts{rules}[$int]{action}
+# 						. '" is not a known action...'
+# 						. Dumper( $opts{rules}[$int] ) );
+# 			}
+
+# 			# if action is set, make sure we have set
+# 			if ( $opts{rules}[$int]{action} eq 'set' && !defined( $opts{rules}[$int]{set} ) ) {
+# 				die(      '$rules['
+# 						. $int
+# 						. ']{action} is set to set, but no set key is defined'
+# 						. Dumper( $opts{rules}[$int] ) );
+# 			}
+
+# 			# if action is set, make sure set has some of the expected keys
+# 			if (
+# 				$opts{rules}[$int]{action} eq 'set'
+# 				&& (   !defined( $opts{rules}[$int]{set}{'confidence'} )
+# 					|| !defined( $opts{rules}[$int]{set}{'severity'} )
+# 					|| !defined( $opts{rules}[$int]{set}{'weight'} ) )
+# 				)
+# 			{
+# 				die(      '$rules['
+# 						. $int
+# 						. ']{action} is set to set, the set hash is lacking any confidence, severity, or weight'
+# 						. Dumper( $opts{rules}[$int] ) );
+# 			}
+
+# 			# make sure we have atleast one one known matching type
+# 			if (
+# 				!defined( $opts{rules}[$int]{'package'})
+# 				|| !defined( $opts{rules}[$int]{'sig_name'} )
+# 				|| !defined( $opts{rules}[$int]{'data_count'} )
+# 				|| !defined( $opts{rules}[$int]{'jsonpath'} )
+# 				|| !defined( $opts{rules}[$int]{'jsonpath_sig'} )
+# 				)
+# 			{
+# 				die(      '$rules['
+# 						. $int
+# 						. '] lacks anything to use for matching'
+# 						. Dumper( $opts{rules}[$int] ) );
+# 			}
+
+# 			$int++;
+# 		}
+# 	}
+
+# 	# if we have a file, read it in
+# 	if ( defined( $opts{file} ) ) {
+# 		if ( !-f $opts{file} ) {
+# 			die( '"' . $opts{file} . '" is not a file' );
+# 		}
+# 		elsif ( !-r $opts{file} ) {
+# 			die( '"' . $opts{file} . '" is not readable' );
+# 		}
+
+# 		# read it into $opts{string} so it is in the same variable regardless
+# 		$opts{string} = read_file( $opts{file} );
+# 	}
+
+# 	# decode the json and check to see if we have a few basic exepected keys
+# 	my $json = decode_json( $opts{string} );
+# 	if (   defined( $json->{info}{package} )
+# 		|| !defined( $json->{signatures} )
+# 		|| !defined( $json->{CAPE} ) )
+# 	{
+# 		die('The JSON does not appear to be a CAPE report');
+# 	}
+
+# 	# remove this to save a bit of space while we are processing it
+# 	delete($opts{string});
+
+# 	# will be used as key name for 
+# 	my $delete_string=rand.rand.rand.rand;
+
+# 	# start processing each sig
+# 	my $sigs_int=0;
+# 	while (defined( $json->{signatures}[$sigs_int] )) {
+# 		my $rules_int=0;
+
+# 		my @matched;
+
+# 		my @new_sigs;
+
+# 		while ( defined( $opts{rules}[$rules_int] ) ) {
+# 			my @truths;
+
+# 			# runs the package match check
+# 			if (defined $opts{rules}[$rules_int]{package}  ) {
+# 				my $regex=$opts{rules}[$rules_int]{package};
+# 				if ($json->{info}{package} =~ /$regex/) {
+# 					push(@truths, 1);
+# 				}else {
+# 					push(@truths, 0);
+# 				}
+# 			}
+
+# 			# runs the sig name match check
+# 			if (defined $opts{rules}[$rules_int]{sig_name}  ) {
+# 				my $regex=$opts{rules}[$rules_int]{sig_name};
+# 				if ($json->{signatures}[$sigs_int]{name} =~ /$regex/) {
+# 					push(@truths, 1);
+# 				}else {
+# 					push(@truths, 0);
+# 				}
+# 			}
+
+# 			# runs the data count match check
+# 			if (defined $opts{rules}[$rules_int]{data_count}  ) {
+# 				if($opts{rules}[$rules_int]{data_count} =~ /^\![0-9]+$/) {
+# 					if ( $opts{rules}[$rules_int]{data_count} != $#{ $json->{signatures}[$sigs_int]{data} } ){
+# 						push(@truths, 1);
+# 					}else {
+# 						push(@truths, 0);
+# 					}
+# 				}elsif($opts{rules}[$rules_int]{data_count} =~ /^\>\=[0-9]+$/) {
+# 					if ( $opts{rules}[$rules_int]{data_count} >= $#{ $json->{signatures}[$sigs_int]{data} } ){
+# 						push(@truths, 1);
+# 					}else {
+# 						push(@truths, 0);
+# 					}
+# 				}elsif($opts{rules}[$rules_int]{data_count} =~ /^\>[0-9]+$/) {
+# 					if ( $opts{rules}[$rules_int]{data_count} > $#{ $json->{signatures}[$sigs_int]{data} } ){
+# 						push(@truths, 1);
+# 					}else {
+# 						push(@truths, 0);
+# 					}
+# 				}elsif($opts{rules}[$rules_int]{data_count} =~ /^\<\=[0-9]+$/) {
+# 					if ( $opts{rules}[$rules_int]{data_count} <= $#{ $json->{signatures}[$sigs_int]{data} } ){
+# 						push(@truths, 1);
+# 					}else {
+# 						push(@truths, 0);
+# 					}
+# 				}elsif($opts{rules}[$rules_int]{data_count} =~ /^\<[0-9]+$/) {
+# 					if ( $opts{rules}[$rules_int]{data_count} < $#{ $json->{signatures}[$sigs_int]{data} } ){
+# 						push(@truths, 1);
+# 					}else {
+# 						push(@truths, 0);
+# 					}
+# 				}elsif($opts{rules}[$rules_int]{data_count} =~ /^[0-9]+$/) {
+# 					if ( $opts{rules}[$rules_int]{data_count} = $#{ $json->{signatures}[$sigs_int]{data} } ){
+# 						push(@truths, 1);
+# 					}else {
+# 						push(@truths, 0);
+# 					}
+# 				}
+# 			}
+
+# 			# handles the json path check
+# 			if (defined( $opts{rules}[$rules_int]{jsonpath} ) ) {
+				
+# 			}
+
+# 			$rules_int++;
+# 		}
+
+
+# 		$sigs_int++;
+# 	}
+# }
 
 =head2 search
 
@@ -1068,6 +1089,198 @@ sub shuffle {
 	}
 	return $array;
 }
+
+# =head1 Mangle Rules
+
+# First it figures out how to match the items based on the keys configured
+# for that rule. If all specified matches are true, then it performs
+# the specified action.
+
+# If the package used is pdf and the signature in question is dead connect, drop
+# that signature and recompute.
+
+#     ruless=>[
+#             {
+#                 package=>'^pdf$'
+#                 sig_name=>'^dead_connect$'
+#                 action=>'remove',
+#             }
+#         ],
+
+# =head2 Matching
+
+# The ones used for matching are as below.
+
+# =over 4
+
+# =item package
+
+# A regexp for matching $json->{info}{package}.
+
+#     package=>'^pdf$'
+
+# =item sig_name
+
+# Matches the hash value 'name' from a signature.
+
+#     sig_name=>'^dead_connect$'
+
+# =item data_count
+
+# Number of entries in the data array for a sig. 0 means it is undef
+# or non are present. May start with <, <=, >, >=, or ! for numeric
+# equality.
+
+#     data_count=20
+
+# =item jsonpath
+
+# Uses L<JSON::Path> to grab a path and then process it.
+
+# For if a single value is returned(and not a hash or array),
+# the matching is evaluated as normal.
+
+# If the value returned is a array, each item in the array
+# will be evaulauted. The path_match variable is used for
+# controlling it expects the value to all return true, any
+# to return true, or none of them to return true. To match
+# both need to be true. If that is not clear, see the
+# tables below for a few examples.
+
+#     All, All
+#     | Paths | Values | Result |
+#     |-------|--------|--------|
+#     | 0     | 0      | 0      |
+#     | 1     | 0      | 0      |
+#     | 0     | 1      | 0      |
+#     | 1     | 1      | 1      |
+
+#     Any, All
+#     | Paths | Values | Result |
+#     |-------|--------|--------|
+#     | 00    | 0      | 0      |
+#     | 01    | 0      | 0      |
+#     | 01    | 1      | 1      |
+#     | 11    | 0      | 0      |
+#     | 11    | 1      | 1      |
+
+#     All, Any
+#     | Paths | Values | Result |
+#     |-------|--------|--------|
+#     | 0     | 00     | 0      |
+#     | 01    | 0      | 0      |
+#     | 01    | 1      | 1      |
+#     | 11    | 0      | 0      |
+#     | 11    | 1      | 1      |
+
+#     Any, Any
+#     | Paths | Values | Result |
+#     |-------|--------|--------|
+#     | 00    | 00     | 0      |
+#     | 01    | 00     | 0      |
+#     | 11    | 00     | 0      |
+#     | 00    | 01     | 0      |
+#     | 00    | 11     | 0      |
+#     | 01    | 01     | 1      |
+#     | 11    | 01     | 1      |
+#     | 01    | 11     | 1      |
+#     | 11    | 11     | 1      |
+
+# If the value returned is a array, then this matching rules
+# is considered false and no further processing is done.
+
+# If values is not a array, it will be turned into one
+# while processing. So "value=>'^pdf$'" would become
+# "value=>['^pdf$']".
+
+#     jsonpath=>{
+#         path=>'.info.package',
+#         type=>'regex',
+#         value=>'^pdf$',
+#         value_match=>'all'
+#         path_match=>'all'
+#     }
+
+# If 'sub_path' is specified, first the path will be handled
+# and then sub_path will be used against what is found.
+
+#     jsonpath=>{
+#         path=>'.info',
+#         sub_path=>'.package',
+#         type=>'regex',
+#         value=>'^pdf$',
+#         value_match=>'all'
+#         path_match=>'all'
+#     }
+
+# The following types are supported. The default
+# is 'eq'.
+
+#     - regex :: Value will be evaluated as a regex.
+
+#     - eq :: String equal.
+
+#     - !eq :: String not equal.
+
+#     - = :: Numeric equal.
+
+#     - != :: Numeric not equal.
+
+#     - > :: Numeric greater than.
+
+#     - >= :: Numeric greater or equal to.
+
+#     - < :: Numeric less than.
+
+#     - <= :: Numeric less than or equal to.
+
+#     - subnet :: Check if a subnet matches.
+
+# The following matches are supported for both path
+# and value matching. The default for both is 'all'.
+
+#     - all :: All must match.
+
+#     - any :: Any may match.
+
+#     - none :: All must not match.
+
+# =item jsonpath_sig
+
+# Like jsonpath, but relative to the the sig.
+
+# A single return is expected.
+
+#     jsonpath_sig=>{
+#         path=>'.name',
+#         type=>'regex',
+#         value=>'^dead_connect$'
+#     }
+
+# =back
+
+# =head2 Actions
+
+# Actions are specified via the key 'action'.
+
+# =over 4
+
+# =item remove
+
+# Drops that sig.
+
+# =item remove_all
+
+# Drops all sigs.
+
+# =item set
+
+# Changes severity, weight, and/or confidence of a sig.
+
+#     action=>'set',
+#     action_data=>{ confidence=>50 },
+
+# =back
 
 =head1 AUTHOR
 
