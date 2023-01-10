@@ -12,11 +12,11 @@ use Hash::Merge;
 use IPC::Cmd qw[ run ];
 use Text::ANSITable;
 use File::Spec;
-use Data::Dumper;
-use JSON::Path;
+#use Data::Dumper;
+#use JSON::Path;
 
-$Data::Dumper::Sortkeys = 1;
-$Data::Dumper::Terse    = 1;
+#$Data::Dumper::Sortkeys = 1;
+#$Data::Dumper::Terse    = 1;
 
 =head1 NAME
 
