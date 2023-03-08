@@ -48,6 +48,7 @@ Action: submit
 
 --enforce_timeout      Force it to run the entire period.
 
+--unique               Only submit unique items.
 
 
 Action: running
@@ -93,6 +94,7 @@ my $tags;
 my $platform;
 my $enforce_timeout;
 my $custom;
+my $unique;
 Getopt::Long::Configure('no_ignore_case');
 Getopt::Long::Configure('bundling');
 GetOptions(
@@ -115,6 +117,7 @@ GetOptions(
 	'et'              => \$enforce_timeout,
 	'enforce_timeout' => \$enforce_timeout,
 	'custom'          => \$custom,
+	'unique'          => \$unique,
 );
 
 if ($version) {
@@ -129,7 +132,7 @@ if ($help) {
 
 my $cape_utils = CAPE::Utils->new($ini_file);
 
-if (! defined($action)) {
+if ( !defined($action) ) {
 	print "No action specified via -a\n";
 	exit 1;
 }
@@ -165,7 +168,7 @@ if ( $action eq 'submit' ) {
 		random          => $random,
 		tags            => $tags,
 		enforce_timeout => $enforce_timeout,
-						);
+	);
 	exit 0;
 }
 

@@ -959,6 +959,9 @@ Submits files to CAPE.
     - enforce_timeout :: Force it to run the entire period.
       - Default :: 0
 
+    - unique :: Only submit it if it is unique.
+        - Unique :: 0
+
 =cut
 
 sub submit {
@@ -1011,11 +1014,15 @@ sub submit {
 		push( @to_run, '--clock', $opts{clock} );
 	}
 
+	if ( defined( $opts{unique} ) && $opts{unique}) {
+		push( @to_run, '--unique' );
+	}
+
 	if ( defined( $opts{timeout} ) ) {
 		push( @to_run, '--timeout', $opts{timeout} );
 	}
 
-	if ( $opts{enforce_timeout} ) {
+	if ( $opts{enforce_timeout} && $opts{enforce_timeout} ) {
 		push( @to_run, '--enforce-timeout' );
 	}
 
