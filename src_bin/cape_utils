@@ -168,6 +168,7 @@ if ( $action eq 'submit' ) {
 		random          => $random,
 		tags            => $tags,
 		enforce_timeout => $enforce_timeout,
+		unique          => $unique,
 	);
 	exit 0;
 }
