@@ -644,7 +644,7 @@ sub get_tasks_table {
 		}
 	}
 
-	my $rows = $self->get_running(
+	my $rows = $self->get_tasks(
 		where     => $opts{where},
 		order     => $opts{order},
 		limit     => $opts{limit},
