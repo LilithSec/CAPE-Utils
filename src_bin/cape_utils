@@ -98,6 +98,7 @@ my $unique;
 my $limit;
 my $order;
 my $direction;
+my $pretty;
 Getopt::Long::Configure('no_ignore_case');
 Getopt::Long::Configure('bundling');
 GetOptions(
@@ -124,6 +125,8 @@ GetOptions(
 	'limit=s'         => \$limit,
 	'order'           => \$order,
 	'direction'       => \$direction,
+	'json'            => \$use_json,
+	'pretty'          => \$pretty,
 );
 
 if ($version) {
@@ -148,7 +151,20 @@ if ( $action eq 'pending' ) {
 		print $cape_utils->get_pending_count( where => $where ) . "\n";
 	}
 	else {
-		print $cape_utils->get_pending_table( where => $where );
+		if ($use_json) {
+			my $items = $cape_utils->get_pending( where => $where );
+			my $j     = JSON->new;
+			if ($pretty) {
+				$j->pretty(1);
+			}
+			print $j->encode($items);
+			if ( !$pretty ) {
+				print "\n";
+			}
+		}
+		else {
+			print $cape_utils->get_pending_table( where => $where );
+		}
 	}
 	exit 0;
 }
@@ -158,7 +174,20 @@ if ( $action eq 'running' ) {
 		print $cape_utils->get_running_count( where => $where ) . "\n";
 	}
 	else {
-		print $cape_utils->get_running_table( where => $where );
+		if ($use_json) {
+			my $items = $cape_utils->get_running( where => $where );
+			my $j     = JSON->new;
+			if ($pretty) {
+				$j->pretty(1);
+			}
+			print $j->encode($items);
+			if ( !$pretty ) {
+				print "\n";
+			}
+		}
+		else {
+			print $cape_utils->get_running_table( where => $where );
+		}
 	}
 	exit 0;
 }
@@ -168,12 +197,31 @@ if ( $action eq 'tasks' ) {
 		print $cape_utils->get_tasks_count( where => $where ) . "\n";
 	}
 	else {
-		print $cape_utils->get_tasks_table(
-			limit     => $limit,
-			order     => $order,
-			where     => $where,
-			direction => $direction
-		);
+		if ($use_json) {
+			my $items = $cape_utils->get_tasks(
+				where => $where,
+
+				order     => $order,
+				where     => $where,
+				direction => $direction
+			);
+			my $j = JSON->new;
+			if ($pretty) {
+				$j->pretty(1);
+			}
+			print $j->encode($items);
+			if ( !$pretty ) {
+				print "\n";
+			}
+		}
+		else {
+			print $cape_utils->get_tasks_table(
+				limit     => $limit,
+				order     => $order,
+				where     => $where,
+				direction => $direction
+			);
+		}
 	}
 	exit 0;
 }

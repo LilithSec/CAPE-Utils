@@ -13,12 +13,6 @@ use IPC::Cmd qw[ run ];
 use Text::ANSITable;
 use File::Spec;
 
-#use Data::Dumper;
-#use JSON::Path;
-
-#$Data::Dumper::Sortkeys = 1;
-#$Data::Dumper::Terse    = 1;
-
 =head1 NAME
 
 CAPE::Utils - A helpful library for with CAPE.
@@ -171,6 +165,9 @@ sub fail {
 
 Get pending count pending tasks.
 
+    - where :: The where part of the SQL statement. May not contain a ';'.
+        - Default :: undef
+
     my $count=$cape_util->get_pending_count;
 
 =cut
@@ -204,6 +201,9 @@ sub get_pending_count {
 
 Returns a arrah ref of hash refs of rows from the tasks table where the
 status is set to
+
+    - where :: The where part of the SQL statement. May not contain a ';'.
+        - Default :: undef
 
     - where :: Additional SQL where statements to add.
 
@@ -251,9 +251,10 @@ may be overriden.
     pending_target_clip
     pending_time_clip
 
-The following optionsa are also supported.
+The following options are also supported.
 
-    - where :: Additional SQL where statements to add.
+    - where :: The where part of the SQL statement. May not contain a ';'.
+        - Default :: undef
 
     print $cape_util->get_pending_table( pending_columns=>'id,package');
 
@@ -328,6 +329,9 @@ sub get_pending_table {
 Returns a array ref of hash refs of rows from the tasks table where the
 status is set to pending.
 
+    - where :: The where part of the SQL statement. May not contain a ';'.
+        - Default :: undef
+
     use Data::Dumper;
 
     my $running=$cape_utils->get_running;
@@ -367,6 +371,9 @@ sub get_running {
 =head2 get_running_count
 
 Get pending count running tasks.
+
+    - where :: The where part of the SQL statement. May not contain a ';'.
+        - Default :: undef
 
     my $count=$cape_util->get_running_count;
 
