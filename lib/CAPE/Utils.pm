@@ -712,6 +712,7 @@ sub get_tasks_table {
 						|| $column eq 'signatures_finished_on'
 						|| $column eq 'reporting_started_on'
 						|| $column eq 'reporting_finished_on'
+						|| $column eq 'latest'
 					)
 					&& $opts{task_time_clip}
 					)
