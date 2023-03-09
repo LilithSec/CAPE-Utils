@@ -531,7 +531,9 @@ sub get_tasks {
 		$opts{limit} = '100';
 	}
 
-	$opts{direction} = lc( $opts{direction} );
+	if (defined($opts{direction})) {
+		$opts{direction} = lc( $opts{direction} );
+	}
 	if ( defined( $opts{direction} ) && ( $opts{direction} ne 'desc' || $opts{direction} ne 'asc' ) ) {
 		die '$opts{diirection},"' . $opts{direction} . '", does not match desc or asc';
 	}
