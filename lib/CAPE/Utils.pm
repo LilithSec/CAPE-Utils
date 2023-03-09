@@ -556,7 +556,7 @@ sub get_tasks {
 
 	my $sth;
 	eval {
-		$sth = $dbh->prepare($statement) or die $DBI::errstr;
+		$sth = $dbh->prepare($statement) or die $statement . "\n" . $DBI::errstr;
 		$sth->execute                    or die $DBI::errstr;
 	};
 	if ($@) {
