@@ -549,14 +549,14 @@ sub get_tasks {
 
 	my $statement = "select * from tasks";
 	if ( defined( $opts{where} ) ) {
-		$statement = $statement . ' ' . $opts{where};
+		$statement = $statement . ' where ' . $opts{where};
 	}
 
 	$statement = $statement . ' order by ' . $opts{order} . ' ' . $opts{direction} . ' limit ' . $opts{limit} . ';';
 
 	my $sth;
 	eval {
-		$sth = $dbh->prepare($statement) or die $statement . "\n" . $DBI::errstr;
+		$sth = $dbh->prepare($statement) or die $DBI::errstr;
 		$sth->execute                    or die $DBI::errstr;
 	};
 	if ($@) {
