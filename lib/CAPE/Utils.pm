@@ -71,7 +71,7 @@ sub new {
 			fail_all            => 0,
 			pending_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on',
 			running_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on,started_on,machine',
-			task_columns        => 'id,target,package,timeout,ET,route,options,clock,added_on,latest,machine',
+			task_columns        => 'id,target,package,timeout,ET,route,options,clock,added_on,latest,machine,status',
 			running_target_clip => 1,
 			running_time_clip   => 1,
 			pending_target_clip => 1,
@@ -531,7 +531,7 @@ sub get_tasks {
 		$opts{limit} = '100';
 	}
 
-	if (defined($opts{direction})) {
+	if ( defined( $opts{direction} ) ) {
 		$opts{direction} = lc( $opts{direction} );
 	}
 	if ( defined( $opts{direction} ) && ( $opts{direction} ne 'desc' || $opts{direction} ne 'asc' ) ) {
@@ -687,7 +687,7 @@ sub get_tasks_table {
 			if ( $column eq 'latest' ) {
 				$row->{latest} = '';
 				foreach my $item (@latest_check) {
-					if ( defined( $$row->{$item} ) && $row->{$item} ne '' ) {
+					if ( defined( $row->{$item} ) ) {
 						$row->{latest} = $row->{$item};
 					}
 				}
