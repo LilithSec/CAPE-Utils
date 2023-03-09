@@ -12,6 +12,7 @@ use Hash::Merge;
 use IPC::Cmd qw[ run ];
 use Text::ANSITable;
 use File::Spec;
+
 #use Data::Dumper;
 #use JSON::Path;
 
@@ -70,10 +71,13 @@ sub new {
 			fail_all            => 0,
 			pending_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on',
 			running_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on,started_on,machine',
+			task_columns        => 'id,target,package,timeout,ET,route,options,clock,added_on,latest,machine',
 			running_target_clip => 1,
 			running_time_clip   => 1,
 			pending_target_clip => 1,
 			pending_time_clip   => 1,
+			task_target_clip    => 1,
+			task_time_clip      => 1,
 			table_color         => 'Text::ANSITable::Standard::NoGradation',
 			table_border        => 'ASCII::None',
 			set_clock_to_now    => 1,
@@ -480,222 +484,255 @@ sub get_running_table {
 	return $tb->draw;
 }
 
-# =head2 mangle
+=head2 get_tasks
 
-# Manges the specified report JSON. Requires either file or string
-# to be defined.
+Returns a array ref of hash refs of rows from the tasks table where the
+status is set to pending.
 
-#     - file :: The specified file to operate on.
-#       - Default :: undef
+    - where :: The where part of the SQL statement. May not contain a ';'.
+        - Default :: undef
 
-#     - string :: If specified, this is parsed as JSON.
-#       - Default :: undef
+    - order :: Column to order by.
+        - Default :: id
 
-#     - rules :: A array ref of rules to process.
-#       - Default :: undef
+    - limit :: Number of items to return.
+        - Default :: 100
 
-# =cut
+    - direction :: Direction to order in.
+        - Default :: desc
 
-# sub mangle {
-# 	my ( $self, %opts ) = @_;
+    use Data::Dumper;
 
-# 	# make sure we have a file or string specified
-# 	if ( defined( $opts{file} ) && defined( $opts{string} ) ) {
-# 		die('Both file and string are defined. Must be one or the other.');
-# 	}
+A small example showing getting running, ordering by category, and limiting to 20.
 
-# 	# check to see if we have a rules array and see if it is sane
-# 	if ( !defined( $opts{rules} ) ) {
-# 		die('rules is not defined');
-# 	}
-# 	elsif ( ref( $opts{rules} ) ne 'ARRAY' ) {
-# 		die( 'rules is not a array, but a ' . ref( $opts{rules} ) );
-# 	}
-# 	else {
-# 		my $int = 0;
-# 		while ( defined( $opts{rules}[$int] ) ) {
+    my $tasks=$cape_utils->get_tasks(where=>"status = 'running'", limit=>20, order=>"category", direction=>'desc');
+    print Dumper($running);
 
-# 			# make sure the specified rule is a hash
-# 			if ( ref( $opts{rules}[$int] ) ne 'HASH' ) {
-# 				die(      '$rules['
-# 						. $int
-# 						. '] is not a hash, but a '
-# 						. ref( $opts{rules}[$int] ) . '... '
-# 						. Dumper( $opts{rules}[$int] ) );
-# 			}
+=cut
 
-# 			# make sure we have a action
-# 			if ( !defined( $opts{rules}[$int]{action} ) ) {
-# 				die( '$rules[' . $int . '] lacks a action key... ' . Dumper( $opts{rules}[$int] ) );
-# 			}
+sub get_tasks {
+	my ( $self, %opts ) = @_;
 
-# 			# make sure the action is valid
-# 			if (   $opts{rules}[$int]{action} ne 'remove'
-# 				&& $opts{rules}[$int]{action} ne 'remove_all'
-# 				&& $opts{rules}[$int]{action} ne 'set' )
-# 			{
-# 				die(      '$rules['
-# 						. $int
-# 						. ']{action}="'
-# 						. $opts{rules}[$int]{action}
-# 						. '" is not a known action...'
-# 						. Dumper( $opts{rules}[$int] ) );
-# 			}
+	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	}
 
-# 			# if action is set, make sure we have set
-# 			if ( $opts{rules}[$int]{action} eq 'set' && !defined( $opts{rules}[$int]{set} ) ) {
-# 				die(      '$rules['
-# 						. $int
-# 						. ']{action} is set to set, but no set key is defined'
-# 						. Dumper( $opts{rules}[$int] ) );
-# 			}
+	if ( defined( $opts{order} ) && $opts{order} !~ /^[0-9a-zA-Z]+$/ ) {
+		die '$opts{order},"' . $opts{order} . '", does not match /^[0-9a-zA-Z]+$/';
+	}
+	else {
+		$opts{order} = 'id';
+	}
 
-# 			# if action is set, make sure set has some of the expected keys
-# 			if (
-# 				$opts{rules}[$int]{action} eq 'set'
-# 				&& (   !defined( $opts{rules}[$int]{set}{'confidence'} )
-# 					|| !defined( $opts{rules}[$int]{set}{'severity'} )
-# 					|| !defined( $opts{rules}[$int]{set}{'weight'} ) )
-# 				)
-# 			{
-# 				die(      '$rules['
-# 						. $int
-# 						. ']{action} is set to set, the set hash is lacking any confidence, severity, or weight'
-# 						. Dumper( $opts{rules}[$int] ) );
-# 			}
+	if ( defined( $opts{limit} ) && $opts{limit} !~ /^[0-9]+$/ ) {
+		die '$opts{limit},"' . $opts{limit} . '", does not match /^[0-9]+$/';
+	}
+	else {
+		$opts{limit} = '100';
+	}
 
-# 			# make sure we have atleast one one known matching type
-# 			if (
-# 				!defined( $opts{rules}[$int]{'package'})
-# 				|| !defined( $opts{rules}[$int]{'sig_name'} )
-# 				|| !defined( $opts{rules}[$int]{'data_count'} )
-# 				|| !defined( $opts{rules}[$int]{'jsonpath'} )
-# 				|| !defined( $opts{rules}[$int]{'jsonpath_sig'} )
-# 				)
-# 			{
-# 				die(      '$rules['
-# 						. $int
-# 						. '] lacks anything to use for matching'
-# 						. Dumper( $opts{rules}[$int] ) );
-# 			}
+	$opts{direction} = lc( $opts{direction} );
+	if ( defined( $opts{direction} ) && ( $opts{direction} ne 'desc' || $opts{direction} ne 'asc' ) ) {
+		die '$opts{diirection},"' . $opts{direction} . '", does not match desc or asc';
+	}
+	else {
+		$opts{direction} = 'desc';
+	}
 
-# 			$int++;
-# 		}
-# 	}
+	my $dbh = $self->connect;
 
-# 	# if we have a file, read it in
-# 	if ( defined( $opts{file} ) ) {
-# 		if ( !-f $opts{file} ) {
-# 			die( '"' . $opts{file} . '" is not a file' );
-# 		}
-# 		elsif ( !-r $opts{file} ) {
-# 			die( '"' . $opts{file} . '" is not readable' );
-# 		}
+	my $statement = "select * from tasks";
+	if ( defined( $opts{where} ) ) {
+		$statement = $statement . ' ' . $opts{where};
+	}
 
-# 		# read it into $opts{string} so it is in the same variable regardless
-# 		$opts{string} = read_file( $opts{file} );
-# 	}
+	$statement = $statement . ' order by ' . $opts{order} . ' ' . $opts{direction} . ' limit ' . $opts{limit} . ';';
 
-# 	# decode the json and check to see if we have a few basic exepected keys
-# 	my $json = decode_json( $opts{string} );
-# 	if (   defined( $json->{info}{package} )
-# 		|| !defined( $json->{signatures} )
-# 		|| !defined( $json->{CAPE} ) )
-# 	{
-# 		die('The JSON does not appear to be a CAPE report');
-# 	}
+	my $sth = $dbh->prepare($statement);
+	$sth->execute;
 
-# 	# remove this to save a bit of space while we are processing it
-# 	delete($opts{string});
+	my $row;
+	my @rows;
+	while ( $row = $sth->fetchrow_hashref ) {
+		push( @rows, $row );
+	}
 
-# 	# will be used as key name for 
-# 	my $delete_string=rand.rand.rand.rand;
+	$sth->finish;
+	$dbh->disconnect;
 
-# 	# start processing each sig
-# 	my $sigs_int=0;
-# 	while (defined( $json->{signatures}[$sigs_int] )) {
-# 		my $rules_int=0;
+	return \@rows;
+}
 
-# 		my @matched;
+=head2 get_task_count
 
-# 		my @new_sigs;
+Gets a count of tasks.
 
-# 		while ( defined( $opts{rules}[$rules_int] ) ) {
-# 			my @truths;
+    - where :: The where part of the SQL statement. May not contain a ';'.
+        - Default :: undef
 
-# 			# runs the package match check
-# 			if (defined $opts{rules}[$rules_int]{package}  ) {
-# 				my $regex=$opts{rules}[$rules_int]{package};
-# 				if ($json->{info}{package} =~ /$regex/) {
-# 					push(@truths, 1);
-# 				}else {
-# 					push(@truths, 0);
-# 				}
-# 			}
+    use Data::Dumper;
 
-# 			# runs the sig name match check
-# 			if (defined $opts{rules}[$rules_int]{sig_name}  ) {
-# 				my $regex=$opts{rules}[$rules_int]{sig_name};
-# 				if ($json->{signatures}[$sigs_int]{name} =~ /$regex/) {
-# 					push(@truths, 1);
-# 				}else {
-# 					push(@truths, 0);
-# 				}
-# 			}
+A small example showing getting running, ordering by category, and limiting to 20.
 
-# 			# runs the data count match check
-# 			if (defined $opts{rules}[$rules_int]{data_count}  ) {
-# 				if($opts{rules}[$rules_int]{data_count} =~ /^\![0-9]+$/) {
-# 					if ( $opts{rules}[$rules_int]{data_count} != $#{ $json->{signatures}[$sigs_int]{data} } ){
-# 						push(@truths, 1);
-# 					}else {
-# 						push(@truths, 0);
-# 					}
-# 				}elsif($opts{rules}[$rules_int]{data_count} =~ /^\>\=[0-9]+$/) {
-# 					if ( $opts{rules}[$rules_int]{data_count} >= $#{ $json->{signatures}[$sigs_int]{data} } ){
-# 						push(@truths, 1);
-# 					}else {
-# 						push(@truths, 0);
-# 					}
-# 				}elsif($opts{rules}[$rules_int]{data_count} =~ /^\>[0-9]+$/) {
-# 					if ( $opts{rules}[$rules_int]{data_count} > $#{ $json->{signatures}[$sigs_int]{data} } ){
-# 						push(@truths, 1);
-# 					}else {
-# 						push(@truths, 0);
-# 					}
-# 				}elsif($opts{rules}[$rules_int]{data_count} =~ /^\<\=[0-9]+$/) {
-# 					if ( $opts{rules}[$rules_int]{data_count} <= $#{ $json->{signatures}[$sigs_int]{data} } ){
-# 						push(@truths, 1);
-# 					}else {
-# 						push(@truths, 0);
-# 					}
-# 				}elsif($opts{rules}[$rules_int]{data_count} =~ /^\<[0-9]+$/) {
-# 					if ( $opts{rules}[$rules_int]{data_count} < $#{ $json->{signatures}[$sigs_int]{data} } ){
-# 						push(@truths, 1);
-# 					}else {
-# 						push(@truths, 0);
-# 					}
-# 				}elsif($opts{rules}[$rules_int]{data_count} =~ /^[0-9]+$/) {
-# 					if ( $opts{rules}[$rules_int]{data_count} = $#{ $json->{signatures}[$sigs_int]{data} } ){
-# 						push(@truths, 1);
-# 					}else {
-# 						push(@truths, 0);
-# 					}
-# 				}
-# 			}
+    my $count=$cape_util->get_task_count(where=>"status = 'running'", limit=>20, order=>"category", direction=>'desc');
 
-# 			# handles the json path check
-# 			if (defined( $opts{rules}[$rules_int]{jsonpath} ) ) {
-				
-# 			}
+=cut
 
-# 			$rules_int++;
-# 		}
+sub get_task_count {
+	my ( $self, %opts ) = @_;
 
+	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	}
 
-# 		$sigs_int++;
-# 	}
-# }
+	my $dbh = $self->connect;
+
+	my $statement = "select * from tasks";
+	if ( defined( $opts{where} ) ) {
+		$statement = $statement . ' ' . $opts{where};
+	}
+
+	my $sth = $dbh->prepare($statement);
+	$sth->execute;
+
+	my $rows = $sth->rows;
+
+	$sth->finish;
+	$dbh->disconnect;
+
+	return $rows;
+}
+
+=head2 get_running_table
+
+Generates a ASCII table for pending.
+
+The following config variables can are relevant to this and
+may be overriden.
+
+    table_border
+    table_color
+    task_columns
+    task_target_clip
+    task_time_clip
+
+The following options are also supported.
+
+    - where :: Additional SQL where statements to add.
+        - Default :: undef
+
+    - order :: Column to order by.
+        - Default :: id
+
+    - limit :: Number of items to return.
+        - Default :: 100
+
+    - direction :: Direction to order in.
+        - Default :: desc
+
+    print $cape_util->get_pending_table( where => "status = 'reported'");
+
+=cut
+
+sub get_task_table {
+	my ( $self, %opts ) = @_;
+
+	my @overrides = ( 'table_border', 'table_color', 'task_columns', 'task_target_clip', 'task_time_clip' );
+	foreach my $override (@overrides) {
+		if ( !defined( $opts{$override} ) ) {
+			$opts{$override} = $self->{config}->{_}->{$override};
+		}
+	}
+
+	my $rows = $self->get_running(
+		where     => $opts{where},
+		order     => $opts{order},
+		limit     => $opts{limit},
+		direction => $opts{direction}
+	);
+
+	my $tb = Text::ANSITable->new;
+	$tb->border_style( $opts{table_border} );
+	$tb->color_theme( $opts{table_color} );
+
+	my @columns    = split( /,/, $opts{running_columns} );
+	my $header_int = 0;
+	my $padding    = 0;
+	foreach my $header (@columns) {
+		if   ( ( $header_int % 2 ) != 0 ) { $padding = 1; }
+		else                              { $padding = 0; }
+
+		$tb->set_column_style( $header_int, pad => $padding );
+
+		$header_int++;
+	}
+
+	$tb->columns( \@columns );
+
+	my @td;
+	my @latest_check = (
+		'started_on',             'analysis_started_on',   'analysis_finished_on',   'analysis_finished_on',
+		'processing_finished_on', 'signatures_started_on', 'signatures_finished_on', 'reporting_started_on',
+		'reporting_finished_on',  'completed_on'
+	);
+	foreach my $row ( @{$rows} ) {
+		my @new_line;
+		foreach my $column (@columns) {
+			if ( $column eq 'ET' ) {
+				$row->{ET} = $row->{enforce_timeout};
+			}
+
+			if ( $column eq 'latest' ) {
+				$row->{latest} = '';
+				foreach my $item (@latest_check) {
+					if ( defined( $$row->{$item} ) && $row->{$item} ne '' ) {
+						$row->{latest} = $row->{$item};
+					}
+				}
+			}
+
+			if ( defined( $row->{$column} ) ) {
+				if ( $column eq 'ET' ) {
+					$row->{ET} = $row->{enforce_timeout};
+				}
+
+				if (
+					(
+						   $column eq 'clock'
+						|| $column eq 'added_on'
+						|| $column eq 'started_on'
+						|| $column eq 'completed_on'
+						|| $column eq 'analysis_started_on'
+						|| $column eq 'analysis_finished_on'
+						|| $column eq 'processing_started_on'
+						|| $column eq 'processing_finished_on'
+						|| $column eq 'signatures_started_on'
+						|| $column eq 'signatures_finished_on'
+						|| $column eq 'reporting_started_on'
+						|| $column eq 'reporting_finished_on'
+					)
+					&& $opts{task_time_clip}
+					)
+				{
+					$row->{$column} =~ s/\.[0-9]+$//;
+				}
+				elsif ( $column eq 'target' && $opts{task_target_clip} ) {
+					$row->{target} =~ s/^.*\///;
+				}
+				push( @new_line, $row->{$column} );
+			}
+			else {
+				push( @new_line, '' );
+			}
+		}
+
+		push( @td, \@new_line );
+	}
+
+	$tb->add_rows( \@td );
+
+	return $tb->draw;
+}
 
 =head2 search
 
@@ -1014,7 +1051,7 @@ sub submit {
 		push( @to_run, '--clock', $opts{clock} );
 	}
 
-	if ( defined( $opts{unique} ) && $opts{unique}) {
+	if ( defined( $opts{unique} ) && $opts{unique} ) {
 		push( @to_run, '--unique' );
 	}
 

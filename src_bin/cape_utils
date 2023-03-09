@@ -95,6 +95,9 @@ my $platform;
 my $enforce_timeout;
 my $custom;
 my $unique;
+my $limit;
+my $order;
+my $direction;
 Getopt::Long::Configure('no_ignore_case');
 Getopt::Long::Configure('bundling');
 GetOptions(
@@ -118,6 +121,9 @@ GetOptions(
 	'enforce_timeout' => \$enforce_timeout,
 	'custom'          => \$custom,
 	'unique'          => \$unique,
+	'limit=s'         => \$limit,
+	'order'           => \$order,
+	'direction'       => \$direction,
 );
 
 if ($version) {
@@ -153,6 +159,21 @@ if ( $action eq 'running' ) {
 	}
 	else {
 		print $cape_utils->get_running_table( where => $where );
+	}
+	exit 0;
+}
+
+if ( $action eq 'tasks' ) {
+	if ($count) {
+		print $cape_utils->get_tasks_count( where => $where ) . "\n";
+	}
+	else {
+		print $cape_utils->get_tasks_table(
+			limit     => $limit,
+			order     => $order,
+			where     => $where,
+			direction => $direction
+		);
 	}
 	exit 0;
 }
