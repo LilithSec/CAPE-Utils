@@ -541,7 +541,11 @@ sub get_tasks {
 		$opts{direction} = 'desc';
 	}
 
-	my $dbh = $self->connect;
+	my $dbh;
+	eval { $dbh = $self->connect; };
+	if ($@) {
+		die( 'Failed to connect to the DB... ' . $@ );
+	}
 
 	my $statement = "select * from tasks";
 	if ( defined( $opts{where} ) ) {
@@ -550,8 +554,14 @@ sub get_tasks {
 
 	$statement = $statement . ' order by ' . $opts{order} . ' ' . $opts{direction} . ' limit ' . $opts{limit} . ';';
 
-	my $sth = $dbh->prepare($statement);
-	$sth->execute;
+	my $sth;
+	eval {
+		$sth = $dbh->prepare($statement);
+		$sth->execute;
+	};
+	if ($@) {
+		die( 'Failed to connect to run the search... ' . $@ );
+	}
 
 	my $row;
 	my @rows;
