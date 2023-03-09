@@ -542,7 +542,7 @@ sub get_tasks {
 	}
 
 	my $dbh;
-	eval { $dbh = $self->connect; };
+	eval { $dbh = $self->connect or die $DBI::errstr };
 	if ($@) {
 		die( 'Failed to connect to the DB... ' . $@ );
 	}
@@ -556,8 +556,8 @@ sub get_tasks {
 
 	my $sth;
 	eval {
-		$sth = $dbh->prepare($statement);
-		$sth->execute;
+		$sth = $dbh->prepare($statement) or die $DBI::errstr;
+		$sth->execute                    or die $DBI::errstr;
 	};
 	if ($@) {
 		die( 'Failed to connect to run the search... ' . $@ );
