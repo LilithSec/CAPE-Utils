@@ -563,7 +563,7 @@ sub get_tasks {
 	return \@rows;
 }
 
-=head2 get_task_count
+=head2 get_tasks_count
 
 Gets a count of tasks.
 
@@ -574,11 +574,11 @@ Gets a count of tasks.
 
 A small example showing getting running, ordering by category, and limiting to 20.
 
-    my $count=$cape_util->get_task_count(where=>"status = 'running'", limit=>20, order=>"category", direction=>'desc');
+    my $count=$cape_util->get_tasks_count(where=>"status = 'running'", limit=>20, order=>"category", direction=>'desc');
 
 =cut
 
-sub get_task_count {
+sub get_tasks_count {
 	my ( $self, %opts ) = @_;
 
 	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
@@ -603,9 +603,9 @@ sub get_task_count {
 	return $rows;
 }
 
-=head2 get_running_table
+=head2 get_tasks_table
 
-Generates a ASCII table for pending.
+Generates a ASCII table for tasks.
 
 The following config variables can are relevant to this and
 may be overriden.
@@ -630,11 +630,11 @@ The following options are also supported.
     - direction :: Direction to order in.
         - Default :: desc
 
-    print $cape_util->get_pending_table( where => "status = 'reported'");
+    print $cape_util->get_tasks_table( where => "status = 'reported'");
 
 =cut
 
-sub get_task_table {
+sub get_tasks_table {
 	my ( $self, %opts ) = @_;
 
 	my @overrides = ( 'table_border', 'table_color', 'task_columns', 'task_target_clip', 'task_time_clip' );
