@@ -655,7 +655,7 @@ sub get_tasks_table {
 	$tb->border_style( $opts{table_border} );
 	$tb->color_theme( $opts{table_color} );
 
-	my @columns    = split( /,/, $opts{running_columns} );
+	my @columns    = split( /,/, $opts{task_columns} );
 	my $header_int = 0;
 	my $padding    = 0;
 	foreach my $header (@columns) {
