@@ -116,7 +116,9 @@ sub connect {
 
 =head2 fail
 
-Set one or more pending tasks to failed.
+Set one or more pending tasks to failed as below.
+
+    UPDATE tasks SET status = 'failed_processing' WHERE status = 'pending'
 
 The following options are also supported.
 
@@ -124,7 +126,7 @@ The following options are also supported.
                be specified for this, unless fail_all in the config is
                true. Otherwise this method will die.
 
-    my $rows=$cape_util->fail( pending_columns=>'id,package');
+    my $rows=$cape_util->fail( where=>"target like '%foo%'");
 
 =cut
 
@@ -165,7 +167,9 @@ sub fail {
 
 Get pending count pending tasks.
 
-    - where :: The where part of the SQL statement. May not contain a ';'.
+    - where :: And additional where part of the SQL statement. "and" will
+               automatically be used to join it with the rest of the
+               statement. May not contain a ';'.
         - Default :: undef
 
     my $count=$cape_util->get_pending_count;
@@ -200,9 +204,11 @@ sub get_pending_count {
 =head2 get_pending
 
 Returns a arrah ref of hash refs of rows from the tasks table where the
-status is set to
+status is set to pending via "select * from tasks where status = 'pending'"
 
-    - where :: The where part of the SQL statement. May not contain a ';'.
+    - where :: And additional where part of the SQL statement. "and" will
+               automatically be used to join it with the rest of the
+               statement. May not contain a ';'.
         - Default :: undef
 
     - where :: Additional SQL where statements to add.
@@ -253,7 +259,9 @@ may be overriden.
 
 The following options are also supported.
 
-    - where :: The where part of the SQL statement. May not contain a ';'.
+    - where :: And additional where part of the SQL statement. "and" will
+               automatically be used to join it with the rest of the
+               statement. May not contain a ';'.
         - Default :: undef
 
     print $cape_util->get_pending_table( pending_columns=>'id,package');
@@ -329,7 +337,13 @@ sub get_pending_table {
 Returns a array ref of hash refs of rows from the tasks table where the
 status is set to pending.
 
-    - where :: The where part of the SQL statement. May not contain a ';'.
+     select * from tasks where status = 'running'
+
+The statement above is used to find running tasks.
+
+    - where :: And additional where part of the SQL statement. "and" will
+               automatically be used to join it with the rest of the
+               statement. May not contain a ';'.
         - Default :: undef
 
     use Data::Dumper;
@@ -372,7 +386,13 @@ sub get_running {
 
 Get pending count running tasks.
 
-    - where :: The where part of the SQL statement. May not contain a ';'.
+     select * from tasks where status = 'running'
+
+The statement above is used to find running tasks.
+
+    - where :: And additional where part of the SQL statement. "and" will
+               automatically be used to join it with the rest of the
+               statement. May not contain a ';'.
         - Default :: undef
 
     my $count=$cape_util->get_running_count;
@@ -388,7 +408,7 @@ sub get_running_count {
 
 	my $dbh = $self->connect;
 
-	my $statement = "select * from tasks where status = 'pending'";
+	my $statement = "select * from tasks where status = 'running'";
 	if ( defined( $opts{where} ) ) {
 		$statement = $statement . ' AND ' . $opts{where};
 	}
@@ -417,9 +437,16 @@ may be overriden.
     running_target_clip
     running_time_clip
 
-The following optionsa are also supported.
+The statement below is used to find running tasks.
 
-    - where :: Additional SQL where statements to add.
+     select * from tasks where status = 'running'
+
+The following options are also supported.
+
+    - where :: And additional where part of the SQL statement. "and" will
+               automatically be used to join it with the rest of the
+               statement. May not contain a ';'.
+        - Default :: undef
 
     print $cape_util->get_pending_table( pending_columns=>'id,package');
 
@@ -1154,197 +1181,53 @@ sub shuffle {
 	return $array;
 }
 
-# =head1 Mangle Rules
+=head1 CONFIG FILE
 
-# First it figures out how to match the items based on the keys configured
-# for that rule. If all specified matches are true, then it performs
-# the specified action.
+The default config file is '/usr/local/etc/cape_utils.ini'.
 
-# If the package used is pdf and the signature in question is dead connect, drop
-# that signature and recompute.
+The defaults are as below, which out of the box, it will work by
+default with CAPEv2 in it's default config.
 
-#     ruless=>[
-#             {
-#                 package=>'^pdf$'
-#                 sig_name=>'^dead_connect$'
-#                 action=>'remove',
-#             }
-#         ],
-
-# =head2 Matching
-
-# The ones used for matching are as below.
-
-# =over 4
-
-# =item package
-
-# A regexp for matching $json->{info}{package}.
-
-#     package=>'^pdf$'
-
-# =item sig_name
-
-# Matches the hash value 'name' from a signature.
-
-#     sig_name=>'^dead_connect$'
-
-# =item data_count
-
-# Number of entries in the data array for a sig. 0 means it is undef
-# or non are present. May start with <, <=, >, >=, or ! for numeric
-# equality.
-
-#     data_count=20
-
-# =item jsonpath
-
-# Uses L<JSON::Path> to grab a path and then process it.
-
-# For if a single value is returned(and not a hash or array),
-# the matching is evaluated as normal.
-
-# If the value returned is a array, each item in the array
-# will be evaulauted. The path_match variable is used for
-# controlling it expects the value to all return true, any
-# to return true, or none of them to return true. To match
-# both need to be true. If that is not clear, see the
-# tables below for a few examples.
-
-#     All, All
-#     | Paths | Values | Result |
-#     |-------|--------|--------|
-#     | 0     | 0      | 0      |
-#     | 1     | 0      | 0      |
-#     | 0     | 1      | 0      |
-#     | 1     | 1      | 1      |
-
-#     Any, All
-#     | Paths | Values | Result |
-#     |-------|--------|--------|
-#     | 00    | 0      | 0      |
-#     | 01    | 0      | 0      |
-#     | 01    | 1      | 1      |
-#     | 11    | 0      | 0      |
-#     | 11    | 1      | 1      |
-
-#     All, Any
-#     | Paths | Values | Result |
-#     |-------|--------|--------|
-#     | 0     | 00     | 0      |
-#     | 01    | 0      | 0      |
-#     | 01    | 1      | 1      |
-#     | 11    | 0      | 0      |
-#     | 11    | 1      | 1      |
-
-#     Any, Any
-#     | Paths | Values | Result |
-#     |-------|--------|--------|
-#     | 00    | 00     | 0      |
-#     | 01    | 00     | 0      |
-#     | 11    | 00     | 0      |
-#     | 00    | 01     | 0      |
-#     | 00    | 11     | 0      |
-#     | 01    | 01     | 1      |
-#     | 11    | 01     | 1      |
-#     | 01    | 11     | 1      |
-#     | 11    | 11     | 1      |
-
-# If the value returned is a array, then this matching rules
-# is considered false and no further processing is done.
-
-# If values is not a array, it will be turned into one
-# while processing. So "value=>'^pdf$'" would become
-# "value=>['^pdf$']".
-
-#     jsonpath=>{
-#         path=>'.info.package',
-#         type=>'regex',
-#         value=>'^pdf$',
-#         value_match=>'all'
-#         path_match=>'all'
-#     }
-
-# If 'sub_path' is specified, first the path will be handled
-# and then sub_path will be used against what is found.
-
-#     jsonpath=>{
-#         path=>'.info',
-#         sub_path=>'.package',
-#         type=>'regex',
-#         value=>'^pdf$',
-#         value_match=>'all'
-#         path_match=>'all'
-#     }
-
-# The following types are supported. The default
-# is 'eq'.
-
-#     - regex :: Value will be evaluated as a regex.
-
-#     - eq :: String equal.
-
-#     - !eq :: String not equal.
-
-#     - = :: Numeric equal.
-
-#     - != :: Numeric not equal.
-
-#     - > :: Numeric greater than.
-
-#     - >= :: Numeric greater or equal to.
-
-#     - < :: Numeric less than.
-
-#     - <= :: Numeric less than or equal to.
-
-#     - subnet :: Check if a subnet matches.
-
-# The following matches are supported for both path
-# and value matching. The default for both is 'all'.
-
-#     - all :: All must match.
-
-#     - any :: Any may match.
-
-#     - none :: All must not match.
-
-# =item jsonpath_sig
-
-# Like jsonpath, but relative to the the sig.
-
-# A single return is expected.
-
-#     jsonpath_sig=>{
-#         path=>'.name',
-#         type=>'regex',
-#         value=>'^dead_connect$'
-#     }
-
-# =back
-
-# =head2 Actions
-
-# Actions are specified via the key 'action'.
-
-# =over 4
-
-# =item remove
-
-# Drops that sig.
-
-# =item remove_all
-
-# Drops all sigs.
-
-# =item set
-
-# Changes severity, weight, and/or confidence of a sig.
-
-#     action=>'set',
-#     action_data=>{ confidence=>50 },
-
-# =back
+    # The DBI dsn to use
+    dsn=dbi:Pg:dbname=cape
+    # DB user
+    user=cape
+    # DB password
+    pass=
+    # the install base for CAPEv2
+    base=/opt/CAPEv2/
+    # 0/1 if poetry should be used
+    poetry=1
+    # 0/1 if fail should be allowed to run with out a where statement
+    fail_all=0
+    # colums to use for pending table show
+    pending_columns=id,target,package,timeout,ET,route,options,clock,added_on
+    # colums to use for runniong table show
+    running_columns=id,target,package,timeout,ET,route,options,clock,added_on,started_on,machine
+    # colums to use for tasks table
+    task_columns=id,target,package,timeout,ET,route,options,clock,added_on,latest,machine,status
+    # if the target column for running table display should be clipped to the filename
+    running_target_clip=1
+    # if microseconds should be clipped from time for running table display
+    running_time_clip=1
+    # if the target column for pending table display should be clipped to the filename
+    pending_target_clip=1
+    # if microseconds should be clipped from time for pending table display
+    pending_time_clip=1
+    # if the target column for task table display should be clipped to the filename
+    task_target_clip=1
+    # if microseconds should be clipped from time for task table display
+    task_time_clip=1
+    # default table color
+    table_color=Text::ANSITable::Standard::NoGradation
+    # default table border
+    table_border=ASCII::None
+    # when submitting use now for the current time
+    set_clock_to_now=1
+    # default timeout value for submit
+    timeout=200
+    # default value for enforce timeout for submit
+    enforce_timeout=0
 
 =head1 AUTHOR
 
