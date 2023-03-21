@@ -11,7 +11,7 @@ my %WriteMakefileArgs = (
 	LICENSE            => 'artistic_2',
 	MIN_PERL_VERSION   => '5.006',
 	INST_SCRIPT        => 'bin',
-	EXE_FILES          => [ 'src_bin/cape_utils', 'src_bin/mojo_cape_submit' ],
+	EXE_FILES          => [ 'src_bin/cape_utils', 'src_bin/mojo_cape_submit', 'src_bin/suricata_extract_submit' ],
 	CONFIGURE_REQUIRES => {
 		'ExtUtils::MakeMaker' => '0',
 	},
@@ -35,7 +35,6 @@ my %WriteMakefileArgs = (
 		'Crypt::Digest::MD5'    => '0',
 		'Crypt::Digest::SHA1'   => '0',
 		'LWP::UserAgent'        => '0',
-		'Digest::MD5'           => '0',
 		'File::MimeInfo::Magic' => '0',
 		'File::Temp'            => '0',
 		'File::Copy'            => '0',
