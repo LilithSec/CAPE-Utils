@@ -1,3 +1,4 @@
+
 package CAPE::Utils;
 
 use 5.006;
@@ -12,6 +13,7 @@ use Hash::Merge;
 use IPC::Cmd qw[ run ];
 use Text::ANSITable;
 use File::Spec;
+use IPC::Cmd qw(run);
 
 =head1 NAME
 
@@ -77,6 +79,10 @@ sub new {
 			set_clock_to_now    => 1,
 			timeout             => 200,
 			enforce_timeout     => 0,
+			subnets             => '192.168.0.0/16,127.0.0.1/8,::1/127,172.16.0.0/12,10.0.0.0/8',
+			apikey              => '',
+			auth_by_IP_only     => 1,
+
 		},
 	};
 
@@ -1044,7 +1050,10 @@ Submits files to CAPE.
       - Default :: 0
 
     - unique :: Only submit it if it is unique.
-        - Unique :: 0
+        - Default :: 0
+
+    -quiet :: Do not print the results.
+        - Default :: 0
 
 =cut
 
@@ -1127,7 +1136,15 @@ sub submit {
 	}
 
 	foreach (@to_submit) {
-		system( @to_run, $_ );
+		my @tmp_to_run=@to_run;
+		push(@tmp_to_run, $_);
+		my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf ) = run(
+																				command => \@tmp_to_run,
+																				verbose => 0
+																				);
+		if (!$opts{quiet}) {
+			print $full_buf;
+		}
 	}
 }
 
@@ -1181,6 +1198,64 @@ sub shuffle {
 	return $array;
 }
 
+=head2 check_remote
+
+Checks the remote connection.
+
+Two variablesare required, API key and IP.
+
+=cut
+
+sub check_remote {
+	my ( $self, %opts ) = @_;
+
+	# if we don't have a API key, we can only auth via IP
+	if ( !$self->{config}{auth_by_IP_only} && !defined( $opts{apikey} ) ) {
+		return 0;
+	}
+
+	# make sure the API key is what it is expecting if we are not using IP only
+	if ( !$self->{config}{auth_by_IP_only} && $opts{apikey} ne $self->{config}{apikey} ) {
+		return 0;
+	}
+
+	# can't do anything else with out a IP
+	if ( !defined( $opts{ip} ) ) {
+		return 0;
+	}
+
+	my $subnets_string = $self->{config}{subnets};
+	$subnets_string =~ s/[\ \t]+//g;
+	$subnets_string =~ s/\,+/,/g;
+	my @subnets_split = split( /,/, $subnets_string );
+	my @subnets;
+	foreach my $item (@subnets_split) {
+		if ( $item =~ /^[\:A-Fa-f0-9]$/ ) {
+			push( @subnets, $item . '/128' );
+		}
+		elsif ( $item =~ /^[\:A-Fa-f0-9]\/[0-9]+$/ ) {
+			push( @subnets, $item );
+		}
+		elsif ( $item =~ /^[\.0-9]$/ ) {
+			push( @subnets, $item . '/32' );
+		}
+		elsif ( $item =~ /^[\.0-9]\/[0-9]+$/ ) {
+			push( @subnets, $item );
+		}
+	}
+	my $allowed_subnets;
+	eval { $allowed_subnets = subnet_matche(@subnets); };
+	if ($@) {
+		die( 'Failed it init subnet matcher... ' . $@ );
+	}
+
+	if ( $allowed_subnets->( $opts{ip} ) ) {
+		return 1;
+	}
+
+	return 0;
+}
+
 =head1 CONFIG FILE
 
 The default config file is '/usr/local/etc/cape_utils.ini'.
@@ -1228,6 +1303,12 @@ default with CAPEv2 in it's default config.
     timeout=200
     # default value for enforce timeout for submit
     enforce_timeout=0
+    # the api key to for with mojo_cape_submit
+    #apikey=
+    # auth by IP only for mojo_cape_submit
+    auth_by_IP_only
+    # comma seperated list of allowed subnets for mojo_cape_submit
+    subnets=192.168.0.0/16,127.0.0.1/8,::1/127,172.16.0.0/12,10.0.0.0/8
 
 =head1 AUTHOR
 

@@ -1,0 +1,85 @@
+#!perl
+
+use Mojolicious::Lite -signatures;
+use Sys::Syslog;
+use JSON;
+
+# two are needed as /* and / don't overlap... so pass it to the_stuff to actually handle it
+post '/*' => sub ($c) {
+	the_stuff($c);
+};
+post '/' => sub ($c) {
+	the_stuff($c);
+};
+
+# sends stuff to syslog
+sub log_drek{
+	my ($level, $message) =@_;
+
+	if ( !defined($level) ) {
+		$level = 'info';
+	}
+
+	openlog( 'mojo_cape_submit', undef, 'daemon' );
+	syslog( $level, $message );
+	closelog();
+};
+
+# handle it
+sub the_stuff {
+	my $c         = $_[0];
+	my $remote_ip = $c->{tx}{original_remote_address};
+	my $apikey = $c->param('apikey');
+
+	# log the connection
+	my $message='Started. Remote IP: '.$remote_ip.'  API key: ';
+	if (defined($apikey)) {
+		$message=$message.$apikey;
+	}else {
+		$message=$message.'undef';
+	}
+	log_drek($message);
+
+	my $cape_util;
+	eval{
+		$cape_util=CAPE::Utils->new('/path/to/some/config.ini');
+	};
+	if ($@) {
+		log_drek('err', $@);
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	}
+
+	my $allow_remote;
+	eval{
+		$allow_remote=$cape_util->check_remote(apikey=>$apikey, ip=>$remote_ip);
+	};
+	if ($@) {
+		log_drek('err', $@);
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	}
+	if (!$allow_remote) {
+		log_drek('info', 'API key or IP not allowed');
+		$c->render( text => "IP not allowed or invalid API key\n", status => 403, );
+		return;
+	}
+
+	if ($c->req->is_limit_exceeded ){
+		log_drek('err', 'Log size exceeded');
+		$c->render(text => 'File is too big.', status => 400);
+		return;
+	}
+
+	my $file=$c->param('filename');
+	if (!$file) {
+		log_drek('err', 'No file specified');
+		$c->render(text => 'No file specified', status => 400);
+	}
+
+	my $name=$file->filename;
+	my $size=$file->size;
+	log_drek('info', 'Got File... size='.$size.' filename="'.$name.'"');
+}
+
+app->start;
