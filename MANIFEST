@@ -9,4 +9,5 @@ t/pod-coverage.t
 t/pod.t
 src_bin/cape_utils
 src_bin/mojo_cape_submit
+src_bin/suricata_extract_submit
 bin/.exists

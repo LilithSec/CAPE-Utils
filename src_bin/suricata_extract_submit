@@ -1,0 +1,219 @@
+#!/usr/bin/env perl
+
+use File::Find::Rule;
+use warnings;
+use strict;
+use Config::Tiny;
+use File::Slurp;
+use Time::Piece;
+use File::MimeInfo::Magic;
+use Digest::MD5 qw(md5 md5_hex md5_base64);
+use Net::Subnet qw(subnet_matcher);
+use LWP::UserAgent;
+use HTTP::Request::Common;
+use File::Temp qw/ tempdir  /;
+use File::Copy;
+use POSIX 'strftime';
+use Sys::Syslog;
+
+# sends stuff to syslog
+sub log_something {
+	my ( $level, $message ) = @_;
+
+	if ( !defined($level) ) {
+		$level = 'info';
+	}
+
+	openlog( 'suricata_extract_submit', undef, 'daemon' );
+	syslog( $level, $message );
+	closelog();
+
+	print $message. "\n";
+}
+
+log_something( 'info', 'Suricata Malware Extractor starting up..' );
+
+# sensor config file
+my $config = Config::Tiny->read('/usr/local/etc/suricata_extract_submit.ini');
+log_something( 'info', 'Config /usr/local/etc/suricata_extract_submit.ini read...' );
+
+# information for submitting it...
+my $apikey = $config->{_}->{apikey};
+if ( !defined($apikey) ) {
+	$apikey = '';
+}
+my $url = $config->{_}->{url};
+if ( !defined($url) ) {
+	my $message = 'No malware detonator specified via the setting url';
+	log_something( 'err', $message );
+}
+
+# get the file store dir
+my $filestore = $config->{_}->{filestore};
+if (!defined($filestore)) {
+	$filestore='/var/log/suricata/files/';
+}
+
+# read in the file of IPs to ignore
+my $ignore_file = $config->{_}->{ignore};
+my $ignore_raw  = '';
+if ( -f $ignore_file ) {
+	$ignore_raw = read_file($ignore_file);
+}
+my @to_ignore_raw = split( /\n/, $ignore_raw );
+@to_ignore_raw = grep( !/^\w*\#/, @to_ignore_raw );
+@to_ignore_raw = grep( !/^\w*$/,  @to_ignore_raw );
+
+# process the @to_ignore_raw adding subnets if needed
+my @to_ignore;
+foreach my $item (@to_ignore_raw) {
+
+	# remove any white space at the start or end
+	$item =~ s/^[\ \t]+//;
+	$item =~ s/[\ \t]+$//;
+	if ( $item =~ /^[0-9\.]+$/ ) {
+		$item = $item . '/32';
+	}
+	if ( $item =~ /^[0-9\:]+$/ ) {
+		$item = $item . '/128';
+	}
+	push( @to_ignore, $item );
+}
+
+my $white_list = subnet_matcher @to_ignore;
+
+# create a tmpdir and chdir to it
+my $tempdir = tempdir();
+chdir($tempdir);
+
+# find any json files
+log_something( 'info', 'Looking for JSON files under '.$filestore );
+my @files = File::Find::Rule->file()->name("*json")->in($filestore);
+
+# exit if we don't find anything as there is no point to continue
+if ( !defined( $files[0] ) ) {
+	log_something( 'err', 'None found at this time' );
+	exit 0;
+}
+
+# process any found
+foreach my $file (@files) {
+	log_something( 'info', "Processing... " . $file );
+	my $name;
+	eval {
+		my $file_raw = read_file($file);
+		log_something( 'info', 'Raw JSON... ' . $file_raw );
+
+		my $file_json = decode_json($file_raw);
+		my $data_file = $file;
+		$data_file =~ s/\.[0-9\.]+\.json$//;
+		log_something( 'info', 'Sample File: ' . $data_file );
+
+		my $data      = read_file($data_file);
+		my $data_size = length($data);
+		log_something( 'info', 'Sample Size: ' . $data_size );
+
+		my $src_ip    = $file_json->{src_ip};
+		my $src_port  = $file_json->{src_port};
+		my $dest_ip   = $file_json->{dest_ip};
+		my $dest_port = $file_json->{dest_port};
+		my $proto     = $file_json->{proto};
+
+		# get the timestramp and transform it into for getting the epoch
+		my $timestamp = $file_json->{timestamp};
+		$timestamp =~ s/\..*$//;
+		my $t = Time::Piece->strptime( $timestamp, '%Y-%m-%dT%H:%M:%S' );
+
+		my $sha256 = $file_json->{fileinfo}{sha256};
+
+		my $filename = $file_json->{fileinfo}{filename};
+
+		my $extUID = substr( md5_hex($data), 0, 18 );
+		log_something( 'info', 'extUID: ' . $extUID );
+
+		my $mime = mimetype($filename);
+		if ( !defined($mime) ) {
+			$mime = 'application_x-ms-dos-executable';
+		}
+		else {
+			$mime =~ s/\//\_/g;
+		}
+		log_something( 'info', 'MIME type: ' . $mime );
+
+		my $add_it = 1;
+		if ( $white_list->($src_ip) ) {
+			log_something( 'info', 'White Listed Source IP: ' . $src_ip );
+			$add_it = 0;
+		}
+		if ( $white_list->($dest_ip) ) {
+			log_something( 'info', 'White Listed Destination IP: ' . $dest_ip );
+			$add_it = 0;
+		}
+
+		$name
+			= $src_ip . '-'
+			. $src_port . '-'
+			. $dest_ip . '-'
+			. $dest_port . '-'
+			. $proto . '-'
+			. $extUID . '-'
+			. $config->{_}->{slug} . '-'
+			. $t->epoch . '-'
+			. $mime;
+
+		# only add it if it is not white listed
+		if ($add_it) {
+			log_something( 'info', 'Name: ' . $name );
+
+			# skip uploading it if it is zero sized
+			if ( $data_size > 0 ) {
+
+				# don't need to copy it if it is zero sized
+				copy( $data_file, $name )
+					or die 'Copy failed(' . $data_file . ' -> ' . $tempdir . '/' . $name . '): ' . $!;
+
+				my $res;
+				eval {
+					my $ua = LWP::UserAgent->new(
+						ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 },
+						timeout  => 30
+					);
+					$res = $ua->request(
+						POST $config->{_}->{url},
+						Content_type => 'multipart/form-data',
+						Content      => [
+							apikey   => '4ddd6720fdec84187e8397f7555f4e3a4e32512527776970f3b3b07bacd28eec',
+							filename => [$name],
+						],
+					);
+				};
+				if ($@) {
+					die( "Failed to post... " . $res->status_line );
+				}
+				else {
+					log_something( 'info', 'Uplodated Response Status: ' . $res->status_line );
+				}
+			}
+			else {
+				log_something( 'info', 'Not uploading as the sample is zero sized' );
+			}
+		}
+
+		# rename the JSON file so we don't process it again
+		move( $file, $file . '-processed' ) or die 'Appending "-processed" to the name of the JSON failed...' . $!;
+		if ($@) {
+			log_something( 'err', 'Failed to unlink ' . $file . ' ... ' . $@ );
+		}
+
+	};
+	if ($@) {
+		log_something( 'err', 'Processing failed... ' . $@ );
+	}
+
+	# only unlink the file if it exists... otherwise the copy failed
+	if ( -f $name ) {
+
+		# now that we are done with the tmp file, we can remove it
+		unlink($name);
+	}
+}
