@@ -35,8 +35,11 @@ Perhaps a little code snippet.
 
     use CAPE::Utils;
 
-    my $foo = CAPE::Utils->new();
-    ...
+    my $cape_util=CAPE::Utils->new();
+
+    my $sub_results=$cape_util->submit(items=>@to_detonate,unique=>0, quiet=>1);
+    use JSON;
+    print encode_json($sub_results)."\n";
 
 =head1 METHODS
 
@@ -1054,6 +1057,13 @@ Submits files to CAPE.
 
     -quiet :: Do not print the results.
         - Default :: 0
+
+The retuned value is a hash ref where the keys are successfully submitted files
+and values of those keys is the task ID.
+
+    my $sub_results=$cape_util->submit(items=>@to_detonate,unique=>0, quiet=>1);
+    use JSON;
+    print encode_json($sub_results)."\n";
 
 =cut
 
