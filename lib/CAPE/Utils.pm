@@ -1135,17 +1135,32 @@ sub submit {
 		push( @to_run, '--tags', $opts{tags} );
 	}
 
+	my $added={};
 	foreach (@to_submit) {
 		my @tmp_to_run=@to_run;
 		push(@tmp_to_run, $_);
 		my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf ) = run(
 																				command => \@tmp_to_run,
 																				verbose => 0
-																				);
+																				   );
+		my $results=join('', @{ $full_buf });
 		if (!$opts{quiet}) {
-			print $full_buf;
+			print $results;
+		}
+
+		my @results_split=split(/\n/, $results);
+		foreach my $item (@results_split) {
+			$item=~s/\e\[[0-9;]*m(?:\e\[K)?//g;
+			chomp($item);
+			if ($item =~ /^Success\:\ File\ \".*\"\ added\ as\ task\ with\ ID\ \d+$/) {
+				$item =~ s/^Success\:\ File\ \"//;
+				my ($file, $task)=split(/\"\ added\ as\ task\ with\ ID\ /, $item);
+				$added->{$file}=$task;
+			}
 		}
 	}
+
+	return $added;
 }
 
 =head2 timestamp
