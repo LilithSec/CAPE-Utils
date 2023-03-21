@@ -3,6 +3,12 @@
 use Mojolicious::Lite -signatures;
 use Sys::Syslog;
 use JSON;
+use Crypt::Digest::SHA256 qw( sha256 sha256_hex sha256_b64 sha256_b64u
+                             sha256_file sha256_file_hex sha256_file_b64 sha256_file_b64u );
+use Crypt::Digest::MD5 qw( md5 md5_hex md5_b64 md5_b64u
+                             md5_file md5_file_hex md5_file_b64 md5_file_b64u );
+use Crypt::Digest::SHA1 qw( sha1 sha1_hex sha1_b64 sha1_b64u
+                             sha1_file sha1_file_hex sha1_file_b64 sha1_file_b64u );
 
 # two are needed as /* and / don't overlap... so pass it to the_stuff to actually handle it
 post '/*' => sub ($c) {
@@ -50,6 +56,12 @@ sub the_stuff {
 		return;
 	}
 
+	if (! -d $cape_util->{incoming}) {
+		log_drek('err', 'incoming directory, "'.$cape_util->{incoming}.'", does not exist');
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	}
+
 	my $allow_remote;
 	eval{
 		$allow_remote=$cape_util->check_remote(apikey=>$apikey, ip=>$remote_ip);
@@ -77,9 +89,44 @@ sub the_stuff {
 		$c->render(text => 'No file specified', status => 400);
 	}
 
+	#get file info and log it
 	my $name=$file->filename;
 	my $size=$file->size;
+	$name=~s/\///;
 	log_drek('info', 'Got File... size='.$size.' filename="'.$name.'"');
+	$name=$cape_util->{incoming}.'/'.$name;
+	# copy it into place
+	$file->move_to($name);
+	my $sha256_hex=lc(sha256_file_hex($name));
+	log_drek('info', 'SHA256: '.$sha256_hex);
+	my $sha1_hex=lc(sha1_file_hex($name));
+	log_drek('info', 'SHA1: '.$sha1_hex);
+	my $md5_hex=lc(md5_file_hex($name));
+	log_drek('info', 'MD5: '.$md5_hex);
+
+	my $results;
+	eval{
+		$results=$cape_util->submit(
+									items=>[$name],
+									quiet=>1,
+									);
+	};
+	if ($@) {
+		log_drek('err', $@);
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	}
+
+	my @submitted = keys(%{ $results });
+	if (!defined($submitted[0])) {
+		log_drek('err', 'Submitting "'.$name.'" failed');
+		$c->render( text => "Submission failed\n", status => 400, );
+		return;
+	}
+
+	log_drek('err', 'Submitting "'.$name.'" submitted as '.$results->{$submitted[0]});
+	$c->render( text => "Submitted as task ID ".$results->{$submitted[0]}."\n", status => 400, );
+	return;
 }
 
 app->start;

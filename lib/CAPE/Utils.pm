@@ -85,6 +85,7 @@ sub new {
 			subnets             => '192.168.0.0/16,127.0.0.1/8,::1/127,172.16.0.0/12,10.0.0.0/8',
 			apikey              => '',
 			auth_by_IP_only     => 1,
+			incoming            => '/malware/client-incoming',
 
 		},
 	};
@@ -1145,27 +1146,27 @@ sub submit {
 		push( @to_run, '--tags', $opts{tags} );
 	}
 
-	my $added={};
+	my $added = {};
 	foreach (@to_submit) {
-		my @tmp_to_run=@to_run;
-		push(@tmp_to_run, $_);
+		my @tmp_to_run = @to_run;
+		push( @tmp_to_run, $_ );
 		my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf ) = run(
-																				command => \@tmp_to_run,
-																				verbose => 0
-																				   );
-		my $results=join('', @{ $full_buf });
-		if (!$opts{quiet}) {
+			command => \@tmp_to_run,
+			verbose => 0
+		);
+		my $results = join( '', @{$full_buf} );
+		if ( !$opts{quiet} ) {
 			print $results;
 		}
 
-		my @results_split=split(/\n/, $results);
+		my @results_split = split( /\n/, $results );
 		foreach my $item (@results_split) {
-			$item=~s/\e\[[0-9;]*m(?:\e\[K)?//g;
+			$item =~ s/\e\[[0-9;]*m(?:\e\[K)?//g;
 			chomp($item);
-			if ($item =~ /^Success\:\ File\ \".*\"\ added\ as\ task\ with\ ID\ \d+$/) {
+			if ( $item =~ /^Success\:\ File\ \".*\"\ added\ as\ task\ with\ ID\ \d+$/ ) {
 				$item =~ s/^Success\:\ File\ \"//;
-				my ($file, $task)=split(/\"\ added\ as\ task\ with\ ID\ /, $item);
-				$added->{$file}=$task;
+				my ( $file, $task ) = split( /\"\ added\ as\ task\ with\ ID\ /, $item );
+				$added->{$file} = $task;
 			}
 		}
 	}
@@ -1334,6 +1335,8 @@ default with CAPEv2 in it's default config.
     auth_by_IP_only
     # comma seperated list of allowed subnets for mojo_cape_submit
     subnets=192.168.0.0/16,127.0.0.1/8,::1/127,172.16.0.0/12,10.0.0.0/8
+    # incoming dir to use for mojo_cape_submit
+    incoming=/malware/client-incoming
 
 =head1 AUTHOR
 
