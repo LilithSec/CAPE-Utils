@@ -412,13 +412,15 @@ if ( $action eq 'submit' ) {
 		unique          => $unique,
 		quiet           => $quiet,
 	);
-	my $j = JSON->new;
-	if ($pretty) {
-		$j->pretty(1);
-	}
-	print $j->encode($results);
-	if ( !$pretty ) {
-		print "\n";
+	if ($use_json) {
+		my $j = JSON->new;
+		if ($pretty) {
+			$j->pretty(1);
+		}
+		print $j->encode($results);
+		if ( !$pretty ) {
+			print "\n";
+		}
 	}
 
 	exit 0;
