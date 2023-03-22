@@ -125,7 +125,7 @@ sub the_stuff {
 	}
 
 	log_drek('err', 'Submitting "'.$name.'" submitted as '.$results->{$submitted[0]});
-	$c->render( text => "Submitted as task ID ".$results->{$submitted[0]}."\n", status => 400, );
+	$c->render( text => "Submitted as task ID ".$results->{$submitted[0]}."\n", status => 200, );
 	return;
 }
 
