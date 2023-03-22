@@ -221,6 +221,7 @@ foreach my $file (@files) {
 							http_ctype  => $http_ctype,
 							http_ua     => $http_ua,
 							type        => 'suricata_extract',
+							proto       => $proto,
 						],
 					);
 				};
