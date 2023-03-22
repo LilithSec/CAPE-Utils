@@ -57,14 +57,8 @@ sub the_stuff {
 		return;
 	}
 
-	if (defined($cape_util->{incoming})) {
-		log_drek('err', 'incoming directory is undef');
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	}
-
-	if (! -d $cape_util->{incoming}) {
-		log_drek('err', 'incoming directory, "'.$cape_util->{incoming}.'", does not exist');
+	if (! -d $cape_util->{config}->{_}->{incoming}) {
+		log_drek('err', 'incoming directory, "'.$cape_util->{config}->{_}->{incoming}.'", does not exist');
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	}
@@ -101,7 +95,7 @@ sub the_stuff {
 	my $size=$file->size;
 	$name=~s/\///;
 	log_drek('info', 'Got File... size='.$size.' filename="'.$name.'"');
-	$name=$cape_util->{incoming}.'/'.$name;
+	$name=$cape_util->{config}->{_}->{incoming}.'/'.$name;
 	# copy it into place
 	$file->move_to($name);
 	my $sha256_hex=lc(sha256_file_hex($name));
