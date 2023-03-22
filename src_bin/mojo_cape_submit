@@ -184,7 +184,8 @@ sub the_stuff {
 	else {
 		my $data_json      = encode_json( \%additional_info );
 		my $data_json_file = $cape_util->{config}->{_}->{incoming_json} . '/' . $results->{ $submitted[0] } . 'json';
-		eval { write_file( $data_json_file, $data_json ); } if ($@) {
+		eval { write_file( $data_json_file, $data_json ); };
+		if ($@) {
 			log_drek( 'err', 'Failed to write submission data JSON out to "' . $data_json_file . '"... ' . $@ );
 		}
 		else {
