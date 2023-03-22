@@ -1236,12 +1236,12 @@ sub check_remote {
 	my ( $self, %opts ) = @_;
 
 	# if we don't have a API key, we can only auth via IP
-	if ( !$self->{config}{auth_by_IP_only} && !defined( $opts{apikey} ) ) {
+	if ( !$self->{config}->{_}->{auth_by_IP_only} && !defined( $opts{apikey} ) ) {
 		return 0;
 	}
 
 	# make sure the API key is what it is expecting if we are not using IP only
-	if ( !$self->{config}{auth_by_IP_only} && defined($opts{apikey}) && $opts{apikey} ne $self->{config}{apikey} ) {
+	if ( !$self->{config}->{_}->{auth_by_IP_only} && defined($opts{apikey}) && $opts{apikey} ne $self->{config}->{_}->{apikey} ) {
 		return 0;
 	}
 
