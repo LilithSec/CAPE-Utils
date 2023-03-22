@@ -88,6 +88,13 @@ sub the_stuff {
 		$c->render( text => 'No file specified', status => 400 );
 	}
 
+	#get file info and log it
+	my $name = $file->filename;
+	my $size = $file->size;
+	$name =~ s/\///;
+	log_drek( 'info', 'Got File... size=' . $size . ' filename="' . $name . '"' );
+	$name = $cape_util->{config}->{_}->{incoming} . '/' . $name;
+
 	# get all the possible additional info
 	my %additional_info;
 	$additional_info{src_ip}      = $c->param('src_ip');
@@ -142,13 +149,6 @@ sub the_stuff {
 	else {
 		log_drek( 'info', 'App Proto: ' . $additional_info{app_proto} );
 	}
-
-	#get file info and log it
-	my $name = $file->filename;
-	my $size = $file->size;
-	$name =~ s/\///;
-	log_drek( 'info', 'Got File... size=' . $size . ' filename="' . $name . '"' );
-	$name = $cape_util->{config}->{_}->{incoming} . '/' . $name;
 
 	# copy it into place
 	$file->move_to($name);
