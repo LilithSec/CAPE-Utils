@@ -44,7 +44,7 @@ sub the_stuff {
 	}else {
 		$message=$message.'undef';
 	}
-	log_drek($message);
+	log_drek('info', $message);
 
 	my $cape_util;
 	eval{
