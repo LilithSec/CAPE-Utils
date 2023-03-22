@@ -8,7 +8,7 @@ use File::Slurp;
 use Time::Piece;
 use File::MimeInfo::Magic;
 use Crypt::Digest::MD5 qw( md5 md5_hex md5_b64 md5_b64u
-                             md5_file md5_file_hex md5_file_b64 md5_file_b64u );
+	md5_file md5_file_hex md5_file_b64 md5_file_b64u );
 use Net::Subnet qw(subnet_matcher);
 use LWP::UserAgent;
 use HTTP::Request::Common;
@@ -21,7 +21,6 @@ use JSON;
 # sends stuff to syslog
 sub log_something {
 	my ( $level, $message ) = @_;
-	print $level.': '.$message."\n";
 
 	if ( !defined($level) ) {
 		$level = 'info';
@@ -101,6 +100,8 @@ if ( !defined( $files[0] ) ) {
 
 # process any found
 foreach my $file (@files) {
+	print "\n";
+
 	log_something( 'info', "Processing... " . $file );
 	my $name;
 	eval {
@@ -150,7 +151,7 @@ foreach my $file (@files) {
 
 		my $filename = $file_json->{fileinfo}{filename};
 
-		my $extUID = lc(substr( md5_hex($data), 0, 18 ));
+		my $extUID = lc( substr( md5_hex($data), 0, 18 ) );
 		log_something( 'info', 'extUID: ' . $extUID );
 
 		my $mime = mimetype($filename);
@@ -219,6 +220,7 @@ foreach my $file (@files) {
 							http_status => $http_status,
 							http_ctype  => $http_ctype,
 							http_ua     => $http_ua,
+							type        => 'suricata_extract',
 						],
 					);
 				};
@@ -239,7 +241,6 @@ foreach my $file (@files) {
 		if ($@) {
 			log_something( 'err', 'Failed to rename ' . $file . ' ... ' . $@ );
 		}
-
 	};
 	if ($@) {
 		log_something( 'err', 'Processing failed... ' . $@ );
@@ -247,7 +248,6 @@ foreach my $file (@files) {
 
 	# only unlink the file if it exists... otherwise the copy failed
 	if ( -f $name ) {
-
 		# now that we are done with the tmp file, we can remove it
 		unlink($name);
 	}
