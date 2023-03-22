@@ -136,8 +136,8 @@ foreach my $file (@files) {
 			$http_host   = $file_json->{http}{hostname};
 			$http_url    = $file_json->{http}{url};
 			$http_method = $file_json->{http}{http_method};
-			$http_proto  = $file_json->{http}{http_protocol};
-			$http_status = $file_json->{http}{http_status};
+			$http_proto  = $file_json->{http}{protocol};
+			$http_status = $file_json->{http}{status};
 			$http_ctype  = $file_json->{http}{http_content_type};
 			$http_ua     = $file_json->{http}{http_user_agent};
 		}
