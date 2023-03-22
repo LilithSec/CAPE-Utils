@@ -17,6 +17,7 @@ use File::Copy;
 use POSIX 'strftime';
 use Sys::Syslog;
 use JSON;
+use Sys::Hostname;
 
 # sends stuff to syslog
 sub log_something {
@@ -222,6 +223,7 @@ foreach my $file (@files) {
 							http_ua     => $http_ua,
 							type        => 'suricata_extract',
 							proto       => $proto,
+							src_host    => hostname,
 						],
 					);
 				};
