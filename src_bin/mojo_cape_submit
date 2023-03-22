@@ -106,7 +106,7 @@ sub the_stuff {
 	$additional_info{type}        = $c->param('type');
 
 	# set the value for anything not defined to undef for the purpose of logging
-	foreach my $item ( @{ keys(%additional_info) } ) {
+	foreach my $item ( keys(%additional_info) ) {
 		if ( !defined( $additional_info{$item} ) ) {
 			$additional_info{$item} = 'undef';
 		}

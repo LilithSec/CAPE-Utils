@@ -59,7 +59,7 @@ if ( !defined($filestore) ) {
 # read in the file of IPs to ignore
 my $ignore_file = $config->{_}->{ignore};
 my $ignore_raw  = '';
-if ( -f $ignore_file ) {
+if ( defined($ignore_file) && -f $ignore_file ) {
 	$ignore_raw = read_file($ignore_file);
 }
 my @to_ignore_raw = split( /\n/, $ignore_raw );
@@ -248,6 +248,7 @@ foreach my $file (@files) {
 
 	# only unlink the file if it exists... otherwise the copy failed
 	if ( -f $name ) {
+
 		# now that we are done with the tmp file, we can remove it
 		unlink($name);
 	}
