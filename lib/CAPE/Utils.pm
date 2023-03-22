@@ -14,6 +14,7 @@ use IPC::Cmd qw[ run ];
 use Text::ANSITable;
 use File::Spec;
 use IPC::Cmd qw(run);
+use Net::Subnet;
 
 =head1 NAME
 
