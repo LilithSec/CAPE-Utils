@@ -1270,7 +1270,7 @@ sub check_remote {
 		}
 	}
 	my $allowed_subnets;
-	eval { $allowed_subnets = subnet_matche(@subnets); };
+	eval { $allowed_subnets = subnet_matcher(@subnets); };
 	if ($@) {
 		die( 'Failed it init subnet matcher... ' . $@ );
 	}
