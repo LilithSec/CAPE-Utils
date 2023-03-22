@@ -17,6 +17,16 @@ To work, this script needs to be running as the same user as CAPEv2.
 
 This will write activity to syslog.
 
+A systemd service file is provided at 'systemd/mojo_cape_submit.service' in this modules
+tarball. It expects the enviromental '/usr/local/etc/mojo_cape_submit.env' file to be setup
+with the variables 'CAPE_USER' and 'LISTEN_ON'. To lets say you want to listen on
+http://192.168.14.15:8080 with a user of cape, it would be like below.
+
+    CAPE_USER="cape"
+    LISTEN_ON="http://192.168.14.15:8080"
+
+Alternatively, this script can be invoked as a CGI script if it is ran as the user CAPEv2 is.
+
 =head1 CONFIGURATION
 
 If cape_utils has been configured and is working, this just requires two more additional
