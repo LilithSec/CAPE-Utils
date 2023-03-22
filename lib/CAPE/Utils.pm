@@ -1257,16 +1257,16 @@ sub check_remote {
 	my @subnets_split = split( /,/, $subnets_string );
 	my @subnets;
 	foreach my $item (@subnets_split) {
-		if ( $item =~ /^[\:A-Fa-f0-9]$/ ) {
+		if ( $item =~ /^[\:A-Fa-f0-9]+$/ ) {
 			push( @subnets, $item . '/128' );
 		}
-		elsif ( $item =~ /^[\:A-Fa-f0-9]\/[0-9]+$/ ) {
+		elsif ( $item =~ /^[\:A-Fa-f0-9]+\/[0-9]+$/ ) {
 			push( @subnets, $item );
 		}
-		elsif ( $item =~ /^[\.0-9]$/ ) {
+		elsif ( $item =~ /^[\.0-9]+$/ ) {
 			push( @subnets, $item . '/32' );
 		}
-		elsif ( $item =~ /^[\.0-9]\/[0-9]+$/ ) {
+		elsif ( $item =~ /^[\.0-9]+\/[0-9]+$/ ) {
 			push( @subnets, $item );
 		}
 	}
