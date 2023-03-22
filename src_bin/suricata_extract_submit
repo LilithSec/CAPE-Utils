@@ -1,5 +1,49 @@
 #!/usr/bin/env perl
 
+=head1 NAME
+
+suricata_extract_submit - Submits files to mojo_cape_submit for detonation via CAPEv2
+
+=head1 SYNOPSIS
+
+suricata_extract_submit
+
+*/5 * * * * /usr/local/bin/suricata_extract_submit 2> /dev/null > /dev/null
+
+=head1 DESCRIPTION
+
+This requires having the file-store output configured akin to below.
+
+      - file-store:
+          version: 2
+          enabled: yes
+          dir: /var/log/suricata/files
+          write-fileinfo: yes
+          stream-depth: 0
+          force-hash: [sha1, md5]
+          xff:
+            enabled: no
+            mode: extra-data
+            deployment: reverse
+            header: X-Forwarded-For
+
+=head1 CONFIGURATION
+
+The config file used is '/usr/local/etc/suricata_extract_submit.ini'.
+
+    # the API key to use if needed
+    #apikey=
+    # URL to find mojo_cape_submit at
+    url=http://192.168.14.15:8080/
+    # the group/client/whathaveya slug
+    slug=foo
+    # where Suricata has the file store at
+    filestore=/var/log/suricata/files
+    # a file of IPs or subnets to ignore SRC or DEST IPs of
+    #ignore=
+
+=cut
+
 use File::Find::Rule;
 use warnings;
 use strict;

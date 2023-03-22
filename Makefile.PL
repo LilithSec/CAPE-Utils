@@ -43,6 +43,7 @@ my %WriteMakefileArgs = (
 		'HTTP::Request::Common' => '0',
 		'Time::Piece'           => '0',
 		'File::Find::Rule'      => '0',
+		'File::Slurp'           => '0',
 	},
 	dist       => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
 	clean      => { FILES    => 'CAPE-Utils-*' },

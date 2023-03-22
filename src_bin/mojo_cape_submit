@@ -1,5 +1,91 @@
 #!perl
 
+=head1 NAME
+
+mojo_cape_submit - A mojolicious script for handling submissions of files for detonation.
+
+=head1 SYNOPSIS
+
+sudo -u cape mojo_cape_submit daemon -m production -l 'http://*:8080'
+
+=head1 DESCRIPTION
+
+This script is meant for running locally on a CAPEv2. It allows remote machines to
+to submit files for detonation.
+
+To work, this script needs to be running as the same user as CAPEv2.
+
+This will write activity to syslog.
+
+=head1 CONFIGURATION
+
+If cape_utils has been configured and is working, this just requires two more additional
+bits configured.
+
+The first is the setting 'incoming'. This setting is a directory in which incoming files are
+placed for submission. By default this is '/malware/client-incoming'.
+
+The second is 'incoming_json'. This is a directory the data files for submitted files are written to.
+The name of the file is the task ID with '.json' appended. So task ID '123' would become '123.json'. The
+default directory for this is '/malware/incoming-json'.
+
+=head1 SECURITY
+
+By default this will auth of the remote IP via the setting 'subnets', which by default is
+'192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8'. This value is a comma seperated
+string of subnets to accept submissions from.
+
+To enable the use of a API key, it requires setting the value of 'apikey' and setting
+'auth_by_IP_only' to '0'.
+
+=head1 SUBMISSION
+
+Submissions must be made using the post method.
+
+=head2 Submission Parameters
+
+Required ones are as below.
+
+    - filename :: The file being submitted.
+
+The following are optional and more or less "free form",
+but helps to set them to something sane and relevant.
+
+    - type :: The type of submission. Generally going
+              to be 'manual' or 'suricata_extract'.
+
+    - src_host :: The hostname of the sending system.
+
+    - src_ip :: The source IP for what Suricata picked up.
+
+    - src_port :: The source port for what Suricata picked up.
+
+    - dest_ip :: The destination IP for what Suricata picked up.
+
+    - dest_port :: The destination port for what Suricata picked up.
+
+    - proto :: Protocol, such as TCP or UDP.
+
+    - app_proto :: Application protocol, such as HTTP.
+
+    - flow_id  :: The flow ID Suricata picked it up from.
+
+    - http_host :: If HTTP, the host in the URL.
+
+    - http_url :: If HTTP, the path section of the URL.
+
+    - http_method :: If HTTP, the method, such as GET.
+
+    - http_proto :: If HTTP, the protocol version.
+
+    - http_status :: If HTTP, the status code of the session.
+
+    - http_ctype :: If HTTP, the content type.
+
+    - http_ua :: If HTTP, the useragent.
+
+=cut
+
 use Mojolicious::Lite -signatures;
 use Sys::Syslog;
 use JSON;
@@ -182,7 +268,7 @@ sub the_stuff {
 			'incoming_json directory, "' . $cape_util->{config}->{_}->{incoming_json} . '", does not exist' );
 	}
 	else {
-		my $data_json      = encode_json( \%additional_info )."\n";
+		my $data_json      = encode_json( \%additional_info ) . "\n";
 		my $data_json_file = $cape_util->{config}->{_}->{incoming_json} . '/' . $results->{ $submitted[0] } . '.json';
 		eval { write_file( $data_json_file, $data_json ); };
 		if ($@) {

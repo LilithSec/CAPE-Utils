@@ -22,11 +22,11 @@ CAPE::Utils - A helpful library for with CAPE.
 
 =head1 VERSION
 
-Version 0.0.1
+Version 0.1.0
 
 =cut
 
-our $VERSION = '0.0.1';
+our $VERSION = '0.1.0';
 
 =head1 SYNOPSIS
 
@@ -1336,11 +1336,13 @@ default with CAPEv2 in it's default config.
     # the api key to for with mojo_cape_submit
     #apikey=
     # auth by IP only for mojo_cape_submit
-    auth_by_IP_only
+    auth_by_IP_only=1
     # comma seperated list of allowed subnets for mojo_cape_submit
-    subnets=192.168.0.0/16,127.0.0.1/8,::1/127,172.16.0.0/12,10.0.0.0/8
+    subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
     # incoming dir to use for mojo_cape_submit
     incoming=/malware/client-incoming
+    # directory to store json data files for submissions recieved by mojo_cape_submit
+    incoming_json=/malware/incoming-json
 
 =head1 AUTHOR
 
