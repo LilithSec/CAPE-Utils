@@ -27,7 +27,7 @@ sub log_drek{
 		$level = 'info';
 	}
 
-	openlog( 'suricata_extract_submit', 'cons,pid', 'daemon' );
+	openlog( 'mojo_cape_submit', 'cons,pid', 'daemon' );
 	syslog( $level, '%s', $message );
 	closelog();
 };

@@ -83,7 +83,7 @@ sub new {
 			set_clock_to_now    => 1,
 			timeout             => 200,
 			enforce_timeout     => 0,
-			subnets             => '192.168.0.0/16,127.0.0.1/8,::1/127,172.16.0.0/12,10.0.0.0/8',
+			subnets             => '192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8',
 			apikey              => '',
 			auth_by_IP_only     => 1,
 			incoming            => '/malware/client-incoming',
