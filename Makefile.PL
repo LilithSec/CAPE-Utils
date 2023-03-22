@@ -52,8 +52,8 @@ my %WriteMakefileArgs = (
 		resources   => {
 			repository => {
 				type => 'git',
-				url  => 'git@github.com:VVelox/CAPE-Utils.git',
-				web  => 'https://github.com/VVelox/CAPE-Utils',
+				url  => 'git@github.com:LilithSec/CAPE-Utils.git',
+				web  => 'https://github.com/LilithSec/CAPE-Utils',
 			},
 		},
 	}
