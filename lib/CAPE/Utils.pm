@@ -87,7 +87,7 @@ sub new {
 			apikey              => '',
 			auth_by_IP_only     => 1,
 			incoming            => '/malware/client-incoming',
-
+			incoming_json       => '/malware/incoming-json',
 		},
 	};
 
@@ -1242,7 +1242,10 @@ sub check_remote {
 	}
 
 	# make sure the API key is what it is expecting if we are not using IP only
-	if ( !$self->{config}->{_}->{auth_by_IP_only} && defined($opts{apikey}) && $opts{apikey} ne $self->{config}->{_}->{apikey} ) {
+	if (   !$self->{config}->{_}->{auth_by_IP_only}
+		&& defined( $opts{apikey} )
+		&& $opts{apikey} ne $self->{config}->{_}->{apikey} )
+	{
 		return 0;
 	}
 

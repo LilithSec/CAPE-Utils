@@ -4,6 +4,7 @@ use Mojolicious::Lite -signatures;
 use Sys::Syslog;
 use JSON;
 use CAPE::Utils;
+use File::Slurp;
 use Crypt::Digest::SHA256 qw( sha256 sha256_hex sha256_b64 sha256_b64u
 	sha256_file sha256_file_hex sha256_file_b64 sha256_file_b64u );
 use Crypt::Digest::MD5 qw( md5 md5_hex md5_b64 md5_b64u
@@ -105,6 +106,9 @@ sub the_stuff {
 	$additional_info{http_ua}     = $c->param('http_ua');
 	$additional_info{type}        = $c->param('type');
 	$additional_info{src_host}    = $c->param('src_host');
+	$additional_info{sending_ip}  = $remote_ip;
+	$additional_info{apikey}      = $apikey;
+	$additional_info{name}        = $name;
 
 	# set the value for anything not defined to undef for the purpose of logging
 	foreach my $item ( keys(%additional_info) ) {
@@ -148,12 +152,12 @@ sub the_stuff {
 
 	# copy it into place
 	$file->move_to($name);
-	my $sha256_hex = lc( sha256_file_hex($name) );
-	log_drek( 'info', 'SHA256: ' . $sha256_hex );
-	my $sha1_hex = lc( sha1_file_hex($name) );
-	log_drek( 'info', 'SHA1: ' . $sha1_hex );
-	my $md5_hex = lc( md5_file_hex($name) );
-	log_drek( 'info', 'MD5: ' . $md5_hex );
+	$additional_info{sha256} = lc( sha256_file_hex($name) );
+	log_drek( 'info', 'SHA256: ' . $additional_info{sha256} );
+	$additional_info{sha1} = lc( sha1_file_hex($name) );
+	log_drek( 'info', 'SHA1: ' . $additional_info{sha1} );
+	$additional_info{md5} = lc( md5_file_hex($name) );
+	log_drek( 'info', 'MD5: ' . $additional_info{md5} );
 
 	my $results;
 	eval { $results = $cape_util->submit( items => [$name], quiet => 1, ); };
@@ -172,6 +176,22 @@ sub the_stuff {
 
 	log_drek( 'err', 'Submitting "' . $name . '" submitted as ' . $results->{ $submitted[0] } );
 	$c->render( text => "Submitted as task ID " . $results->{ $submitted[0] } . "\n", status => 200, );
+
+	if ( !-d $cape_util->{config}->{_}->{incoming_json} ) {
+		log_drek( 'err',
+			'incoming_json directory, "' . $cape_util->{config}->{_}->{incoming_json} . '", does not exist' );
+	}
+	else {
+		my $data_json      = encode_json( \%additional_info );
+		my $data_json_file = $cape_util->{config}->{_}->{incoming_json} . '/' . $results->{ $submitted[0] } . 'json';
+		eval { write_file( $data_json_file, $data_json ); } if ($@) {
+			log_drek( 'err', 'Failed to write submission data JSON out to "' . $data_json_file . '"... ' . $@ );
+		}
+		else {
+			log_drek( 'info', 'Wrote submission data JSON out to "' . $data_json_file . '"' );
+		}
+	}
+
 	return;
 }
 
