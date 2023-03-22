@@ -21,6 +21,7 @@ use JSON;
 # sends stuff to syslog
 sub log_something {
 	my ( $level, $message ) = @_;
+	print $level.': '.$message."\n";
 
 	if ( !defined($level) ) {
 		$level = 'info';
