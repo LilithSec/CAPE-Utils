@@ -1241,7 +1241,7 @@ sub check_remote {
 	}
 
 	# make sure the API key is what it is expecting if we are not using IP only
-	if ( !$self->{config}{auth_by_IP_only} && $opts{apikey} ne $self->{config}{apikey} ) {
+	if ( !$self->{config}{auth_by_IP_only} && defined($opts{apikey}) && $opts{apikey} ne $self->{config}{apikey} ) {
 		return 0;
 	}
 
@@ -1250,7 +1250,7 @@ sub check_remote {
 		return 0;
 	}
 
-	my $subnets_string = $self->{config}{subnets};
+	my $subnets_string = $self->{config}->{_}->{subnets};
 	$subnets_string =~ s/[\ \t]+//g;
 	$subnets_string =~ s/\,+/,/g;
 	my @subnets_split = split( /,/, $subnets_string );
