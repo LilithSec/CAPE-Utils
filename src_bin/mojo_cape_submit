@@ -49,10 +49,16 @@ sub the_stuff {
 
 	my $cape_util;
 	eval{
-		$cape_util=CAPE::Utils->new('/path/to/some/config.ini');
+		$cape_util=CAPE::Utils->new();
 	};
 	if ($@) {
 		log_drek('err', $@);
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	}
+
+	if (defined($cape_util->{incoming})) {
+		log_drek('err', 'incoming directory is undef');
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	}
