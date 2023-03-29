@@ -9,7 +9,6 @@ use Config::Tiny;
 use DBI;
 use File::Slurp;
 use Config::Tiny;
-use Hash::Merge;
 use IPC::Cmd qw[ run ];
 use Text::ANSITable;
 use File::Spec;
@@ -96,7 +95,12 @@ sub new {
 		$config = $base_config;
 	}
 	else {
-		$config = %{ merge( $base_config, $config ) };
+		my @to_merge=keys( %{ $base_config->{_} } );
+		foreach my $item (@to_merge) {
+			if ( !defined( $config->{_}->{$item} ) ) {
+				$config->{_}->{$item}=$base_config->{_}->{$item};
+			}
+		}
 	}
 
 	# init the object
