@@ -1264,8 +1264,10 @@ sub check_remote {
 		}
 	}
 
-	# if we got here, apikey is good
-	if ( $self->{config}->{_}->{auth} eq 'either' ) {
+	# if we have a apikey and method is set to apikey or either, we are good to return true
+	if ( defined( $opts{apikey} )
+		&& ( $self->{config}->{_}->{auth} ne 'apikey' || $self->{config}->{_}->{auth} ne 'either' ) )
+	{
 		return 1;
 	}
 
