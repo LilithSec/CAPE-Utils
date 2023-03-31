@@ -1,5 +1,8 @@
 Revision history for CAPE-Utils
 
+1.0.1   2023-03-30/20:00
+		- Fix a typo in regards to regex loading for ignore hosts regex file
+
 1.0.0   2023-03-30/16:15
 		- Rework the auth system. Not backwards compatabile.
 		- Add ignoreHosts options for ignoring hosts via regexp for suricata_extract_submit

@@ -141,11 +141,14 @@ my $ignoreHosts_file = $config->{_}->{ignoreHosts};
 my @hosts_to_ignore;
 if ( defined($ignoreHosts_file) && -f $ignoreHosts_file ) {
 	log_something( 'info', 'reading in ignoreHosts file... ' . $ignoreHosts_file );
-	my $ignoreHosts_raw = read_file($ignore_file);
+	my $ignoreHosts_raw = read_file($ignoreHosts_file);
 
 	@hosts_to_ignore = split( /\n/, $ignoreHosts_raw );
 	@hosts_to_ignore = grep( !/^\w*\#/, @hosts_to_ignore );
 	@hosts_to_ignore = grep( !/^\w*$/,  @hosts_to_ignore );
+
+	my $found_regex=$#hosts_to_ignore;
+	log_something( 'info', $found_regex . ' regexs loaded to ignore for hosts' );
 }
 
 # create a tmpdir and chdir to it
