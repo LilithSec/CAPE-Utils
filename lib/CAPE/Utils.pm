@@ -1,4 +1,3 @@
-
 package CAPE::Utils;
 
 use 5.006;
@@ -21,11 +20,11 @@ CAPE::Utils - A helpful library for with CAPE.
 
 =head1 VERSION
 
-Version 1.0.1
+Version 1.1.0
 
 =cut
 
-our $VERSION = '1.0.1';
+our $VERSION = '1.1.0';
 
 =head1 SYNOPSIS
 
@@ -66,6 +65,7 @@ sub new {
 			user                => 'cape',
 			pass                => '',
 			base                => '/opt/CAPEv2/',
+			eve                 => '/opt/CAPEv2/log/eve.json',
 			poetry              => 1,
 			fail_all            => 0,
 			pending_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on',
@@ -87,6 +87,7 @@ sub new {
 			auth                => 'ip',
 			incoming            => '/malware/client-incoming',
 			incoming_json       => '/malware/incoming-json',
+			eve_look_back       => 360,
 		},
 	};
 
@@ -1308,6 +1309,40 @@ sub check_remote {
 	return 0;
 }
 
+=head2 eve_process
+
+Read back the amount
+
+=cut
+
+sub eve_process {
+	my ( $self, %opts ) = @_;
+
+	my $dbh;
+	eval { $dbh = $self->connect or die $DBI::errstr };
+	if ($@) {
+		die( 'Failed to connect to the DB... ' . $@ );
+	}
+
+	my $statement
+		= "select * from tasks where ( status == 'reported' ) AND ( reporting_finished_on  > CURRENT_TIMESTAMP - interval '"
+		. $self->{config}{_}{eve_look_back}
+		. "' seconds' )";
+
+	my $sth = $dbh->prepare($statement);
+	$sth->execute;
+
+	my $row;
+	my @rows;
+	while ( $row = $sth->fetchrow_hashref ) {
+		push( @rows, $row );
+	}
+
+	$sth->finish;
+	$dbh->disconnect;
+
+}
+
 =head1 CONFIG FILE
 
 The default config file is '/usr/local/etc/cape_utils.ini'.
@@ -1368,7 +1403,12 @@ default with CAPEv2 in it's default config.
     # incoming dir to use for mojo_cape_submit
     incoming=/malware/client-incoming
     # directory to store json data files for submissions recieved by mojo_cape_submit
+    # this directory is also used for storing run specific eves
     incoming_json=/malware/incoming-json
+    # Location to write the eve log to.
+    eve=/opt/CAPEv2/log/eve.json
+    # how far to go back for processing eve
+    eve_look_back=360
 
 =head1 AUTHOR
 

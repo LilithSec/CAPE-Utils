@@ -227,6 +227,7 @@ sub the_stuff {
 	$additional_info{http_ua}     = $c->param('http_ua');
 	$additional_info{type}        = $c->param('type');
 	$additional_info{src_host}    = $c->param('src_host');
+	$additional_info{raw_json}    = $c->param('raw_json');
 	$additional_info{sending_ip}  = $remote_ip;
 	$additional_info{apikey}      = $apikey;
 	$additional_info{name}        = $name;

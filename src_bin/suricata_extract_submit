@@ -147,7 +147,7 @@ if ( defined($ignoreHosts_file) && -f $ignoreHosts_file ) {
 	@hosts_to_ignore = grep( !/^\w*\#/, @hosts_to_ignore );
 	@hosts_to_ignore = grep( !/^\w*$/,  @hosts_to_ignore );
 
-	my $found_regex=$#hosts_to_ignore;
+	my $found_regex = $#hosts_to_ignore;
 	log_something( 'info', $found_regex . ' regexs loaded to ignore for hosts' );
 }
 
@@ -295,6 +295,7 @@ foreach my $file (@files) {
 							http_ua     => $http_ua,
 							type        => 'suricata_extract',
 							proto       => $proto,
+							raw_json    => $file_raw,
 							src_host    => hostname,
 						],
 					);
