@@ -184,37 +184,10 @@ foreach my $file (@files) {
 		my $data_size = length($data);
 		log_something( 'info', 'Sample Size: ' . $data_size );
 
-		my $src_ip      = $file_json->{src_ip};
-		my $src_port    = $file_json->{src_port};
-		my $dest_ip     = $file_json->{dest_ip};
-		my $dest_port   = $file_json->{dest_port};
-		my $proto       = $file_json->{proto};
-		my $app_proto   = $file_json->{app_proto};
-		my $flow_id     = $file_json->{flow_id};
-		my $http_host   = 'undef';
-		my $http_url    = 'undef';
-		my $http_method = 'undef';
-		my $http_proto  = 'undef';
-		my $http_status = 'undef';
-		my $http_ctype  = 'undef';
-		my $http_ua     = 'undef';
-
-		if ( defined( $file_json->{http} ) ) {
-			$http_host   = $file_json->{http}{hostname};
-			$http_url    = $file_json->{http}{url};
-			$http_method = $file_json->{http}{http_method};
-			$http_proto  = $file_json->{http}{protocol};
-			$http_status = $file_json->{http}{status};
-			$http_ctype  = $file_json->{http}{http_content_type};
-			$http_ua     = $file_json->{http}{http_user_agent};
-		}
-
 		# get the timestramp and transform it into for getting the epoch
 		my $timestamp = $file_json->{timestamp};
 		$timestamp =~ s/\..*$//;
 		my $t = Time::Piece->strptime( $timestamp, '%Y-%m-%dT%H:%M:%S' );
-
-		my $sha256 = $file_json->{fileinfo}{sha256};
 
 		my $filename = $file_json->{fileinfo}{filename};
 
@@ -231,27 +204,29 @@ foreach my $file (@files) {
 		log_something( 'info', 'MIME type: ' . $mime );
 
 		my $add_it = 1;
-		if ( $white_list->($src_ip) ) {
-			log_something( 'info', 'Ignore Listed Source IP: ' . $src_ip );
+		if ( $white_list->($file_json->{src_ip}) ) {
+			log_something( 'info', 'Ignore Listed Source IP: ' . $file_json->{src_ip} );
 			$add_it = 0;
 		}
-		if ( $white_list->($dest_ip) ) {
-			log_something( 'info', 'Ignore Listed Destination IP: ' . $dest_ip );
+		if ( $white_list->($file_json->{dest_ip}) ) {
+			log_something( 'info', 'Ignore Listed Destination IP: ' . $file_json->{src_ip} );
 			$add_it = 0;
 		}
 		foreach my $item (@hosts_to_ignore) {
-			if ( $http_host =~ /$item/ ) {
-				log_something( 'info', 'Ignore Listed Host, "' . $item . '": ' . $http_host );
-				$add_it = 0;
+			if (defined( $file_json->{http} ) && defined( $file_json->{http}{hostname} ) ) {
+				if ( $file_json->{http}{hostname} =~ /$item/ ) {
+					log_something( 'info', 'Ignore Listed Host, "' . $item . '": ' . $file_json->{http}{hostname}  );
+					$add_it = 0;
+				}
 			}
 		}
 
 		$name
-			= $src_ip . '-'
-			. $src_port . '-'
-			. $dest_ip . '-'
-			. $dest_port . '-'
-			. $proto . '-'
+			= $file_json->{src_ip} . '-'
+			. $file_json->{src_port} . '-'
+			. $file_json->{dest_ip} . '-'
+			. $file_json->{dest_port} . '-'
+			. $file_json->{proto} . '-'
 			. $extUID . '-'
 			. $config->{_}->{slug} . '-'
 			. $t->epoch . '-'
@@ -268,6 +243,12 @@ foreach my $file (@files) {
 				copy( $data_file, $name )
 					or die 'Copy failed(' . $data_file . ' -> ' . $tempdir . '/' . $name . '): ' . $!;
 
+				$file_json->{suricata_extract_submit}={
+													   filename=>$name,
+													   apikey=>$apikey,
+													   host=>hostname,
+													   to=>$config->{_}->{url},
+													   };
 				my $res;
 				eval {
 					my $ua = LWP::UserAgent->new(
@@ -280,23 +261,8 @@ foreach my $file (@files) {
 						Content      => [
 							apikey      => $apikey,
 							filename    => [$name],
-							dest_ip     => $dest_ip,
-							dest_port   => $dest_port,
-							src_ip      => $src_ip,
-							src_port    => $src_port,
-							app_proto   => $app_proto,
-							http_host   => $http_host,
-							http_url    => $http_url,
-							flow_id     => $flow_id,
-							http_method => $http_method,
-							http_proto  => $http_proto,
-							http_status => $http_status,
-							http_ctype  => $http_ctype,
-							http_ua     => $http_ua,
 							type        => 'suricata_extract',
-							proto       => $proto,
-							raw_json    => $file_raw,
-							src_host    => hostname,
+							json    => encode_json($file_json),
 						],
 					);
 				};
