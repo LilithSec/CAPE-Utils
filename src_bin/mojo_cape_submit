@@ -183,7 +183,8 @@ sub the_stuff {
 	# get the json metadata info
 	my $raw_json = $c->param('json');
 	my $json;
-	eval { $json = decode_json($raw_json); } if ($@) {
+	eval { $json = decode_json($raw_json); };
+	if ($@) {
 		log_drek( 'err', 'json param decode error: ' . $@ );
 		$json = {};
 	}
