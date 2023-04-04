@@ -204,18 +204,18 @@ foreach my $file (@files) {
 		log_something( 'info', 'MIME type: ' . $mime );
 
 		my $add_it = 1;
-		if ( $white_list->($file_json->{src_ip}) ) {
+		if ( $white_list->( $file_json->{src_ip} ) ) {
 			log_something( 'info', 'Ignore Listed Source IP: ' . $file_json->{src_ip} );
 			$add_it = 0;
 		}
-		if ( $white_list->($file_json->{dest_ip}) ) {
+		if ( $white_list->( $file_json->{dest_ip} ) ) {
 			log_something( 'info', 'Ignore Listed Destination IP: ' . $file_json->{src_ip} );
 			$add_it = 0;
 		}
 		foreach my $item (@hosts_to_ignore) {
-			if (defined( $file_json->{http} ) && defined( $file_json->{http}{hostname} ) ) {
+			if ( defined( $file_json->{http} ) && defined( $file_json->{http}{hostname} ) ) {
 				if ( $file_json->{http}{hostname} =~ /$item/ ) {
-					log_something( 'info', 'Ignore Listed Host, "' . $item . '": ' . $file_json->{http}{hostname}  );
+					log_something( 'info', 'Ignore Listed Host, "' . $item . '": ' . $file_json->{http}{hostname} );
 					$add_it = 0;
 				}
 			}
@@ -243,12 +243,13 @@ foreach my $file (@files) {
 				copy( $data_file, $name )
 					or die 'Copy failed(' . $data_file . ' -> ' . $tempdir . '/' . $name . '): ' . $!;
 
-				$file_json->{suricata_extract_submit}={
-													   filename=>$name,
-													   apikey=>$apikey,
-													   host=>hostname,
-													   to=>$config->{_}->{url},
-													   };
+				$file_json->{suricata_extract_submit} = {
+					filename => $name,
+					apikey   => $apikey,
+					host     => hostname,
+					to       => $config->{_}->{url},
+					time     => time,
+				};
 				my $res;
 				eval {
 					my $ua = LWP::UserAgent->new(
@@ -259,10 +260,10 @@ foreach my $file (@files) {
 						POST $config->{_}->{url},
 						Content_type => 'multipart/form-data',
 						Content      => [
-							apikey      => $apikey,
-							filename    => [$name],
-							type        => 'suricata_extract',
-							json    => encode_json($file_json),
+							apikey   => $apikey,
+							filename => [$name],
+							type     => 'suricata_extract',
+							json     => encode_json($file_json),
 						],
 					);
 				};
