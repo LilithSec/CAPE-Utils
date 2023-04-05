@@ -1403,7 +1403,7 @@ sub cape_eve_process {
 				$self->cape_eve_process( 'cape_eve_process', 'err', $error_message );
 			}
 
-			eval { write_file( $self->{config}{_}{eve}, $raw_eve_json ); };
+			eval { append_file( $self->{config}{_}{eve}, $raw_eve_json ); };
 		}
 		else {
 			if ( -f $report && -r $report ) {
