@@ -1349,7 +1349,7 @@ sub cape_eve_process {
 	foreach my $row (@rows) {
 		my $report        = $self->{config}{_}{base} . '/storage/analyses/' . $row->{id} . '/reports/lite.json';
 		my $id_eve        = $self->{config}{_}{incoming_json} . '/' . $row->{id} . '.eve.json';
-		my $incoming_json = $self->{config}{_}{incoming_json} . '/' . $row->{id} . 'json';
+		my $incoming_json = $self->{config}{_}{incoming_json} . '/' . $row->{id} . '.json';
 
 		# make sure we have the required files and they are accessible
 		# id_eve is being used as a lock file to make sure we don't reprocess it
