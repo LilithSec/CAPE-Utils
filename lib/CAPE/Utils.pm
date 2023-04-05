@@ -13,6 +13,7 @@ use Text::ANSITable;
 use File::Spec;
 use IPC::Cmd qw(run);
 use Net::Subnet;
+use Sys::Hostname;
 
 =head1 NAME
 
@@ -88,6 +89,7 @@ sub new {
 			incoming            => '/malware/client-incoming',
 			incoming_json       => '/malware/incoming-json',
 			eve_look_back       => 360,
+			malscore            => 0,
 		},
 	};
 
@@ -1309,13 +1311,13 @@ sub check_remote {
 	return 0;
 }
 
-=head2 eve_process
+=head2 cape_eve_process
 
 Read back the amount
 
 =cut
 
-sub eve_process {
+sub cape_eve_process {
 	my ( $self, %opts ) = @_;
 
 	my $dbh;
@@ -1325,9 +1327,9 @@ sub eve_process {
 	}
 
 	my $statement
-		= "select * from tasks where ( status == 'reported' ) AND ( reporting_finished_on  > CURRENT_TIMESTAMP - interval '"
+		= "select * from tasks where ( status == 'reported' ) AND ( completed_on  > CURRENT_TIMESTAMP - interval '"
 		. $self->{config}{_}{eve_look_back}
-		. "' seconds' )";
+		. " seconds' )";
 
 	my $sth = $dbh->prepare($statement);
 	$sth->execute;
@@ -1341,6 +1343,92 @@ sub eve_process {
 	$sth->finish;
 	$dbh->disconnect;
 
+	my $main_eve = $self->{config}{_}{eve};
+
+	foreach my $row (@rows) {
+		my $report        = $self->{config}{_}{base} . '/storage/analyses/' . $row->{id} . '/reports/lite.json';
+		my $id_eve        = $self->{config}{_}{incoming_json} . '/' . $row->{id} . '.eve.json';
+		my $incoming_json = $self->{config}{_}{incoming_json} . '/' . $row->{id} . 'json';
+
+		# make sure we have the required files and they are accessible
+		# id_eve is being used as a lock file to make sure we don't reprocess it
+		if ( -f $report && -r $report && !-f $id_eve ) {
+			my $eve_json;
+			eval {
+				$eve_json = decode_json( read_file($incoming_json) );
+				$eve_json->{cape_eve_process} = { incoming_json_error => undef, };
+			};
+			if ($@) {
+				my $error_message = 'Failed to decode incoming JSON for ' . $row->{id} . ' ... ' . $@;
+				$self->cape_eve_process( 'cape_eve_process', 'err', $error_message );
+				$eve_json = {
+					cape_eve_process => {
+						incoming_json_error => $error_message,
+					},
+				};
+			}
+
+			$eve_json->{cape_eve_process}{time} = time;
+			$eve_json->{cape_eve_process}{host} = hostname;
+			$eve_json->{row}                    = $row;
+			$eve_json->{event_type}             = 'potential_malware_detonation';
+
+			my $lite_json;
+			eval {
+				$lite_json = decode_json( read_file($report) );
+
+				if ( defined( $lite_json->{signatures} ) ) {
+					$eve_json->{signatures} = $lite_json->{signatures};
+				}
+
+				if ( defined( $lite_json->{malscore} ) ) {
+					$eve_json->{malscore} = $lite_json->{malscore};
+
+					if ( $lite_json->{malscore} >= $self->{config}{_}{malscore} ) {
+						$eve_json->{event_type} = 'alert';
+					}
+				}
+			};
+			if ($@) {
+				my $error_message = 'Failed to decode lite.json for ' . $row->{id} . ' ... ' . $@;
+				$self->cape_eve_process( 'cape_eve_process', 'err', $error_message );
+				$eve_json->{cape_eve_process}{lite_json_error} = $error_message,;
+			}
+
+			my $raw_eve_json = encode_json($eve_json);
+
+			eval { write_file( $id_eve, $raw_eve_json ); };
+			if ($@) {
+				my $error_message = 'Failed to write out ID EVE for ' . $row->{id} . ' at ' . $id_eve . '  ... ' . $@;
+				$self->cape_eve_process( 'cape_eve_process', 'err', $error_message );
+			}
+
+			eval { write_file( $self->{config}{_}{eve}, $raw_eve_json ); };
+		}
+		else {
+			if ( -f $report && -r $report ) {
+				warn( $row->{id} . ' reported, but lite.json does not exist for it or it is not readable' );
+			}
+		}
+	}
+
+}
+
+# sends stuff to syslog
+sub log_drek {
+	my ( $self, $sender, $level, $message ) = @_;
+
+	if ( !defined($level) ) {
+		$level = 'info';
+	}
+
+	if ( !defined($sender) ) {
+		$sender = 'CAPE::Utils';
+	}
+
+	openlog( $sender, 'cons,pid', 'daemon' );
+	syslog( $level, '%s', $message );
+	closelog();
 }
 
 =head1 CONFIG FILE
@@ -1409,6 +1497,8 @@ default with CAPEv2 in it's default config.
     eve=/opt/CAPEv2/log/eve.json
     # how far to go back for processing eve
     eve_look_back=360
+    # malscore for changing the event_type for eve from potential_malware_detonation to alert
+    malscore=0
 
 =head1 AUTHOR
 
