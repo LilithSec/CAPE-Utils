@@ -1360,7 +1360,7 @@ sub cape_eve_process {
 			};
 			if ($@) {
 				my $error_message = 'Failed to decode incoming JSON for ' . $row->{id} . ' ... ' . $@;
-				$self->cape_eve_process( 'cape_eve_process', 'err', $error_message );
+				$self->log_drek( 'cape_eve_process', 'err', $error_message );
 				$eve_json = {
 					cape_eve_process => {
 						incoming_json_error => $error_message,
@@ -1391,7 +1391,7 @@ sub cape_eve_process {
 			};
 			if ($@) {
 				my $error_message = 'Failed to decode lite.json for ' . $row->{id} . ' ... ' . $@;
-				$self->cape_eve_process( 'cape_eve_process', 'err', $error_message );
+				$self->log_drek( 'cape_eve_process', 'err', $error_message );
 				$eve_json->{cape_eve_process}{lite_json_error} = $error_message,;
 			}
 
@@ -1400,7 +1400,7 @@ sub cape_eve_process {
 			eval { write_file( $id_eve, $raw_eve_json ); };
 			if ($@) {
 				my $error_message = 'Failed to write out ID EVE for ' . $row->{id} . ' at ' . $id_eve . '  ... ' . $@;
-				$self->cape_eve_process( 'cape_eve_process', 'err', $error_message );
+				$self->log_drek( 'cape_eve_process', 'err', $error_message );
 			}
 
 			eval { append_file( $self->{config}{_}{eve}, $raw_eve_json ); };

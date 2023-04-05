@@ -433,6 +433,7 @@ if ( $action eq 'fail' ) {
 
 if ( $action eq 'eve' ) {
 	$cape_utils->cape_eve_process(  );
+	exit 0;
 }
 
 die 'No action for -a matched';
