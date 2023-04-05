@@ -1396,7 +1396,9 @@ sub cape_eve_process {
 				$eve_json->{cape_eve_process}{lite_json_error} = $error_message,;
 			}
 
-			my $raw_eve_json = encode_json($eve_json);
+			# new line is needed as encode_json does not add one and this prevents the eve file
+			# from being one long line when appended to
+			my $raw_eve_json = encode_json($eve_json)."\n";
 
 			eval { write_file( $id_eve, $raw_eve_json ); };
 			if ($@) {
