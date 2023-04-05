@@ -14,6 +14,7 @@ use File::Spec;
 use IPC::Cmd qw(run);
 use Net::Subnet;
 use Sys::Hostname;
+use Sys::Syslog;
 
 =head1 NAME
 
