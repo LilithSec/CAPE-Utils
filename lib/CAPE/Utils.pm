@@ -1327,7 +1327,7 @@ sub cape_eve_process {
 	}
 
 	my $statement
-		= "select * from tasks where ( status == 'reported' ) AND ( completed_on  > CURRENT_TIMESTAMP - interval '"
+		= "select * from tasks where ( status = 'reported' ) AND ( completed_on  >= CURRENT_TIMESTAMP - interval '"
 		. $self->{config}{_}{eve_look_back}
 		. " seconds' )";
 
