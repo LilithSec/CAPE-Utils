@@ -6,7 +6,7 @@ use warnings;
 use JSON;
 use Config::Tiny;
 use DBI;
-use File::Slurp qw(append_file write_file);
+use File::Slurp qw(append_file write_file read_file write_file);
 use Config::Tiny;
 use IPC::Cmd qw[ run ];
 use Text::ANSITable;
