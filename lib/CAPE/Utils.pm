@@ -1424,7 +1424,7 @@ sub cape_eve_process {
 			eval { append_file( $self->{config}{_}{eve}, $raw_eve_json ); };
 		}
 		else {
-			if ( -f $report && -r $report ) {
+			if ( ! -f $report || ! -r $report ) {
 				warn( $row->{id} . ' reported, but lite.json does not exist for it or it is not readable' );
 			}
 		}
