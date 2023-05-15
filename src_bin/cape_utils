@@ -129,7 +129,7 @@ failing pending items.
 
 =head1 Action: eve
 
-Invoke CAPE::Utils->cape_process_eve.
+Invoke CAPE::Utils->process_eve.
 
 =head1 CONFIG FILE
 
@@ -424,7 +424,7 @@ if ( $action eq 'fail' ) {
 }
 
 if ( $action eq 'eve' ) {
-	$cape_utils->cape_eve_process(  );
+	$cape_utils->eve_process(  );
 	exit 0;
 }
 
