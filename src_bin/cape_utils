@@ -228,6 +228,10 @@ Action: fail
 
 -w <where>             Additional SQL args for use with statement for
                        failing pending items.
+
+Action: fail
+
+No other args taken.
 ';
 }
 

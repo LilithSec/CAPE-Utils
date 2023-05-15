@@ -1312,15 +1312,15 @@ sub check_remote {
 	return 0;
 }
 
-=head2 cape_eve_process
+=head2 eve_process
 
 Process the finished tasks for CAPEv2.
 
-    $cape_utils->cape_eve_process;
+    $cape_utils->eve_process;
 
 =cut
 
-sub cape_eve_process {
+sub eve_process {
 	my ( $self, %opts ) = @_;
 
 	my $dbh;
@@ -1529,7 +1529,15 @@ If not, it will proceed.
 
 It reads the 'lite.json' report for task as well as the incoming JSON. It then copies the keys
 'signatures' and 'malscore' into the hash for the incoming JSON and writes it out to
-$task_id.'eve.json' or appending it to the file specified via the config value 'eve'.
+$task_id.'eve.json' and appending it to the file specified via the config value 'eve'.
+
+The are two possible values for 'event_type', 'potential_malware_detonation' and 'alert'.
+'potential_malware_detonation' is changed to alert when 'malscore' goves over the value
+specified via config value 'malscore'.
+
+'row' is the full row for the task in question from the task table as a hash.
+
+'signatures' is copied from '.signature' in the report JSON.
 
 =head1 AUTHOR
 
