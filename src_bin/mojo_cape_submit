@@ -218,7 +218,7 @@ sub the_stuff {
 	$additional_info{http_status} = $c->param('http_status');
 	$additional_info{http_ctype}  = $c->param('http_ctype');
 	$additional_info{http_ua}     = $c->param('http_ua');
-	$additional_info{type}        = $c->param('type');
+	$additional_info{det_sub_type}        = $c->param('type');
 	$additional_info{src_host}    = $c->param('src_host');
 
 	# set the value for anything not defined to undef for the purpose of logging
@@ -228,10 +228,11 @@ sub the_stuff {
 			$additional_info{$item} = 'undef';
 		}
 	}
+	$json->{det_sub_type}=$additional_info{det_sub_type};
 
 	# log additional info
 	log_drek( 'info', 'Source Host: ' . $additional_info{src_host} );
-	log_drek( 'info', 'Submission Type: ' . $additional_info{type} );
+	log_drek( 'info', 'Submission Type: ' . $additional_info{det_sub_type} );
 	log_drek( 'info',
 			  'proto='
 			. $additional_info{proto}

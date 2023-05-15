@@ -6,7 +6,7 @@ use warnings;
 use JSON;
 use Config::Tiny;
 use DBI;
-use File::Slurp;
+use File::Slurp qw(append_file write_file);
 use Config::Tiny;
 use IPC::Cmd qw[ run ];
 use Text::ANSITable;
@@ -1314,7 +1314,9 @@ sub check_remote {
 
 =head2 cape_eve_process
 
-Read back the amount
+Process the finished tasks for CAPEv2.
+
+    $cape_utils->cape_eve_process;
 
 =cut
 
@@ -1355,24 +1357,37 @@ sub cape_eve_process {
 		# id_eve is being used as a lock file to make sure we don't reprocess it
 		if ( -f $report && -r $report && !-f $id_eve ) {
 			my $eve_json;
-			eval {
-				$eve_json = decode_json( read_file($incoming_json) );
-				$eve_json->{cape_eve_process} = { incoming_json_error => undef, };
-			};
-			if ($@) {
-				my $error_message = 'Failed to decode incoming JSON for ' . $row->{id} . ' ... ' . $@;
-				$self->log_drek( 'cape_eve_process', 'err', $error_message );
-				$eve_json = {
-					cape_eve_process => {
-						incoming_json_error => $error_message,
-					},
+			# the incoming json needs to exist if the following is to work
+			# if it does not, just a mostly empty one
+			if (-f $incoming_json) {
+				eval {
+					$eve_json = decode_json( read_file($incoming_json) );
+					$eve_json->{cape_eve_process} = { incoming_json_error => undef, };
 				};
+				if ($@) {
+					my $error_message = 'Failed to decode incoming JSON for ' . $row->{id} . ' ... ' . $@;
+					$self->log_drek( 'cape_eve_process', 'err', $error_message );
+					$eve_json = {
+								 cape_eve_process => {
+													  incoming_json_error => $error_message,
+													  },
+								 };
+				}
+			}else {
+				$eve_json = {
+							 cape_eve_process => {},
+							 };
 			}
 
+			# sets various common items so they don't need to be dealt with more than once
+			# hash creation
 			$eve_json->{cape_eve_process}{time} = time;
 			$eve_json->{cape_eve_process}{host} = hostname;
 			$eve_json->{row}                    = $row;
 			$eve_json->{event_type}             = 'potential_malware_detonation';
+			if (!defined ($eve_json->{cape_eve_process}{incoming_json_error} )) {
+				$eve_json->{cape_eve_process}{incoming_json_error}=undef,
+			}
 
 			my $lite_json;
 			eval {
@@ -1502,6 +1517,19 @@ default with CAPEv2 in it's default config.
     eve_look_back=360
     # malscore for changing the event_type for eve from potential_malware_detonation to alert
     malscore=0
+
+=head1 CAPEv2 lite.json to EVE handling
+
+Tasks are found by looking back X number of seconds in the tasks table for tasks that have reported.
+The amount of time is determined by the config value 'eve_look_back'.
+
+It will check if a task has been processed already or not be seeing if a task specified EVE JSON
+has been created under the 'incoming_json' directory. This is in the format $task_id.'eve.json'.
+If not, it will proceed.
+
+It reads the 'lite.json' report for task as well as the incoming JSON. It then copies the keys
+'signatures' and 'malscore' into the hash for the incoming JSON and writes it out to
+$task_id.'eve.json' or appending it to the file specified via the config value 'eve'.
 
 =head1 AUTHOR
 

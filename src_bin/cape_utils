@@ -18,23 +18,7 @@ cape_utils -a tasks [B<-c> <config>] [B<-C>] [B<-w> <where>] [B<--direction> <di
 
 cape_utils -a fail [B<-c> <config>] B<-w> <where>
 
-=head1 GENERAL FLAGS
-
-=head2 -c <ini>
-
-Config INI file.
-
-Default: /usr/local/etc/cape_utils.ini
-
-=head2 -a <action>
-
-Action to perform.
-
-=head2 --json
-
-For submission or searches, output the results as JSON.
-
-=head1 Action: submit
+cape_utils -a eve [B<-c> <config>]=head1 Action: submit
 
 =head2 @ARGS
 
@@ -142,6 +126,10 @@ getting running items.
 
 Additional SQL args for use with statement for
 failing pending items.
+
+=head1 Action: eve
+
+Invoke CAPE::Utils->cape_process_eve.
 
 =head1 CONFIG FILE
 
