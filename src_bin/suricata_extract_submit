@@ -136,7 +136,7 @@ my $stats;
 
 # handle the stats file if it exists and is readable
 if ( -f $stats_file && -r $stats_file ) {
-	eval { $stats = decode_json(read_file($stats_file)); };
+	eval { $stats = decode_json( read_file($stats_file) ); };
 	if ($@) {
 		log_something( 'err', 'stats file, "' . $stats_file . '", reading or parsing failed, using default stats... ' . $@ );
 		$stats = $stats_default;
@@ -334,46 +334,46 @@ foreach my $file (@files) {
 					# compute that status line stats
 					if ( defined($status_line) ) {
 						if ( $status_line =~ /^2\d\d/ ) {
-							$stats->{sub_2xx}++;
+							$new_stats->{sub_2xx}++;
 						} elsif ( $status_line =~ /^3\d\d/ ) {
-							$stats->{sub_3xx}++;
+							$new_stats->{sub_3xx}++;
 						} elsif ( $status_line =~ /^4\d\d/ ) {
-							$stats->{sub_4xx}++;
+							$new_stats->{sub_4xx}++;
 						} elsif ( $status_line =~ /^5\d\d/ ) {
-							$stats->{sub_5xx}++;
+							$new_stats->{sub_5xx}++;
 						}
 					} ## end if ( defined($status_line) )
 				} ## end if ( defined($res) )
 
 				# handle submission errors
 				if ($sub_error) {
-					$stats->{sub_fail}++;
+					$new_stats->{sub_fail}++;
 
 					# if this is defined, submission worked, but we got a sub error
 					if ( defined($status_line) ) {
 						my $error = "Failed to post... " . $res->status_line;
-						push( @{ $stats->{last_errors} }, $error );
+						push( @{ $new_stats->{last_errors} }, $error );
 						die($error);
 					}    # if we don't have a status line the submission eval never got that far
 					else {
-						$stats->{errors}++;
+						$new_stats->{errors}++;
 						my $error = "Failed to post... " . $sub_error;
-						push( @{ $stats->{last_errors} }, $error );
+						push( @{ $new_stats->{last_errors} }, $error );
 						die($error);
 					}
 				} else {
 					if ( $status_line =~ /^2\d\d/ ) {
-						$stats->{sub}++;
+						$new_stats->{sub}++;
 						log_something( 'info', 'Uplodated Response Status: ' . $res->status_line );
 					} else {
-						$stats->{sub_fail}++;
+						$new_stats->{sub_fail}++;
 						my $error = "Failed to post... " . $res->status_line;
-						push( @{ $stats->{last_errors} }, $error );
+						push( @{ $new_stats->{last_errors} }, $error );
 						die($error);
 					}
 				} ## end else [ if ($sub_error) ]
 			} else {
-				$stats->{zero_sized}++;
+				$new_stats->{zero_sized}++;
 				log_something( 'info', 'Not uploading as the sample is zero sized' );
 			}
 		} ## end if ($add_it)
@@ -382,8 +382,8 @@ foreach my $file (@files) {
 		move( $file, $file . '-processed' ) or die 'Appending "-processed" to the name of the JSON failed...' . $!;
 		if ($@) {
 			my $error = 'Failed to rename ' . $file . ' ... ' . $@;
-			$stats->{errors}++;
-			push( @{ $stats->{last_errors} }, $error );
+			$new_stats->{errors}++;
+			push( @{ $new_stats->{last_errors} }, $error );
 			log_something( 'err', $error );
 		}
 	};
@@ -399,7 +399,7 @@ foreach my $file (@files) {
 	}
 } ## end foreach my $file (@files)
 
-# compuete the deltas
+# compute the deltas
 my @to_delta = ( 'sub', 'sub_fail', 'zero_sized', 'sub_2xx', 'sub_3xx', 'sub_4xx', 'sub_5xx', 'errors' );
 foreach my $item (@to_delta) {
 	my $old = $stats->{$item};
