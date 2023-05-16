@@ -82,7 +82,7 @@ sub log_something {
 	closelog();
 
 	print $message. "\n";
-}
+} ## end sub log_something
 
 log_something( 'info', 'Suricata Malware Extractor starting up..' );
 
@@ -133,25 +133,23 @@ my $stats_default = {
 	errors_delta   => 0,
 };
 my $stats;
+
+# handle the stats file if it exists and is readable
 if ( -f $stats_file && -r $stats_file ) {
 	eval { $stats = decode_json(read_file); };
 	if ($@) {
-		log_something( 'err',
-			'stats file, "' . $stats_file . '", reading or parsing failed, using default stats... ' . $@ );
+		log_something( 'err', 'stats file, "' . $stats_file . '", reading or parsing failed, using default stats... ' . $@ );
 		$stats = $stats_default;
 	}
 
-}
-
-# if it exists, but is not readable, error and use the default
+}    # if it exists, but is not readable, error and use the default
 elsif ( -f $stats_file && !-r $stats_file ) {
 	my $error = 'stats file, "' . $stats_file . '", exists, but is not readable, using default stats';
 	log_something( 'err', $error );
 	$stats = $stats_default;
 	$stats->{errors}++;
 	push( @{ $stats->{last_errors} }, $error );
-}
-else {
+} else {
 	$stats = $stats_default;
 }
 my $new_stats = $stats;
@@ -183,10 +181,10 @@ if ( defined($ignore_file) && -f $ignore_file ) {
 		push( @to_ignore, $item );
 
 		$ignored++;
-	}
+	} ## end foreach my $item (@to_ignore_raw)
 
 	log_something( 'info', 'ignoring ' . $ignored . ' subnets or IPs' );
-}
+} ## end if ( defined($ignore_file) && -f $ignore_file)
 my $ip_ignore = subnet_matcher @to_ignore;
 
 # read in the file of IPs to ignore
@@ -202,7 +200,7 @@ if ( defined($ignoreHosts_file) && -f $ignoreHosts_file ) {
 
 	my $found_regex = $#hosts_to_ignore;
 	log_something( 'info', $found_regex . ' regexs loaded to ignore for hosts' );
-}
+} ## end if ( defined($ignoreHosts_file) && -f $ignoreHosts_file)
 
 # create a tmpdir and chdir to it
 my $tempdir = tempdir();
@@ -252,8 +250,7 @@ foreach my $file (@files) {
 		my $mime = mimetype($filename);
 		if ( !defined($mime) ) {
 			$mime = 'application_x-ms-dos-executable';
-		}
-		else {
+		} else {
 			$mime =~ s/\//\_/g;
 		}
 		log_something( 'info', 'MIME type: ' . $mime );
@@ -338,18 +335,15 @@ foreach my $file (@files) {
 					if ( defined($status_line) ) {
 						if ( $status_line =~ /^2\d\d/ ) {
 							$stats->{sub_2xx}++;
-						}
-						elsif ( $status_line =~ /^3\d\d/ ) {
+						} elsif ( $status_line =~ /^3\d\d/ ) {
 							$stats->{sub_3xx}++;
-						}
-						elsif ( $status_line =~ /^4\d\d/ ) {
+						} elsif ( $status_line =~ /^4\d\d/ ) {
 							$stats->{sub_4xx}++;
-						}
-						elsif ( $status_line =~ /^5\d\d/ ) {
+						} elsif ( $status_line =~ /^5\d\d/ ) {
 							$stats->{sub_5xx}++;
 						}
-					}
-				}
+					} ## end if ( defined($status_line) )
+				} ## end if ( defined($res) )
 
 				# handle submission errors
 				if ($sub_error) {
@@ -360,34 +354,29 @@ foreach my $file (@files) {
 						my $error = "Failed to post... " . $res->status_line;
 						push( @{ $stats->{last_errors} }, $error );
 						die($error);
-					}
-
-					# if we don't have a status line the submission eval never got that far
+					}    # if we don't have a status line the submission eval never got that far
 					else {
 						$stats->{errors}++;
 						my $error = "Failed to post... " . $sub_error;
 						push( @{ $stats->{last_errors} }, $error );
 						die($error);
 					}
-				}
-				else {
+				} else {
 					if ( $status_line =~ /^2\d\d/ ) {
 						$stats->{sub}++;
 						log_something( 'info', 'Uplodated Response Status: ' . $res->status_line );
-					}
-					else {
+					} else {
 						$stats->{sub_fail}++;
 						my $error = "Failed to post... " . $res->status_line;
 						push( @{ $stats->{last_errors} }, $error );
 						die($error);
 					}
-				}
-			}
-			else {
+				} ## end else [ if ($sub_error) ]
+			} else {
 				$stats->{zero_sized}++;
 				log_something( 'info', 'Not uploading as the sample is zero sized' );
 			}
-		}
+		} ## end if ($add_it)
 
 		# rename the JSON file so we don't process it again
 		move( $file, $file . '-processed' ) or die 'Appending "-processed" to the name of the JSON failed...' . $!;
@@ -408,4 +397,29 @@ foreach my $file (@files) {
 		# now that we are done with the tmp file, we can remove it
 		unlink($name);
 	}
+} ## end foreach my $file (@files)
+
+# compuete the deltas
+my @to_delta = ( 'sub', 'sub_fail', 'zero_sized', 'sub_2xx', 'sub_3xx', 'sub_4xx', 'sub_5xx', 'errors' );
+foreach my $item (@to_delta) {
+	my $old = $stats->{$item};
+	my $new = $new_stats->{$item};
+	my $delta;
+	if ( $new >= $old ) {
+		$delta = $new - $old;
+
+		# roll it over if it is over 2G
+		if ( $new > 2000000000 ) {
+			$new_stats->{$item} = $delta;
+		}
+	} else {
+		$delta = $new;
+	}
+	$new_stats->{ $item . '_delta' } = $delta;
+} ## end foreach my $item (@to_delta)
+
+# write out the stats file
+eval { write_file( $stats_file, encode_json($new_stats) ); };
+if ($@) {
+	log_something( 'err', 'Writing stats file, "' . $stats_file . '", failed... ' . $@ );
 }
