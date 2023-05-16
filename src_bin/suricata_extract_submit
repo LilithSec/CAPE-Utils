@@ -414,7 +414,7 @@ foreach my $item (@to_delta) {
 			$new_stats->{$item} = $delta;
 		}
 	} elsif ( $old > $new ) {
-		$delta = new;
+		$delta = $new;
 	} else {
 		$delta = $0;
 	}
