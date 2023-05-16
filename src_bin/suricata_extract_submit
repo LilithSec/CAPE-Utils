@@ -234,7 +234,10 @@ if ( !defined( $files[0] ) ) {
 		my $old = $stats->{$item};
 		my $new = $new_stats->{$item};
 		my $delta;
-		if ( $new > $old ) {
+		if ( !defined($old) ) {
+			$delta = $new;
+		} elsif ( $new > $old ) {
+
 			$delta = $new - $old;
 
 			# roll it over if it is over 2G
@@ -457,7 +460,9 @@ foreach my $item (@to_delta) {
 	my $old = $stats->{$item};
 	my $new = $new_stats->{$item};
 	my $delta;
-	if ( $new > $old ) {
+	if ( !defined($old) ) {
+		$delta = $new;
+	} elsif ( $new > $old ) {
 		$delta = $new - $old;
 
 		# roll it over if it is over 2G
