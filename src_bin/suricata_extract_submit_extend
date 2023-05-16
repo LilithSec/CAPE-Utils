@@ -1,0 +1,97 @@
+#!perl
+
+=head1 NAME
+
+suricata_extract_submit_extend - Provides LibreNMS style SNMP extend for 
+
+=head1 SYNOPSIS
+
+extend suricata-extract /usr/local/bin/suricata_extract_submit_extend
+
+=head1 DESCRIPTION
+
+Ihe cache file is not in the default location, it may be specified via
+the option '-c'.
+
+=cut
+
+use File::Find::Rule;
+use warnings;
+use strict;
+use MIME::Base64;
+use Gzip::Faster;
+use Getopt::Long;
+use JSON;
+
+sub version {
+	print "suricata_extract_submit_extend v. 0.0.1\n";
+}
+
+my $version;
+my $help;
+my $cache = '/var/cache/suricata_extract_submit_stats.json';
+GetOptions(
+	'h'       => \$help,
+	'help'    => \$help,
+	'v'       => \$version,
+	'version' => \$version,
+	'cache'   => \$cache,
+);
+
+if ($version) {
+	version;
+	exit;
+}
+
+if ($help) {
+	version;
+
+	print '
+
+-c <cache>    The stats cache JSON created by suricata_extract_submit.
+              Default: /var/cache/suricata_extract_submit_stats.json
+
+-h         Print help.
+--help     Print help.
+-v         Print version info.
+--version  Print version info.
+';
+
+	exit;
+} ## end if ($help)
+
+my $to_return = {
+	data        => {},
+	version     => 0,
+	error       => 0,
+	errorString => '',
+};
+
+my $stats;
+eval{
+	$stats=decode_json(read_file($cache));
+};
+if ($@) {
+	$to_return->{error}=1;
+	$to_return->{errorString}='Failed to read/decode JSON cache file,"'.$cache.'" ... '.$@;
+}elsif (!defined($stats)) {
+	$to_return->{error}=2;
+	$to_return->{errorString}='Failed to read/decode JSON cache file,"'.$cache.'" ... '.$@;
+}else {
+	$to_return->{data}=$stats;
+}
+
+my $data=encode_json($to_return);
+
+# gzip and print encode in base64
+# base64 is needed as snmp does not like
+my $compressed = encode_base64(gzip($data));
+$compressed =~ s/\n//g;
+$compressed = $compressed . "\n";
+
+# check which is smaller and prints it
+if (length($compressed) > length($data)) {
+	print $data;
+}else {
+	print $compressed;
+}
