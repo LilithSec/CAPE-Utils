@@ -152,7 +152,8 @@ elsif ( -f $stats_file && !-r $stats_file ) {
 } else {
 	$stats = $stats_default;
 }
-my $new_stats = $stats;
+my %copy_stats = %{$stats};
+my $new_stats  = \%copy_stats;
 
 # read in the file of IPs to ignore
 my $ignore_file = $config->{_}->{ignore};
@@ -405,15 +406,17 @@ foreach my $item (@to_delta) {
 	my $old = $stats->{$item};
 	my $new = $new_stats->{$item};
 	my $delta;
-	if ( $new >= $old ) {
+	if ( $new > $old ) {
 		$delta = $new - $old;
 
 		# roll it over if it is over 2G
 		if ( $new > 2000000000 ) {
 			$new_stats->{$item} = $delta;
 		}
+	} elsif ( $old > $new ) {
+		$delta = new;
 	} else {
-		$delta = $new;
+		$delta = $0;
 	}
 	$new_stats->{ $item . '_delta' } = $delta;
 } ## end foreach my $item (@to_delta)
