@@ -87,8 +87,9 @@ sub log_something {
 log_something( 'info', 'Suricata Malware Extractor starting up..' );
 
 # sensor config file
-my $config = Config::Tiny->read('/usr/local/etc/suricata_extract_submit.ini');
-log_something( 'info', 'Config /usr/local/etc/suricata_extract_submit.ini read...' );
+my $config_file = '/usr/local/etc/suricata_extract_submit.ini';
+my $config      = Config::Tiny->read($config_file);
+log_something( 'info', 'Config ' . $config_file . ' read...' );
 
 # information for submitting it...
 my $apikey = $config->{_}->{apikey};
@@ -106,6 +107,54 @@ my $filestore = $config->{_}->{filestore};
 if ( !defined($filestore) ) {
 	$filestore = '/var/log/suricata/files/';
 }
+
+# get the stats file
+my $stats_file = $config->{_}->{filestore};
+if ( !defined($stats_file) ) {
+	$stats_file = '/var/cache/suricata_extract_submit_stats.json';
+}
+my $stats_default = {
+	sub            => 0,
+	sub_delta      => 0,
+	sub_fail       => 0,
+	sub_fail_delta => 0,
+	zero_sized     => 0,
+	zero_delta     => 0,
+	sub_2xx        => 0,
+	sub_2xx_delta  => 0,
+	sub_3xx        => 0,
+	sub_3xx_delta  => 0,
+	sub_4xx        => 0,
+	sub_4xx_delta  => 0,
+	sub_5xx        => 0,
+	sub_5xx_delta  => 0,
+	last_errors    => [],
+	errors         => 0,
+	errors_delta   => 0,
+};
+my $stats;
+if ( -f $stats_file && -r $stats_file ) {
+	eval { $stats = decode_json(read_file); };
+	if ($@) {
+		log_something( 'err',
+			'stats file, "' . $stats_file . '", reading or parsing failed, using default stats... ' . $@ );
+		$stats = $stats_default;
+	}
+
+}
+
+# if it exists, but is not readable, error and use the default
+elsif ( -f $stats_file && !-r $stats_file ) {
+	my $error = 'stats file, "' . $stats_file . '", exists, but is not readable, using default stats';
+	log_something( 'err', $error );
+	$stats = $stats_default;
+	$stats->{errors}++;
+	push( @{ $stats->{last_errors} }, $error );
+}
+else {
+	$stats = $stats_default;
+}
+my $new_stats = $stats;
 
 # read in the file of IPs to ignore
 my $ignore_file = $config->{_}->{ignore};
@@ -138,7 +187,7 @@ if ( defined($ignore_file) && -f $ignore_file ) {
 
 	log_something( 'info', 'ignoring ' . $ignored . ' subnets or IPs' );
 }
-my $white_list = subnet_matcher @to_ignore;
+my $ip_ignore = subnet_matcher @to_ignore;
 
 # read in the file of IPs to ignore
 my $ignoreHosts_file = $config->{_}->{ignoreHosts};
@@ -165,7 +214,7 @@ my @files = File::Find::Rule->file()->name("*json")->in($filestore);
 
 # exit if we don't find anything as there is no point to continue
 if ( !defined( $files[0] ) ) {
-	log_something( 'err', 'None found at this time' );
+	log_something( 'info', 'None found at this time' );
 	exit 0;
 }
 
@@ -210,11 +259,11 @@ foreach my $file (@files) {
 		log_something( 'info', 'MIME type: ' . $mime );
 
 		my $add_it = 1;
-		if ( $white_list->( $file_json->{src_ip} ) ) {
+		if ( $ip_ignore->( $file_json->{src_ip} ) ) {
 			log_something( 'info', 'Ignore Listed Source IP: ' . $file_json->{src_ip} );
 			$add_it = 0;
 		}
-		if ( $white_list->( $file_json->{dest_ip} ) ) {
+		if ( $ip_ignore->( $file_json->{dest_ip} ) ) {
 			log_something( 'info', 'Ignore Listed Destination IP: ' . $file_json->{src_ip} );
 			$add_it = 0;
 		}
@@ -276,14 +325,66 @@ foreach my $file (@files) {
 						],
 					);
 				};
-				if ($@) {
-					die( "Failed to post... " . $res->status_line );
+
+				# save error status for later
+				my $sub_error = $@;
+
+				# see if we can get a status line
+				my $status_line;
+				if ( defined($res) ) {
+					eval { $status_line = $res->status_line; };
+
+					# compute that status line stats
+					if ( defined($status_line) ) {
+						if ( $status_line =~ /^2\d\d/ ) {
+							$stats->{sub_2xx}++;
+						}
+						elsif ( $status_line =~ /^3\d\d/ ) {
+							$stats->{sub_3xx}++;
+						}
+						elsif ( $status_line =~ /^4\d\d/ ) {
+							$stats->{sub_4xx}++;
+						}
+						elsif ( $status_line =~ /^5\d\d/ ) {
+							$stats->{sub_5xx}++;
+						}
+					}
+				}
+
+				# handle submission errors
+				if ($sub_error) {
+					$stats->{sub_fail}++;
+
+					# if this is defined, submission worked, but we got a sub error
+					if ( defined($status_line) ) {
+						my $error = "Failed to post... " . $res->status_line;
+						push( @{ $stats->{last_errors} }, $error );
+						die($error);
+					}
+
+					# if we don't have a status line the submission eval never got that far
+					else {
+						$stats->{errors}++;
+						my $error = "Failed to post... " . $sub_error;
+						push( @{ $stats->{last_errors} }, $error );
+						die($error);
+					}
 				}
 				else {
-					log_something( 'info', 'Uplodated Response Status: ' . $res->status_line );
+					if ( $status_line =~ /^2\d\d/ ) {
+						$stats->{sub}++;
+						log_something( 'info', 'Uplodated Response Status: ' . $res->status_line );
+					}
+					else {
+						$stats->{sub_fail}++;
+						my $error = "Failed to post... " . $res->status_line;
+						push( @{ $stats->{last_errors} }, $error );
+						die($error);
+					}
 				}
 			}
 			else {
+				$stats->{zero_sized}++;
 				log_something( 'info', 'Not uploading as the sample is zero sized' );
 			}
 		}
@@ -291,7 +392,10 @@ foreach my $file (@files) {
 		# rename the JSON file so we don't process it again
 		move( $file, $file . '-processed' ) or die 'Appending "-processed" to the name of the JSON failed...' . $!;
 		if ($@) {
-			log_something( 'err', 'Failed to rename ' . $file . ' ... ' . $@ );
+			my $error = 'Failed to rename ' . $file . ' ... ' . $@;
+			$stats->{errors}++;
+			push( @{ $stats->{last_errors} }, $error );
+			log_something( 'err', $error );
 		}
 	};
 	if ($@) {
