@@ -97,8 +97,7 @@ sub new {
 	my $config = Config::Tiny->read( $ini, 'utf8' );
 	if ( !defined($config) ) {
 		$config = $base_config;
-	}
-	else {
+	} else {
 		my @to_merge = keys( %{ $base_config->{_} } );
 		foreach my $item (@to_merge) {
 			if ( !defined( $config->{_}->{$item} ) ) {
@@ -112,7 +111,7 @@ sub new {
 	bless $self;
 
 	return $self;
-}
+} ## end sub new
 
 =head2 connect
 
@@ -180,7 +179,7 @@ sub fail {
 	$dbh->disconnect;
 
 	return $rows;
-}
+} ## end sub fail
 
 =head2 get_pending_count
 
@@ -218,7 +217,7 @@ sub get_pending_count {
 	$dbh->disconnect;
 
 	return $rows;
-}
+} ## end sub get_pending_count
 
 =head2 get_pending
 
@@ -261,7 +260,7 @@ sub get_pending {
 	$dbh->disconnect;
 
 	return \@rows;
-}
+} ## end sub get_pending
 
 =head2 get_pending_table
 
@@ -332,24 +331,22 @@ sub get_pending_table {
 
 				if ( ( $column eq 'clock' || $column eq 'added_on' ) && $opts{pending_time_clip} ) {
 					$row->{$column} =~ s/\.[0-9]+$//;
-				}
-				elsif ( $column eq 'target' && $opts{pending_target_clip} ) {
+				} elsif ( $column eq 'target' && $opts{pending_target_clip} ) {
 					$row->{target} =~ s/^.*\///;
 				}
 				push( @new_line, $row->{$column} );
-			}
-			else {
+			} else {
 				push( @new_line, '' );
 			}
-		}
+		} ## end foreach my $column (@columns)
 
 		push( @td, \@new_line );
-	}
+	} ## end foreach my $row ( @{$rows} )
 
 	$tb->add_rows( \@td );
 
 	return $tb->draw;
-}
+} ## end sub get_pending_table
 
 =head2 get_running
 
@@ -399,7 +396,7 @@ sub get_running {
 	$dbh->disconnect;
 
 	return \@rows;
-}
+} ## end sub get_running
 
 =head2 get_running_count
 
@@ -441,7 +438,7 @@ sub get_running_count {
 	$dbh->disconnect;
 
 	return $rows;
-}
+} ## end sub get_running_count
 
 =head2 get_running_table
 
@@ -518,24 +515,22 @@ sub get_running_table {
 					&& $opts{running_time_clip} )
 				{
 					$row->{$column} =~ s/\.[0-9]+$//;
-				}
-				elsif ( $column eq 'target' && $opts{running_target_clip} ) {
+				} elsif ( $column eq 'target' && $opts{running_target_clip} ) {
 					$row->{target} =~ s/^.*\///;
 				}
 				push( @new_line, $row->{$column} );
-			}
-			else {
+			} else {
 				push( @new_line, '' );
 			}
-		}
+		} ## end foreach my $column (@columns)
 
 		push( @td, \@new_line );
-	}
+	} ## end foreach my $row ( @{$rows} )
 
 	$tb->add_rows( \@td );
 
 	return $tb->draw;
-}
+} ## end sub get_running_table
 
 =head2 get_tasks
 
@@ -572,15 +567,13 @@ sub get_tasks {
 
 	if ( defined( $opts{order} ) && $opts{order} !~ /^[0-9a-zA-Z]+$/ ) {
 		die '$opts{order},"' . $opts{order} . '", does not match /^[0-9a-zA-Z]+$/';
-	}
-	else {
+	} else {
 		$opts{order} = 'id';
 	}
 
 	if ( defined( $opts{limit} ) && $opts{limit} !~ /^[0-9]+$/ ) {
 		die '$opts{limit},"' . $opts{limit} . '", does not match /^[0-9]+$/';
-	}
-	else {
+	} else {
 		$opts{limit} = '100';
 	}
 
@@ -589,8 +582,7 @@ sub get_tasks {
 	}
 	if ( defined( $opts{direction} ) && ( $opts{direction} ne 'desc' || $opts{direction} ne 'asc' ) ) {
 		die '$opts{diirection},"' . $opts{direction} . '", does not match desc or asc';
-	}
-	else {
+	} else {
 		$opts{direction} = 'desc';
 	}
 
@@ -626,7 +618,7 @@ sub get_tasks {
 	$dbh->disconnect;
 
 	return \@rows;
-}
+} ## end sub get_tasks
 
 =head2 get_tasks_count
 
@@ -666,7 +658,7 @@ sub get_tasks_count {
 	$dbh->disconnect;
 
 	return $rows;
-}
+} ## end sub get_tasks_count
 
 =head2 get_tasks_table
 
@@ -781,24 +773,22 @@ sub get_tasks_table {
 					)
 				{
 					$row->{$column} =~ s/\.[0-9]+$//;
-				}
-				elsif ( $column eq 'target' && $opts{task_target_clip} ) {
+				} elsif ( $column eq 'target' && $opts{task_target_clip} ) {
 					$row->{target} =~ s/^.*\///;
 				}
 				push( @new_line, $row->{$column} );
-			}
-			else {
+			} else {
 				push( @new_line, '' );
 			}
-		}
+		} ## end foreach my $column (@columns)
 
 		push( @td, \@new_line );
-	}
+	} ## end foreach my $row ( @{$rows} )
 
 	$tb->add_rows( \@td );
 
 	return $tb->draw;
-}
+} ## end sub get_tasks_table
 
 =head2 search
 
@@ -879,14 +869,12 @@ sub search {
 	#
 
 	my @to_check = (
-		'id',            'target',                 'route',            'machine',
-		'timeout',       'priority',               'route',            'tags_tasks',
-		'options',       'clock',                  'added_on',         'started_on',
-		'completed_on',  'status',                 'dropped_files',    'running_processes',
-		'api_calls',     'domains',                'signatures_total', 'signatures_alert',
-		'files_written', 'registry_keys_modified', 'crash_issues',     'anti_issues',
-		'timedout',      'sample_id',              'machine_id',       'parent_id',
-		'tlp',           'category',               'package'
+		'id',               'target',           'route',         'machine',                'timeout',      'priority',
+		'route',            'tags_tasks',       'options',       'clock',                  'added_on',     'started_on',
+		'completed_on',     'status',           'dropped_files', 'running_processes',      'api_calls',    'domains',
+		'signatures_total', 'signatures_alert', 'files_written', 'registry_keys_modified', 'crash_issues', 'anti_issues',
+		'timedout',         'sample_id',        'machine_id',    'parent_id',              'tlp',          'category',
+		'package'
 	);
 
 	foreach my $var_to_check (@to_check) {
@@ -922,10 +910,9 @@ sub search {
 	#
 
 	my @numeric = (
-		'id',                'timeout',       'priority',               'dropped_files',
-		'running_processes', 'api_calls',     'domains',                'signatures_total',
-		'signatures_alert',  'files_written', 'registry_keys_modified', 'crash_issues',
-		'anti_issues',       'sample_id',     'machine_id'
+		'id',          'timeout',          'priority',         'dropped_files', 'running_processes',      'api_calls',
+		'domains',     'signatures_total', 'signatures_alert', 'files_written', 'registry_keys_modified', 'crash_issues',
+		'anti_issues', 'sample_id',        'machine_id'
 	);
 
 	foreach my $item (@numeric) {
@@ -941,57 +928,47 @@ sub search {
 				# match the start of the item
 				if ( $arg =~ /^[0-9]+$/ ) {
 					$sql = $sql . " and " . $item . " = '" . $arg . "'";
-				}
-				elsif ( $arg =~ /^\=[0-9]+$/ ) {
+				} elsif ( $arg =~ /^\=[0-9]+$/ ) {
 					$arg =~ s/^\=//;
 					$sql = $sql . " and " . $item . " <= '" . $arg . "'";
-				}
-				elsif ( $arg =~ /^\<\=[0-9]+$/ ) {
+				} elsif ( $arg =~ /^\<\=[0-9]+$/ ) {
 					$arg =~ s/^\<\=//;
 					$sql = $sql . " and " . $item . " <= '" . $arg . "'";
-				}
-				elsif ( $arg =~ /^\<[0-9]+$/ ) {
+				} elsif ( $arg =~ /^\<[0-9]+$/ ) {
 					$arg =~ s/^\<//;
 					$sql = $sql . " and " . $item . " < '" . $arg . "'";
-				}
-				elsif ( $arg =~ /^\>\=[0-9]+$/ ) {
+				} elsif ( $arg =~ /^\>\=[0-9]+$/ ) {
 					$arg =~ s/^\>\=//;
 					$sql = $sql . " and " . $item . " >= '" . $arg . "'";
-				}
-				elsif ( $arg =~ /^\>[0-9]+$/ ) {
+				} elsif ( $arg =~ /^\>[0-9]+$/ ) {
 					$arg =~ s/^\>\=//;
 					$sql = $sql . " and " . $item . " > '" . $arg . "'";
-				}
-				elsif ( $arg =~ /^\![0-9]+$/ ) {
+				} elsif ( $arg =~ /^\![0-9]+$/ ) {
 					$arg =~ s/^\!//;
 					$sql = $sql . " and " . $item . " != '" . $arg . "'";
-				}
-				elsif ( $arg =~ /^$/ ) {
+				} elsif ( $arg =~ /^$/ ) {
 
 					# only exists for skipping when some one has passes something starting
 					# with a ,, ending with a,, or with ,, in it.
-				}
-				else {
+				} else {
 					# if we get here, it means we don't have a valid use case for what ever was passed and should error
 					die( '"' . $arg . '" does not appear to be a valid item for a numeric search for the ' . $item );
 				}
-			}
-		}
-	}
+			} ## end foreach my $arg (@arg_split)
+		} ## end if ( defined( $opts{$item} ) )
+	} ## end foreach my $item (@numeric)
 
 	#
 	# handle string items
 	#
 
-	my @strings
-		= ( 'target', 'category', 'custom', 'machine', 'package', 'route', 'tags_tasks', 'options', 'platform', );
+	my @strings = ( 'target', 'category', 'custom', 'machine', 'package', 'route', 'tags_tasks', 'options', 'platform', );
 
 	foreach my $item (@strings) {
 		if ( defined( $opts{$item} ) ) {
 			if ( defined( $opts{ $item . '_like' } ) && $opts{ $item . '_like' } ) {
 				$sql = $sql . " and host like '" . $opts{$item} . "'";
-			}
-			else {
+			} else {
 				$sql = $sql . " and " . $item . " = '" . $opts{$item} . "'";
 			}
 		}
@@ -1011,7 +988,7 @@ sub search {
 	my $rows;
 
 	return $rows;
-}
+} ## end sub search
 
 =head2 submit
 
@@ -1101,8 +1078,7 @@ sub submit {
 	foreach my $item ( @{ $opts{items} } ) {
 		if ( -f $item ) {
 			push( @to_submit, File::Spec->rel2abs($item) );
-		}
-		elsif ( -d $item ) {
+		} elsif ( -d $item ) {
 			opendir( my $dh, $item );
 			while ( readdir($dh) ) {
 				if ( -f $item . '/' . $_ ) {
@@ -1111,7 +1087,7 @@ sub submit {
 			}
 			closedir($dh);
 		}
-	}
+	} ## end foreach my $item ( @{ $opts{items} } )
 
 	chdir( $self->{config}->{_}->{base} ) || die( 'Unable to CD to "' . $self->{config}->{_}->{base} . '"' );
 
@@ -1178,10 +1154,10 @@ sub submit {
 				$added->{$file} = $task;
 			}
 		}
-	}
+	} ## end foreach (@to_submit)
 
 	return $added;
-}
+} ## end sub submit
 
 =head2 timestamp
 
@@ -1213,7 +1189,7 @@ sub timestamp {
 	}
 
 	return $mon . '-' . $mday . '-' . $year . ' ' . $hour . ':' . $min . ':' . $sec;
-}
+} ## end sub timestamp
 
 =head2 shuffle
 
@@ -1231,7 +1207,7 @@ sub shuffle {
 		@$array[ $i, $j ] = @$array[ $j, $i ];
 	}
 	return $array;
-}
+} ## end sub shuffle
 
 =head2 check_remote
 
@@ -1288,17 +1264,14 @@ sub check_remote {
 	foreach my $item (@subnets_split) {
 		if ( $item =~ /^[\:A-Fa-f0-9]+$/ ) {
 			push( @subnets, $item . '/128' );
-		}
-		elsif ( $item =~ /^[\:A-Fa-f0-9]+\/[0-9]+$/ ) {
+		} elsif ( $item =~ /^[\:A-Fa-f0-9]+\/[0-9]+$/ ) {
 			push( @subnets, $item );
-		}
-		elsif ( $item =~ /^[\.0-9]+$/ ) {
+		} elsif ( $item =~ /^[\.0-9]+$/ ) {
 			push( @subnets, $item . '/32' );
-		}
-		elsif ( $item =~ /^[\.0-9]+\/[0-9]+$/ ) {
+		} elsif ( $item =~ /^[\.0-9]+\/[0-9]+$/ ) {
 			push( @subnets, $item );
 		}
-	}
+	} ## end foreach my $item (@subnets_split)
 	my $allowed_subnets;
 	eval { $allowed_subnets = subnet_matcher(@subnets); };
 	if ($@) {
@@ -1310,7 +1283,7 @@ sub check_remote {
 	}
 
 	return 0;
-}
+} ## end sub check_remote
 
 =head2 eve_process
 
@@ -1359,7 +1332,7 @@ sub eve_process {
 			my $eve_json;
 			# the incoming json needs to exist if the following is to work
 			# if it does not, just a mostly empty one
-			if (-f $incoming_json) {
+			if ( -f $incoming_json ) {
 				eval {
 					$eve_json = decode_json( read_file($incoming_json) );
 					$eve_json->{cape_eve_process} = { incoming_json_error => undef, };
@@ -1368,15 +1341,13 @@ sub eve_process {
 					my $error_message = 'Failed to decode incoming JSON for ' . $row->{id} . ' ... ' . $@;
 					$self->log_drek( 'cape_eve_process', 'err', $error_message );
 					$eve_json = {
-								 cape_eve_process => {
-													  incoming_json_error => $error_message,
-													  },
-								 };
+						cape_eve_process => {
+							incoming_json_error => $error_message,
+						},
+					};
 				}
-			}else {
-				$eve_json = {
-							 cape_eve_process => {},
-							 };
+			} else {
+				$eve_json = { cape_eve_process => {}, };
 			}
 
 			# sets various common items so they don't need to be dealt with more than once
@@ -1385,8 +1356,8 @@ sub eve_process {
 			$eve_json->{cape_eve_process}{host} = hostname;
 			$eve_json->{row}                    = $row;
 			$eve_json->{event_type}             = 'potential_malware_detonation';
-			if (!defined ($eve_json->{cape_eve_process}{incoming_json_error} )) {
-				$eve_json->{cape_eve_process}{incoming_json_error}=undef,
+			if ( !defined( $eve_json->{cape_eve_process}{incoming_json_error} ) ) {
+				$eve_json->{cape_eve_process}{incoming_json_error} = undef,;
 			}
 
 			my $lite_json;
@@ -1413,7 +1384,7 @@ sub eve_process {
 
 			# new line is needed as encode_json does not add one and this prevents the eve file
 			# from being one long line when appended to
-			my $raw_eve_json = encode_json($eve_json)."\n";
+			my $raw_eve_json = encode_json($eve_json) . "\n";
 
 			eval { write_file( $id_eve, $raw_eve_json ); };
 			if ($@) {
@@ -1422,15 +1393,14 @@ sub eve_process {
 			}
 
 			eval { append_file( $self->{config}{_}{eve}, $raw_eve_json ); };
-		}
-		else {
-			if ( ! -f $report || ! -r $report ) {
+		} else {
+			if ( !-f $report || !-r $report ) {
 				warn( $row->{id} . ' reported, but lite.json does not exist for it or it is not readable' );
 			}
 		}
-	}
+	} ## end foreach my $row (@rows)
 
-}
+} ## end sub eve_process
 
 # sends stuff to syslog
 sub log_drek {
@@ -1447,7 +1417,7 @@ sub log_drek {
 	openlog( $sender, 'cons,pid', 'daemon' );
 	syslog( $level, '%s', $message );
 	closelog();
-}
+} ## end sub log_drek
 
 =head1 CONFIG FILE
 

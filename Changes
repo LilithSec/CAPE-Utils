@@ -1,5 +1,11 @@
 Revision history for CAPE-Utils
 
+2.0.0   2023-05-
+		- Add CAPE::Utils->eve_process and matching eve command to cape_utils.
+		- suricata_extract_submit now creates a stats file at '/var/cache/suricata_extract_submit_stats.json'.
+		- suricata_extract_submit also sends stats to syslog
+		- suricata_extract_submit sends the full extract JSON and mojo_cape_submit saves it.
+
 1.0.1   2023-03-30/20:00
 		- Fix a typo in regards to regex loading for ignore hosts regex file
 

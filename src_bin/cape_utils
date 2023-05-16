@@ -233,7 +233,7 @@ Action: fail
 
 No other args taken.
 ';
-}
+} ## end sub help
 
 # get the commandline options
 my $help    = 0;
@@ -310,8 +310,7 @@ if ( !defined($action) ) {
 if ( $action eq 'pending' ) {
 	if ($count) {
 		print $cape_utils->get_pending_count( where => $where ) . "\n";
-	}
-	else {
+	} else {
 		if ($use_json) {
 			my $items = $cape_utils->get_pending( where => $where );
 			my $j     = JSON->new;
@@ -322,19 +321,17 @@ if ( $action eq 'pending' ) {
 			if ( !$pretty ) {
 				print "\n";
 			}
-		}
-		else {
+		} else {
 			print $cape_utils->get_pending_table( where => $where );
 		}
-	}
+	} ## end else [ if ($count) ]
 	exit 0;
-}
+} ## end if ( $action eq 'pending' )
 
 if ( $action eq 'running' ) {
 	if ($count) {
 		print $cape_utils->get_running_count( where => $where ) . "\n";
-	}
-	else {
+	} else {
 		if ($use_json) {
 			my $items = $cape_utils->get_running( where => $where );
 			my $j     = JSON->new;
@@ -345,19 +342,17 @@ if ( $action eq 'running' ) {
 			if ( !$pretty ) {
 				print "\n";
 			}
-		}
-		else {
+		} else {
 			print $cape_utils->get_running_table( where => $where );
 		}
-	}
+	} ## end else [ if ($count) ]
 	exit 0;
-}
+} ## end if ( $action eq 'running' )
 
 if ( $action eq 'tasks' ) {
 	if ($count) {
 		print $cape_utils->get_tasks_count( where => $where ) . "\n";
-	}
-	else {
+	} else {
 		if ($use_json) {
 			my $items = $cape_utils->get_tasks(
 				where => $where,
@@ -374,8 +369,7 @@ if ( $action eq 'tasks' ) {
 			if ( !$pretty ) {
 				print "\n";
 			}
-		}
-		else {
+		} else {
 			print $cape_utils->get_tasks_table(
 				limit     => $limit,
 				order     => $order,
@@ -383,9 +377,9 @@ if ( $action eq 'tasks' ) {
 				direction => $direction
 			);
 		}
-	}
+	} ## end else [ if ($count) ]
 	exit 0;
-}
+} ## end if ( $action eq 'tasks' )
 
 if ( $action eq 'submit' ) {
 	if ($use_json) {
@@ -413,10 +407,10 @@ if ( $action eq 'submit' ) {
 		if ( !$pretty ) {
 			print "\n";
 		}
-	}
+	} ## end if ($use_json)
 
 	exit 0;
-}
+} ## end if ( $action eq 'submit' )
 
 if ( $action eq 'fail' ) {
 	print $cape_utils->fail( where => $where );
@@ -424,7 +418,7 @@ if ( $action eq 'fail' ) {
 }
 
 if ( $action eq 'eve' ) {
-	$cape_utils->eve_process(  );
+	$cape_utils->eve_process();
 	exit 0;
 }
 
