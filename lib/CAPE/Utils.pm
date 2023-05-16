@@ -22,11 +22,11 @@ CAPE::Utils - A helpful library for with CAPE.
 
 =head1 VERSION
 
-Version 1.1.0
+Version 2.0.0
 
 =cut
 
-our $VERSION = '1.1.0';
+our $VERSION = '2.0.0';
 
 =head1 SYNOPSIS
 
@@ -869,12 +869,14 @@ sub search {
 	#
 
 	my @to_check = (
-		'id',               'target',           'route',         'machine',                'timeout',      'priority',
-		'route',            'tags_tasks',       'options',       'clock',                  'added_on',     'started_on',
-		'completed_on',     'status',           'dropped_files', 'running_processes',      'api_calls',    'domains',
-		'signatures_total', 'signatures_alert', 'files_written', 'registry_keys_modified', 'crash_issues', 'anti_issues',
-		'timedout',         'sample_id',        'machine_id',    'parent_id',              'tlp',          'category',
-		'package'
+		'id',            'target',                 'route',            'machine',
+		'timeout',       'priority',               'route',            'tags_tasks',
+		'options',       'clock',                  'added_on',         'started_on',
+		'completed_on',  'status',                 'dropped_files',    'running_processes',
+		'api_calls',     'domains',                'signatures_total', 'signatures_alert',
+		'files_written', 'registry_keys_modified', 'crash_issues',     'anti_issues',
+		'timedout',      'sample_id',              'machine_id',       'parent_id',
+		'tlp',           'category',               'package'
 	);
 
 	foreach my $var_to_check (@to_check) {
@@ -910,9 +912,10 @@ sub search {
 	#
 
 	my @numeric = (
-		'id',          'timeout',          'priority',         'dropped_files', 'running_processes',      'api_calls',
-		'domains',     'signatures_total', 'signatures_alert', 'files_written', 'registry_keys_modified', 'crash_issues',
-		'anti_issues', 'sample_id',        'machine_id'
+		'id',                'timeout',       'priority',               'dropped_files',
+		'running_processes', 'api_calls',     'domains',                'signatures_total',
+		'signatures_alert',  'files_written', 'registry_keys_modified', 'crash_issues',
+		'anti_issues',       'sample_id',     'machine_id'
 	);
 
 	foreach my $item (@numeric) {
@@ -962,7 +965,8 @@ sub search {
 	# handle string items
 	#
 
-	my @strings = ( 'target', 'category', 'custom', 'machine', 'package', 'route', 'tags_tasks', 'options', 'platform', );
+	my @strings
+		= ( 'target', 'category', 'custom', 'machine', 'package', 'route', 'tags_tasks', 'options', 'platform', );
 
 	foreach my $item (@strings) {
 		if ( defined( $opts{$item} ) ) {

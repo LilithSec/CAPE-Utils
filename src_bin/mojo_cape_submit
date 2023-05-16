@@ -104,7 +104,7 @@ sub log_drek {
 	openlog( 'mojo_cape_submit', 'cons,pid', 'daemon' );
 	syslog( $level, '%s', $message );
 	closelog();
-}
+} ## end sub log_drek
 
 # handle it
 sub the_stuff {
@@ -116,8 +116,7 @@ sub the_stuff {
 	my $message = 'Started. Remote IP: ' . $remote_ip . '  API key: ';
 	if ( defined($apikey) ) {
 		$message = $message . $apikey;
-	}
-	else {
+	} else {
 		$message = $message . 'undef';
 	}
 	log_drek( 'info', $message );
@@ -204,22 +203,22 @@ sub the_stuff {
 	# get some info for logging purposes
 	# done this way for the purpose of not having to constantly check if something is undef
 	my %additional_info;
-	$additional_info{src_ip}      = $c->param('src_ip');
-	$additional_info{src_port}    = $c->param('src_port');
-	$additional_info{dest_ip}     = $c->param('dest_ip');
-	$additional_info{dest_port}   = $c->param('dest_port');
-	$additional_info{proto}       = $c->param('proto');
-	$additional_info{app_proto}   = $c->param('app_proto');
-	$additional_info{flow_id}     = $c->param('flow_id');
-	$additional_info{http_host}   = $c->param('http_host');
-	$additional_info{http_url}    = $c->param('http_url');
-	$additional_info{http_method} = $c->param('http_method');
-	$additional_info{http_proto}  = $c->param('http_proto');
-	$additional_info{http_status} = $c->param('http_status');
-	$additional_info{http_ctype}  = $c->param('http_ctype');
-	$additional_info{http_ua}     = $c->param('http_ua');
-	$additional_info{det_sub_type}        = $c->param('type');
-	$additional_info{src_host}    = $c->param('src_host');
+	$additional_info{src_ip}       = $c->param('src_ip');
+	$additional_info{src_port}     = $c->param('src_port');
+	$additional_info{dest_ip}      = $c->param('dest_ip');
+	$additional_info{dest_port}    = $c->param('dest_port');
+	$additional_info{proto}        = $c->param('proto');
+	$additional_info{app_proto}    = $c->param('app_proto');
+	$additional_info{flow_id}      = $c->param('flow_id');
+	$additional_info{http_host}    = $c->param('http_host');
+	$additional_info{http_url}     = $c->param('http_url');
+	$additional_info{http_method}  = $c->param('http_method');
+	$additional_info{http_proto}   = $c->param('http_proto');
+	$additional_info{http_status}  = $c->param('http_status');
+	$additional_info{http_ctype}   = $c->param('http_ctype');
+	$additional_info{http_ua}      = $c->param('http_ua');
+	$additional_info{det_sub_type} = $c->param('type');
+	$additional_info{src_host}     = $c->param('src_host');
 
 	# set the value for anything not defined to undef for the purpose of logging
 	# this will avoid perl from throwing errors about undef used in cating
@@ -228,7 +227,7 @@ sub the_stuff {
 			$additional_info{$item} = 'undef';
 		}
 	}
-	$json->{det_sub_type}=$additional_info{det_sub_type};
+	$json->{det_sub_type} = $additional_info{det_sub_type};
 
 	# log additional info
 	log_drek( 'info', 'Source Host: ' . $additional_info{src_host} );
@@ -249,10 +248,11 @@ sub the_stuff {
 	if ( $additional_info{app_proto} eq 'http' ) {
 		log_drek( 'info', $additional_info{http_proto} . ' ' . $additional_info{http_host} );
 		log_drek( 'info',
-			$additional_info{http_method} . ' ' . $additional_info{http_status} . ' ' . $additional_info{http_url} );
+				  $additional_info{http_method} . ' '
+				. $additional_info{http_status} . ' '
+				. $additional_info{http_url} );
 		log_drek( 'info', 'useragent: ' . $additional_info{http_ua} );
-	}
-	else {
+	} else {
 		log_drek( 'info', 'App Proto: ' . $additional_info{app_proto} );
 	}
 
@@ -300,12 +300,11 @@ sub the_stuff {
 	eval { write_file( $data_json_file, $data_json ); };
 	if ($@) {
 		log_drek( 'err', 'Failed to write submission data JSON out to "' . $data_json_file . '"... ' . $@ );
-	}
-	else {
+	} else {
 		log_drek( 'info', 'Wrote submission data JSON out to "' . $data_json_file . '"' );
 	}
 
 	return;
-}
+} ## end sub the_stuff
 
 app->start;
