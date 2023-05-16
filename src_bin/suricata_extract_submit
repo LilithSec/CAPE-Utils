@@ -136,7 +136,7 @@ my $stats;
 
 # handle the stats file if it exists and is readable
 if ( -f $stats_file && -r $stats_file ) {
-	eval { $stats = decode_json(read_file); };
+	eval { $stats = decode_json(read_file($stats_file)); };
 	if ($@) {
 		log_something( 'err', 'stats file, "' . $stats_file . '", reading or parsing failed, using default stats... ' . $@ );
 		$stats = $stats_default;
