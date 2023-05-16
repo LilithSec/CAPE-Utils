@@ -15,7 +15,7 @@ the option '-c'.
 
 =cut
 
-use File::Find::Rule;
+use File::Slurp;
 use warnings;
 use strict;
 use MIME::Base64;
