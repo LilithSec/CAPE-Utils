@@ -214,8 +214,36 @@ my @files = File::Find::Rule->file()->name("*json")->in($filestore);
 # exit if we don't find anything as there is no point to continue
 if ( !defined( $files[0] ) ) {
 	log_something( 'info', 'None found at this time' );
+
+	# compute the deltas
+	my @to_delta = ( 'sub', 'sub_fail', 'zero_sized', 'sub_2xx', 'sub_3xx', 'sub_4xx', 'sub_5xx', 'errors' );
+	foreach my $item (@to_delta) {
+		my $old = $stats->{$item};
+		my $new = $new_stats->{$item};
+		my $delta;
+		if ( $new > $old ) {
+			$delta = $new - $old;
+
+			# roll it over if it is over 2G
+			if ( $new > 2000000000 ) {
+				$new_stats->{$item} = $delta;
+			}
+		} elsif ( $old > $new ) {
+			$delta = $new;
+		} else {
+			$delta = $0;
+		}
+		$new_stats->{ $item . '_delta' } = $delta;
+	} ## end foreach my $item (@to_delta)
+
+	# write out the stats file
+	eval { write_file( $stats_file, encode_json($new_stats) ); };
+	if ($@) {
+		log_something( 'err', 'Writing stats file, "' . $stats_file . '", failed... ' . $@ );
+	}
+
 	exit 0;
-}
+} ## end if ( !defined( $files[0] ) )
 
 # process any found
 foreach my $file (@files) {
