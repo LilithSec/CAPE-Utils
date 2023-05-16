@@ -247,7 +247,7 @@ if ( !defined( $files[0] ) ) {
 		} elsif ( $old > $new ) {
 			$delta = $new;
 		} else {
-			$delta = $0;
+			$delta = 0;
 		}
 		$new_stats->{ $item . '_delta' } = $delta;
 	} ## end foreach my $item (@to_delta)
@@ -472,7 +472,7 @@ foreach my $item (@to_delta) {
 	} elsif ( $old > $new ) {
 		$delta = $new;
 	} else {
-		$delta = $0;
+		$delta = 0;
 	}
 	$new_stats->{ $item . '_delta' } = $delta;
 } ## end foreach my $item (@to_delta)
