@@ -114,23 +114,31 @@ if ( !defined($stats_file) ) {
 	$stats_file = '/var/cache/suricata_extract_submit_stats.json';
 }
 my $stats_default = {
-	sub            => 0,
-	sub_delta      => 0,
-	sub_fail       => 0,
-	sub_fail_delta => 0,
-	zero_sized     => 0,
-	zero_delta     => 0,
-	sub_2xx        => 0,
-	sub_2xx_delta  => 0,
-	sub_3xx        => 0,
-	sub_3xx_delta  => 0,
-	sub_4xx        => 0,
-	sub_4xx_delta  => 0,
-	sub_5xx        => 0,
-	sub_5xx_delta  => 0,
-	last_errors    => [],
-	errors         => 0,
-	errors_delta   => 0,
+	sub                   => 0,
+	sub_delta             => 0,
+	sub_fail              => 0,
+	sub_fail_delta        => 0,
+	zero_sized            => 0,
+	zero_delta            => 0,
+	sub_2xx               => 0,
+	sub_2xx_delta         => 0,
+	sub_3xx               => 0,
+	sub_3xx_delta         => 0,
+	sub_4xx               => 0,
+	sub_4xx_delta         => 0,
+	sub_5xx               => 0,
+	sub_5xx_delta         => 0,
+	last_errors           => [],
+	errors                => 0,
+	errors_delta          => 0,
+	ignored_ip            => 0,
+	ignored_ip_delta      => 0,
+	ignored_ip_src        => 0,
+	ignored_ip_src_delta  => 0,
+	ignored_ip_dest       => 0,
+	ignored_ip_dest_delta => 0,
+	ignored_host          => 0,
+	ignored_host_delta    => 0,
 };
 my $stats;
 
@@ -138,7 +146,8 @@ my $stats;
 if ( -f $stats_file && -r $stats_file ) {
 	eval { $stats = decode_json( read_file($stats_file) ); };
 	if ($@) {
-		log_something( 'err', 'stats file, "' . $stats_file . '", reading or parsing failed, using default stats... ' . $@ );
+		log_something( 'err',
+			'stats file, "' . $stats_file . '", reading or parsing failed, using default stats... ' . $@ );
 		$stats = $stats_default;
 	}
 
@@ -216,7 +225,11 @@ if ( !defined( $files[0] ) ) {
 	log_something( 'info', 'None found at this time' );
 
 	# compute the deltas
-	my @to_delta = ( 'sub', 'sub_fail', 'zero_sized', 'sub_2xx', 'sub_3xx', 'sub_4xx', 'sub_5xx', 'errors' );
+	my @to_delta = (
+		'sub',          'sub_fail',   'zero_sized',     'sub_2xx',
+		'sub_3xx',      'sub_4xx',    'sub_5xx',        'errors',
+		'ignored_host', 'ignored_ip', 'ignored_ip_src', 'ignored_ip_dest'
+	);
 	foreach my $item (@to_delta) {
 		my $old = $stats->{$item};
 		my $new = $new_stats->{$item};
@@ -289,10 +302,14 @@ foreach my $file (@files) {
 		my $add_it = 1;
 		if ( $ip_ignore->( $file_json->{src_ip} ) ) {
 			log_something( 'info', 'Ignore Listed Source IP: ' . $file_json->{src_ip} );
+			$new_stats->{ignored_ip}++;
+			$new_stats->{ignored_ip_src}++;
 			$add_it = 0;
 		}
 		if ( $ip_ignore->( $file_json->{dest_ip} ) ) {
-			log_something( 'info', 'Ignore Listed Destination IP: ' . $file_json->{src_ip} );
+			log_something( 'info', 'Ignore Listed Destination IP: ' . $file_json->{dest_ip} );
+			$new_stats->{ignored_ip}++;
+			$new_stats->{ignored_ip_dest}++;
 			$add_it = 0;
 		}
 		foreach my $item (@hosts_to_ignore) {
@@ -300,6 +317,7 @@ foreach my $file (@files) {
 				if ( $file_json->{http}{hostname} =~ /$item/ ) {
 					log_something( 'info', 'Ignore Listed Host, "' . $item . '": ' . $file_json->{http}{hostname} );
 					$add_it = 0;
+					$new_stats->{ignored_host}++;
 				}
 			}
 		}
@@ -431,7 +449,10 @@ foreach my $file (@files) {
 } ## end foreach my $file (@files)
 
 # compute the deltas
-my @to_delta = ( 'sub', 'sub_fail', 'zero_sized', 'sub_2xx', 'sub_3xx', 'sub_4xx', 'sub_5xx', 'errors' );
+my @to_delta = (
+	'sub',     'sub_fail', 'zero_sized',   'sub_2xx',    'sub_3xx',        'sub_4xx',
+	'sub_5xx', 'errors',   'ignored_host', 'ignored_ip', 'ignored_ip_src', 'ignored_ip_dest'
+);
 foreach my $item (@to_delta) {
 	my $old = $stats->{$item};
 	my $new = $new_stats->{$item};
