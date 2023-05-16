@@ -237,7 +237,9 @@ if ( !defined( $files[0] ) ) {
 	} ## end foreach my $item (@to_delta)
 
 	# write out the stats file
-	eval { write_file( $stats_file, encode_json($new_stats) ); };
+	my $raw_stats = JSON->new->utf8->canonical(1)->encode($new_stats);
+	log_something( 'info', 'Run Stats: ' . $raw_stats );
+	eval { write_file( $stats_file, $raw_stats ); };
 	if ($@) {
 		log_something( 'err', 'Writing stats file, "' . $stats_file . '", failed... ' . $@ );
 	}
@@ -450,7 +452,9 @@ foreach my $item (@to_delta) {
 } ## end foreach my $item (@to_delta)
 
 # write out the stats file
-eval { write_file( $stats_file, encode_json($new_stats) ); };
+my $raw_stats = JSON->new->utf8->canonical(1)->encode($new_stats);
+log_something( 'info', 'Run Stats: ' . $raw_stats );
+eval { write_file( $stats_file, $raw_stats ); };
 if ($@) {
 	log_something( 'err', 'Writing stats file, "' . $stats_file . '", failed... ' . $@ );
 }
