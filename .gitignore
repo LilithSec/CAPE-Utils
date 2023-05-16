@@ -37,4 +37,5 @@ inc/
 bin/cape_utils
 bin/mojo_cape_submit
 bin/suricata_extract_submit
+bin/suricata_extract_submit_extend
 
