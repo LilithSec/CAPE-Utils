@@ -1538,10 +1538,6 @@ You can also look for information at:
 
 L<https://rt.cpan.org/NoAuth/Bugs.html?Dist=CAPE-Utils>
 
-=item * CPAN Ratings
-
-L<https://cpanratings.perl.org/d/CAPE-Utils>
-
 =item * Search CPAN
 
 L<https://metacpan.org/release/CAPE-Utils>
