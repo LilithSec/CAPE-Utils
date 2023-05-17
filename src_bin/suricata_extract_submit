@@ -304,26 +304,45 @@ foreach my $file (@files) {
 
 		my $add_it = 1;
 		if ( $ip_ignore->( $file_json->{src_ip} ) ) {
-			log_something( 'info', 'Ignore Listed Source IP: ' . $file_json->{src_ip} );
+			log_something( 'info',
+					  'Ignore Listed Source IP: '
+					. $file_json->{src_ip}
+					. ' ... dest_ip='
+					. $file_json->{dest_ip}
+					. ', hostname='
+					. $file_json->{http}{hostname} );
 			$new_stats->{ignored_ip}++;
 			$new_stats->{ignored_ip_src}++;
 			$add_it = 0;
-		}
+		} ## end if ( $ip_ignore->( $file_json->{src_ip} ) )
 		if ( $ip_ignore->( $file_json->{dest_ip} ) ) {
-			log_something( 'info', 'Ignore Listed Destination IP: ' . $file_json->{dest_ip} );
+			log_something( 'info',
+					  'Ignore Listed Destination IP: '
+					. $file_json->{dest_ip}
+					. ' ... src_ip='
+					. $file_json->{src_ip}
+					. ', hostname='
+					. $file_json->{http}{hostname} );
 			$new_stats->{ignored_ip}++;
 			$new_stats->{ignored_ip_dest}++;
 			$add_it = 0;
-		}
+		} ## end if ( $ip_ignore->( $file_json->{dest_ip} ))
 		foreach my $item (@hosts_to_ignore) {
 			if ( defined( $file_json->{http} ) && defined( $file_json->{http}{hostname} ) ) {
 				if ( $file_json->{http}{hostname} =~ /$item/ ) {
-					log_something( 'info', 'Ignore Listed Host, "' . $item . '": ' . $file_json->{http}{hostname} );
+					log_something( 'info',
+							  'Ignore Listed Host, "'
+							. $item . '": '
+							. $file_json->{http}{hostname}
+							. ' ... src_ip='
+							. $file_json->{dest_ip}
+							. ', dest_ip='
+							. $file_json->{dest_ip} );
 					$add_it = 0;
 					$new_stats->{ignored_host}++;
-				}
-			}
-		}
+				} ## end if ( $file_json->{http}{hostname} =~ /$item/)
+			} ## end if ( defined( $file_json->{http} ) && defined...)
+		} ## end foreach my $item (@hosts_to_ignore)
 
 		$name
 			= $file_json->{src_ip} . '-'

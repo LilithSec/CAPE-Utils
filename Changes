@@ -1,5 +1,8 @@
 Revision history for CAPE-Utils
 
+2.1.0   2023-05-17/09:45
+		- Update logging for ignored items to be more verbose.
+
 2.0.0   2023-05-16/16:00
 		- Add CAPE::Utils->eve_process and matching eve command to cape_utils.
 		- suricata_extract_submit now creates a stats file at '/var/cache/suricata_extract_submit_stats.json'.
