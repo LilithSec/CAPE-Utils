@@ -1,5 +1,8 @@
 Revision history for CAPE-Utils
 
+2.2.1   2023-05-17/15:00
+		- Actually reset last_errors post loading the old stats JSON
+
 2.2.0   2023-05-17/12:00
 		- cpanratings.perl.org no longer exists(147814)
 		- src_bin/suricata_extract_submit now properly adds slug to the submission section

@@ -192,6 +192,9 @@ elsif ( -f $stats_file && !-r $stats_file ) {
 my %copy_stats = %{$stats};
 my $new_stats  = \%copy_stats;
 
+# reset last_errors instead of having it constantly grow
+$new_stats->{last_errors}=[];
+
 # read in the file of IPs to ignore
 my $ignore_file = $config->{_}->{ignore};
 my @to_ignore;
