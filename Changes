@@ -1,6 +1,6 @@
 Revision history for CAPE-Utils
 
-2.?     2023-05-17/09:45
+2.2.0   2023-05-17/12:00
 		- cpanratings.perl.org no longer exists(147814)
 		- src_bin/suricata_extract_submit now properly adds slug to the submission section
 		- src_bin/suricata_extract_submit now tracks truncated files count
