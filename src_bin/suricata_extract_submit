@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-suricata_extract_submit - Submits files to mojo_cape_submit for detonation via CAPEv2
+suricata_extract_submit - Submits files extracted by Suricata to mojo_cape_submit for detonation via CAPEv2
 
 =head1 SYNOPSIS
 
@@ -11,6 +11,8 @@ suricata_extract_submit
 */5 * * * * /usr/local/bin/suricata_extract_submit 2> /dev/null > /dev/null
 
 =head1 DESCRIPTION
+
+What is printed to standard out is also sent to syslog.
 
 This requires having the file-store output configured akin to below.
 
@@ -26,6 +28,9 @@ This requires having the file-store output configured akin to below.
             mode: extra-data
             deployment: reverse
             header: X-Forwarded-For
+
+The force-hash values are optional as this script will automatically compute
+those for inclusion as well SHA256.
 
 =head1 CONFIGURATION
 
@@ -102,6 +107,13 @@ if ( !defined($url) ) {
 	log_something( 'err', $message );
 }
 
+# make sure we have a slug
+my $slug = $config->{_}->{slug};
+if ( !defined($url) ) {
+	my $message = 'No value for slug set';
+	log_something( 'err', $message );
+}
+
 # get the file store dir
 my $filestore = $config->{_}->{filestore};
 if ( !defined($filestore) ) {
@@ -139,8 +151,17 @@ my $stats_default = {
 	ignored_ip_dest_delta => 0,
 	ignored_host          => 0,
 	ignored_host_delta    => 0,
+	truncated             => 0,
+	truncated_delta       => 0,
 };
 my $stats;
+
+# compute the deltas for these items
+my @to_delta = (
+	'sub',     'sub_fail', 'zero_sized',   'sub_2xx',    'sub_3xx',        'sub_4xx',
+	'sub_5xx', 'errors',   'ignored_host', 'ignored_ip', 'ignored_ip_src', 'ignored_ip_dest',
+	'truncated'
+);
 
 # handle the stats file if it exists and is readable
 if ( -f $stats_file && -r $stats_file ) {
@@ -149,6 +170,13 @@ if ( -f $stats_file && -r $stats_file ) {
 		log_something( 'err',
 			'stats file, "' . $stats_file . '", reading or parsing failed, using default stats... ' . $@ );
 		$stats = $stats_default;
+	} else {
+		# make sure each item we will need exists and if not, zero it
+		foreach my $item (@to_delta) {
+			if ( !defined( $stats->{$item} ) ) {
+				$stats->{$item} = 0;
+			}
+		}
 	}
 
 }    # if it exists, but is not readable, error and use the default
@@ -224,12 +252,6 @@ my @files = File::Find::Rule->file()->name("*json")->in($filestore);
 if ( !defined( $files[0] ) ) {
 	log_something( 'info', 'None found at this time' );
 
-	# compute the deltas
-	my @to_delta = (
-		'sub',          'sub_fail',   'zero_sized',     'sub_2xx',
-		'sub_3xx',      'sub_4xx',    'sub_5xx',        'errors',
-		'ignored_host', 'ignored_ip', 'ignored_ip_src', 'ignored_ip_dest'
-	);
 	foreach my $item (@to_delta) {
 		my $old = $stats->{$item};
 		my $new = $new_stats->{$item};
@@ -302,27 +324,43 @@ foreach my $file (@files) {
 		}
 		log_something( 'info', 'MIME type: ' . $mime );
 
+		# check if it was truncated or not for stats purposes
+		if (   defined( $file_json->{fileinfo} )
+			&& defined( $file_json->{fileinfo}{state} )
+			&& $file_json->{fileinfo}{state} =~ /^[Tt][Rr][Uu][Cc][Aa][Tt][Ee][Dd]$/ )
+		{
+			$new_stats->{truncated}++;
+		}
+
 		my $add_it = 1;
 		if ( $ip_ignore->( $file_json->{src_ip} ) ) {
+			my $file_hostname = '';
+			if ( defined( $file_json->{http} ) && defined( $file_json->{http}{hostname} ) ) {
+				$file_hostname = $file_json->{http}{hostname};
+			}
 			log_something( 'info',
 					  'Ignore Listed Source IP: '
 					. $file_json->{src_ip}
 					. ' ... dest_ip='
 					. $file_json->{dest_ip}
 					. ', hostname='
-					. $file_json->{http}{hostname} );
+					. $file_hostname );
 			$new_stats->{ignored_ip}++;
 			$new_stats->{ignored_ip_src}++;
 			$add_it = 0;
 		} ## end if ( $ip_ignore->( $file_json->{src_ip} ) )
 		if ( $ip_ignore->( $file_json->{dest_ip} ) ) {
+			my $file_hostname = '';
+			if ( defined( $file_json->{http} ) && defined( $file_json->{http}{hostname} ) ) {
+				$file_hostname = $file_json->{http}{hostname};
+			}
 			log_something( 'info',
 					  'Ignore Listed Destination IP: '
 					. $file_json->{dest_ip}
 					. ' ... src_ip='
 					. $file_json->{src_ip}
 					. ', hostname='
-					. $file_json->{http}{hostname} );
+					. $file_hostname );
 			$new_stats->{ignored_ip}++;
 			$new_stats->{ignored_ip_dest}++;
 			$add_it = 0;
@@ -351,7 +389,7 @@ foreach my $file (@files) {
 			. $file_json->{dest_port} . '-'
 			. $file_json->{proto} . '-'
 			. $extUID . '-'
-			. $config->{_}->{slug} . '-'
+			. $slug . '-'
 			. $t->epoch . '-'
 			. $mime;
 
@@ -375,6 +413,7 @@ foreach my $file (@files) {
 					md5      => $md5,
 					sha256   => $sha256,
 					sha1     => $sha1,
+					slug     => $config->{_}->{slug},
 				};
 				my $res;
 				eval {
@@ -470,27 +509,27 @@ foreach my $file (@files) {
 	}
 } ## end foreach my $file (@files)
 
-# compute the deltas
-my @to_delta = (
-	'sub',     'sub_fail', 'zero_sized',   'sub_2xx',    'sub_3xx',        'sub_4xx',
-	'sub_5xx', 'errors',   'ignored_host', 'ignored_ip', 'ignored_ip_src', 'ignored_ip_dest'
-);
+# update the stats
 foreach my $item (@to_delta) {
 	my $old = $stats->{$item};
 	my $new = $new_stats->{$item};
 	my $delta;
+	# value was missing for some reason in the previous
 	if ( !defined($old) ) {
 		$delta = $new;
-	} elsif ( $new > $old ) {
+	}    # need to compute the delta as there was change
+	elsif ( $new > $old ) {
 		$delta = $new - $old;
 
 		# roll it over if it is over 2G
 		if ( $new > 2000000000 ) {
 			$new_stats->{$item} = $delta;
 		}
-	} elsif ( $old > $new ) {
+	}    # ran subsequently and rolled over? this should not happen in general usage... regard new as correct
+	elsif ( $old > $new ) {
 		$delta = $new;
-	} else {
+	}    # none of the above, so zero
+	else {
 		$delta = 0;
 	}
 	$new_stats->{ $item . '_delta' } = $delta;
