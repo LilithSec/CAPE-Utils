@@ -62,7 +62,7 @@ if ($help) {
 
 my $to_return = {
 	data        => {},
-	version     => 0,
+	version     => 1,
 	error       => 0,
 	errorString => '',
 };
