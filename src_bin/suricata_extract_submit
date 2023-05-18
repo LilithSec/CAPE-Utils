@@ -50,6 +50,10 @@ The config file used is '/usr/local/etc/suricata_extract_submit.ini'.
     #ignoreHosts=
     # if it should use HTTPS_PROXY and HTTP_PROXY from ENV or not
     env_proxy=0
+    # stats file holding only the stats for the last run
+    stats_file=/var/cache/suricata_extract_submit_stats.json
+    # stats dir
+    stats_dir=/var/cache/suricata_extract_submit_stats/
 
 =cut
 
@@ -57,7 +61,7 @@ use File::Find::Rule;
 use warnings;
 use strict;
 use Config::Tiny;
-use File::Slurp;
+use File::Slurp qw(append_file write_file read_file);
 use Time::Piece;
 use File::MimeInfo::Magic;
 use Crypt::Digest::MD5 qw( md5 md5_hex md5_b64 md5_b64u
@@ -75,6 +79,9 @@ use POSIX 'strftime';
 use Sys::Syslog;
 use JSON;
 use Sys::Hostname;
+
+my $t          = localtime;
+my $today_name = $t->strftime('%F');
 
 # sends stuff to syslog
 sub log_something {
@@ -129,10 +136,17 @@ if ( !defined($use_env_proxy) ) {
 }
 
 # get the stats file
-my $stats_file = $config->{_}->{filestore};
+my $stats_file = $config->{_}->{stats_file};
 if ( !defined($stats_file) ) {
 	$stats_file = '/var/cache/suricata_extract_submit_stats.json';
 }
+
+# get the stats dir
+my $stats_dir = $config->{_}->{stats_dir};
+if ( !defined($stats_dir) ) {
+	$stats_dir = '/var/cache/suricata_extract_submit_stats/';
+}
+
 my $stats_default = {
 	sub                   => 0,
 	sub_delta             => 0,
@@ -550,10 +564,26 @@ foreach my $item (@to_delta) {
 	$new_stats->{ $item . '_delta' } = $delta;
 } ## end foreach my $item (@to_delta)
 
+# set the timestamp for the when it was generated
+$new_stats->{timestamp} = $t->epoch;
+
 # write out the stats file
-my $raw_stats = JSON->new->utf8->canonical(1)->encode($new_stats);
+my $raw_stats = JSON->new->utf8->canonical(1)->encode($new_stats) . "\n";
 log_something( 'info', 'Run Stats: ' . $raw_stats );
 eval { write_file( $stats_file, $raw_stats ); };
 if ($@) {
 	log_something( 'err', 'Writing stats file, "' . $stats_file . '", failed... ' . $@ );
 }
+
+# append it to the daily stat cache
+if ( !-d $stats_dir ) {
+	eval { mkdir($stats_dir) };
+	if ($@) {
+		log_something( 'err', 'Creating stats cache dir, "' . $stats_dir . '", failed... ' . $@ );
+		exit 1;
+	}
+}
+eval {
+	my $daily_cache = $stats_dir . '/' . $today_name . '.json';
+	append_file( $daily_cache, $raw_stats );
+};
