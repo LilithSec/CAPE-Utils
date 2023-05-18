@@ -1,5 +1,8 @@
 Revision history for CAPE-Utils
 
+2.3.0   2023-05-18/10:00
+		- suricata_extract_submit can now use env specified proxies optionally
+
 2.2.2   2023-05-18/10:00
 		- Fix pod error in Utils.pm, reneeb PR#1
 		- Set extend version to 1 in returned JSON.

@@ -48,6 +48,8 @@ The config file used is '/usr/local/etc/suricata_extract_submit.ini'.
     #ignore=
     # a file of regex to use for checking host names go ignore
     #ignoreHosts=
+    # if it should use HTTPS_PROXY and HTTP_PROXY from ENV or not
+    env_proxy=0
 
 =cut
 
@@ -118,6 +120,12 @@ if ( !defined($url) ) {
 my $filestore = $config->{_}->{filestore};
 if ( !defined($filestore) ) {
 	$filestore = '/var/log/suricata/files/';
+}
+
+# get the env proxy
+my $use_env_proxy = $config->{_}->{env_proxy};
+if ( !defined($use_env_proxy) ) {
+	$use_env_proxy = 0;
 }
 
 # get the stats file
@@ -193,7 +201,7 @@ my %copy_stats = %{$stats};
 my $new_stats  = \%copy_stats;
 
 # reset last_errors instead of having it constantly grow
-$new_stats->{last_errors}=[];
+$new_stats->{last_errors} = [];
 
 # read in the file of IPs to ignore
 my $ignore_file = $config->{_}->{ignore};
@@ -424,6 +432,10 @@ foreach my $file (@files) {
 						ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 },
 						timeout  => 30
 					);
+					# use HTTPS_PROXY/HTTP_PROXY from env if set to true
+					if ($use_env_proxy) {
+						$ua->env_proxy;
+					}
 					$res = $ua->request(
 						POST $config->{_}->{url},
 						Content_type => 'multipart/form-data',
