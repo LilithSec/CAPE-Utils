@@ -1542,7 +1542,7 @@ L<https://rt.cpan.org/NoAuth/Bugs.html?Dist=CAPE-Utils>
 
 L<https://metacpan.org/release/CAPE-Utils>
 
-=head * Git
+=item * Git
 
 L<git@github.com:VVelox/CAPE-Utils.git>
 
