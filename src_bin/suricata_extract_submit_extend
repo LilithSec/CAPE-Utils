@@ -90,7 +90,7 @@ my @to_delta = (
 
 # if todays file exists or not
 my $use_last = 0;
-if ( -f $todays_file ) {
+if ( !-f $todays_file ) {
 	$use_last = 1;
 }
 
@@ -115,10 +115,21 @@ if ($use_last) {
 	eval {
 		my $bw = File::ReadBackwards->new($todays_file) or die "can't read '" . $todays_file . "' $!";
 
-		my $current_stats = decode_json( read_file( $bw->readline ) );
+		my $current_stats = decode_json( $bw->readline );
+
+		# don't go looking for previous stats if the current one is older than what we want
+		my $continue = 1;
+		if (   defined($current_stats)
+			&& defined( $current_stats->{timestamp} )
+			&& $current_stats->{timestamp} <= $read_till )
+		{
+			$continue = 0;
+		}    #if these are not defined, don't try to continue
+		elsif ( !defined($current_stats) && !defined( $current_stats->{timestamp} ) ) {
+			$continue = 0;
+		}
 
 		# see if we can find a previous item to compute the difference against
-		my $continue = 1;
 		my $previous_stats;
 		while ($continue) {
 			my $next_raw = $bw->readline;
@@ -201,10 +212,10 @@ if ( !$dont_compress ) {
 
 	# check which is smaller and prints it
 	if ( length($compressed) > length($data) ) {
-		print $data."\n";
+		print $data. "\n";
 	} else {
 		print $compressed;
 	}
-}else {
-	print $data."\n";
+} else {
+	print $data. "\n";
 }
