@@ -793,6 +793,10 @@ sub get_tasks_table {
 
 =head2 munge
 
+Munges the specified report file.
+
+    $cape_utils->munge(file=>$report_file);
+
 =cut
 
 sub munge {
@@ -818,7 +822,7 @@ sub munge {
 
 	# read the file on in
 	my $report;
-	eval { $report = decode_json( $opts{file} ); };
+	eval { $report = decode_json( read_file( $opts{file} ) ); };
 	if ($@) {
 		die( 'Failed to parse "' . $opts{file} . '"... ' . $@ );
 	}
@@ -832,8 +836,14 @@ sub munge {
 		}
 	}
 
+	# should be set by a munge if it made a change
 	my $changed = 0;
+	# scratch space for between all munges
+	my %all_scratch;
 	foreach my $item (@munges) {
+		# scratch space for the munges to use
+		my %scratch;
+
 		# only process the specified munge if we have both keys
 		if ( defined( $self->{config}{$item}{check} ) && defined( $self->{config}{$item}{munge} ) ) {
 			# now that we know we have the keys, get the full file path if needed
@@ -848,7 +858,13 @@ sub munge {
 
 			# figure out if we need to munge it or not
 			my $munge_it = 0;
-			eval { require $check_file; };
+			eval {
+				my $check_code = read_file($check_file);
+				eval($check_code);
+				if ($@) {
+					die($@);
+				}
+			};
 			if ($@) {
 				warn( 'Munge "' . $item . '" errored during the check... ' . $@ );
 
@@ -858,11 +874,17 @@ sub munge {
 
 			# if so, try to munge it
 			if ($munge_it) {
-				eval { require $munge_file; };
+				eval {
+					my $munge_code = read_file($munge_file);
+					eval($munge_code);
+					if ($@) {
+						die($@);
+					}
+				};
 				if ($@) {
 					warn( 'Munge "' . $item . '" errored during the munge... ' . $@ );
 				}
-			}
+			} ## end if ($munge_it)
 		} else {
 			warn( 'Section "' . $item . '" missing either the key "check" or munge"' );
 		}
@@ -870,11 +892,32 @@ sub munge {
 
 	# save the file if it changed
 	if ($changed) {
+		# if changed, update the malscore
+		my $malscore = 0.0;
+		my $sig_int  = 0;
+		while ( defined( $report->{signatures}[$sig_int] ) ) {
+			if ( $report->{signatures}[$sig_int]{severity} ) {
+				$malscore += $report->{signatures}[$sig_int]{weight} * 0.5
+					* ( $report->{signatures}[$sig_int]{confidence} / 100 );
+			} else {
+				$malscore
+					+= $report->{signatures}[$sig_int]{weight}
+					* ( $report->{signatures}[$sig_int]{weight} - 1 )
+					* ( $report->{signatures}[$sig_int]{confidence} / 100 );
+			}
+
+			$sig_int++;
+		} ## end while ( defined( $report->{signatures}[$sig_int...]))
+		if ( $malscore > 10.0 ) {
+			$malscore = 10.0;
+		}
+		$report->{malscore} = $malscore;
+
 		eval { write_file( $opts{file}, encode_json($report) ); };
 		if ($@) {
 			die( 'Failed to encode updated report post munging and write it to "' . $opts{file} . '"... ' . $@ );
 		}
-	}
+	} ## end if ($changed)
 
 	return 1;
 } ## end sub munge
@@ -1601,6 +1644,18 @@ If more than one munge section exists, they are ran in sorted order.
 
 If the paths specied do not start with a '/', './', or '../', then '/usr/local/etc/cape_utils_munge/' is
 applied to the start.
+
+The scripts are read as evaled strings.
+
+The relevant variables are as below.
+
+    - $munge_it :: Perl boolean for if it should be munged or not. Should be set by the check script.
+
+    - $report :: The hash ref containing the parsed JSON report.
+
+    - $changed :: Perl boolean for if it changed or not.
+
+For some examples see the directory 'munge_examples'.
 
 =head1 CAPEv2 lite.json to EVE handling
 

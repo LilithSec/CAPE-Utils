@@ -1,5 +1,8 @@
 Revision history for CAPE-Utils
 
+2.4.0   2023-06-03/15:15
+		- Add report munging support.
+
 2.3.0   2023-05-18/18:00
 		- suricata_extract_submit can now use env specified proxies optionally
 		- suricata_extract_submit_extend now recomputes deltas

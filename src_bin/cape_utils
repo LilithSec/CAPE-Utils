@@ -433,7 +433,11 @@ if ( $action eq 'eve' ) {
 }
 
 if ( $action eq 'munge' ) {
-	$cape_utils->munge(file=>$report_json);
+	if ( !defined($report_json) ) {
+		die('No report JSON specified via -r');
+	}
+
+	$cape_utils->munge( file => $report_json );
 	exit 0;
 }
 
