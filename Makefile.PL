@@ -49,6 +49,7 @@ my %WriteMakefileArgs = (
 		'Gzip::Faster'          => '0',
 		'MIME::Base64'          => '0',
 		'File::ReadBackwards'   => '0',
+		'Proc::PID::File'       => '1.29',
 	},
 	dist       => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
 	clean      => { FILES    => 'CAPE-Utils-*' },

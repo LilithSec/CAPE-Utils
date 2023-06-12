@@ -32,6 +32,9 @@ This requires having the file-store output configured akin to below.
 The force-hash values are optional as this script will automatically compute
 those for inclusion as well SHA256.
 
+This will use `/var/run/suricata_extract_submit.pid` as a PID file
+to ensure only a single instance is running.
+
 =head1 CONFIGURATION
 
 The config file used is '/usr/local/etc/suricata_extract_submit.ini'.
@@ -79,6 +82,7 @@ use POSIX 'strftime';
 use Sys::Syslog;
 use JSON;
 use Sys::Hostname;
+use Proc::PID::File;
 
 my $t          = localtime;
 my $today_name = $t->strftime('%F');
@@ -97,6 +101,19 @@ sub log_something {
 
 	print $message. "\n";
 } ## end sub log_something
+
+my $alive;
+eval{
+	$alive=Proc::PID::File->running();
+};
+if ($@) {
+	log_something('err', 'PID file check failed... '.$@);
+	exit 1;
+}
+if ($alive) {
+	log_something('err', 'Already running as '.$alive);
+	exit 1;
+}
 
 log_something( 'info', 'Suricata Malware Extractor starting up..' );
 
