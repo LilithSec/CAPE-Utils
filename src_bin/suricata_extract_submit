@@ -35,6 +35,11 @@ those for inclusion as well SHA256.
 This will use `/var/run/suricata_extract_submit.pid` as a PID file
 to ensure only a single instance is running.
 
+May be checked to see if it has hung like below. Below will alert if a PID
+file with a M time of older than 5 minutes.
+
+    /usr/local/libexec/nagios/check_file_age -i -f /var/run/suricata_extract_submit.pid
+
 =head1 CONFIGURATION
 
 The config file used is '/usr/local/etc/suricata_extract_submit.ini'.
