@@ -85,7 +85,7 @@ my $to_return = {
 my @to_delta = (
 	'sub',     'sub_fail', 'zero_sized',   'sub_2xx',    'sub_3xx',        'sub_4xx',
 	'sub_5xx', 'errors',   'ignored_host', 'ignored_ip', 'ignored_ip_src', 'ignored_ip_dest',
-	'truncated'
+	'truncated', 'sub_size'
 );
 
 # if todays file exists or not
