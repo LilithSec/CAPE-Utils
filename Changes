@@ -1,5 +1,9 @@
 Revision history for CAPE-Utils
 
+2.5.0   2023-06-12/14:00
+		- suricata_extract_submit and extend now tracks submitted byte size
+		- suricata_extract_submit now uses Proc::PID::File to make sure only one instance is running
+
 2.4.0   2023-06-03/15:15
 		- Add report munging support.
 
