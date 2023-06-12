@@ -108,15 +108,13 @@ sub log_something {
 } ## end sub log_something
 
 my $alive;
-eval{
-	$alive=Proc::PID::File->running();
-};
+eval { $alive = Proc::PID::File->running(); };
 if ($@) {
-	log_something('err', 'PID file check failed... '.$@);
+	log_something( 'err', 'PID file check failed... ' . $@ );
 	exit 1;
 }
 if ($alive) {
-	log_something('err', 'Already running as '.$alive);
+	log_something( 'err', 'Already running as ' . $alive );
 	exit 1;
 }
 
@@ -197,6 +195,8 @@ my $stats_default = {
 	ignored_host_delta    => 0,
 	truncated             => 0,
 	truncated_delta       => 0,
+	sub_size              => 0,
+	sub_size_delta        => 0,
 };
 my $stats;
 
@@ -350,6 +350,7 @@ foreach my $file (@files) {
 		my $data      = read_file($data_file);
 		my $data_size = length($data);
 		log_something( 'info', 'Sample Size: ' . $data_size );
+		$stats->{sub_size} += $data_size;
 
 		# get the timestramp and transform it into for getting the epoch
 		my $timestamp = $file_json->{timestamp};
