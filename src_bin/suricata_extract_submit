@@ -350,7 +350,7 @@ foreach my $file (@files) {
 		my $data      = read_file($data_file);
 		my $data_size = length($data);
 		log_something( 'info', 'Sample Size: ' . $data_size );
-		$stats->{sub_size} += $data_size;
+		$new_stats->{sub_size} += $data_size;
 
 		# get the timestramp and transform it into for getting the epoch
 		my $timestamp = $file_json->{timestamp};
@@ -541,7 +541,7 @@ foreach my $file (@files) {
 		} ## end if ($add_it)
 
 		# rename the JSON file so we don't process it again
-		move( $file, $file . '-processed' ) or die 'Appending "-processed" to the name of the JSON failed...' . $!;
+		move( $file, $file . '-processed' ) or die 'Appending "-processed" to the name of the JSON file...' . $!;
 		if ($@) {
 			my $error = 'Failed to rename ' . $file . ' ... ' . $@;
 			$new_stats->{errors}++;
