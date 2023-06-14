@@ -16,3 +16,4 @@ systemd/mojo_cape_submit.service
 perltidyrc
 munge_examples/pdf_check
 munge_examples/pdf_munge
+.gitignore
