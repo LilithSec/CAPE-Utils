@@ -13,7 +13,8 @@ my %WriteMakefileArgs = (
 	INST_SCRIPT      => 'bin',
 	EXE_FILES        => [
 		'src_bin/cape_utils',              'src_bin/mojo_cape_submit',
-		'src_bin/suricata_extract_submit', 'src_bin/suricata_extract_submit_extend'
+		'src_bin/suricata_extract_submit', 'src_bin/suricata_extract_submit_extend',
+		'src_bin/mojo_cape_submit_extend'
 	],
 	CONFIGURE_REQUIRES => {
 		'ExtUtils::MakeMaker' => '0',
