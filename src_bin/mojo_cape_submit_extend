@@ -109,7 +109,7 @@ foreach my $file (@files) {
 
 			push( @{ $slug_sizes->{$slug} }, $json->{cape_submit}{size} );
 
-			if ( $json->{cape_submit}{sha256} eq $json->{suricata_extract_submit}{sha256} ) {
+			if ( $json->{cape_submit}{sha256} ne $json->{suricata_extract_submit}{sha256} ) {
 				$hash_changed = 1;
 			}
 			if ( defined( $data->{slugs}{$slug} ) ) {
