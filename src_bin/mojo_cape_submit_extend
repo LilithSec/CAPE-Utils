@@ -8,6 +8,7 @@ use Time::Piece;
 use File::Slurp qw(read_file);
 use JSON;
 use Getopt::Long;
+use Statistics::Lite qw(:all);
 
 my $extend_version = 1;
 
