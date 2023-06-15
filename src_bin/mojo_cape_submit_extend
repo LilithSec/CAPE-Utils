@@ -167,5 +167,5 @@ if ( !$dont_compress ) {
 		print $compressed;
 	}
 } else {
-	print $data. "\n";
+	print $json_string. "\n";
 }
