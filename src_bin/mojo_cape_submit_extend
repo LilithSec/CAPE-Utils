@@ -80,9 +80,12 @@ my $errorString = '';
 my $error       = 0;
 foreach my $file (@files) {
 	my $slug;
-	my $hash_changed;
+	my $hash_changed = 0;
 
 	$data->{totals}{sub_count}++;
+
+	my $short_file = $file;
+	$short_file =~ s/.*\///;
 
 	eval {
 		my $json = decode_json( read_file($file) );
@@ -111,10 +114,10 @@ foreach my $file (@files) {
 
 			if ( $json->{cape_submit}{sha256} ne $json->{suricata_extract_submit}{sha256} ) {
 				$hash_changed = 1;
+				push( @{ $data->{changed_hashes} }, $short_file );
 			}
 			if ( defined( $data->{slugs}{$slug} ) ) {
 				$data->{slugs}{$slug}{hash_changed} += $hash_changed;
-				push( @{ $data->{changed_hashes} }, $file );
 			}
 			$data->{totals}{hash_changed} += $hash_changed;
 
@@ -122,7 +125,7 @@ foreach my $file (@files) {
 		} ## end if ( defined( $json->{suricata_extract_submit...}))
 	};
 	if ($@) {
-		$errorString = $errorString . $file . ': ' . $@;
+		$errorString = $errorString . $short_file . ': ' . $@;
 		$error       = 1;
 	}
 } ## end foreach my $file (@files)
