@@ -51,7 +51,7 @@ if ($help) {
 my $t           = localtime;
 my $target_time = $t->epoch - $rewind_by;
 
-my @files = File::Find::Rule->file()->name(qr/^[0-9]+\.json$/)->in($incoming_json_dir)->ctime( '>=' . $target_time );
+my @files = File::Find::Rule->file()->name(qr/^[0-9]+\.json$/)->ctime( '>=' . $target_time )->in($incoming_json_dir);
 
 my $data = {
 	totals => {
