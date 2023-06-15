@@ -1,5 +1,31 @@
 #!perl
 
+=head1 NAME
+
+mojo_cape_submit_extend - Compute stats for mojo_cape_submit based on incoming JSONs
+
+=head1 SYNOPSIS
+
+mojo_cape_submit_extend [B<-Z>] [B<-m> <incoming JSON dir>]
+
+=head1 DESCRIPTION
+
+Computes the stats for mojo_cape_submit based on the incoming JSON files.
+
+=head1 SWITCHES
+
+=head2 -m <dir>
+
+The incoming JSON dir.
+
+Default: /malware/incoming-json/
+
+=head2 -Z
+
+Do not optionally GZip+Base64 compress the results.
+
+=cut
+
 use File::Find::Rule;
 use warnings;
 use strict;
@@ -92,37 +118,35 @@ foreach my $file (@files) {
 
 		push( @all_sizes, $json->{cape_submit}{size} );
 
-		if ( defined( $json->{suricata_extract_submit}{slug} ) ) {
-			$slug = $json->{suricata_extract_submit}{slug};
-			if ( !defined( $data->{slugs}{$slug} ) ) {
-				$data->{slugs}{$slug} = {
-					hash_changed => 0,
-					size_min     => 0,
-					size_mean    => 0,
-					size_median  => 0,
-					size_mode    => 0,
-					size_max     => 0,
-					size_stddev  => 0,
-					size_sum     => 0,
-					sub_count    => 0,
-					app_proto    => {},
-				};
-				$slug_sizes->{$slug} = [];
-			} ## end if ( !defined( $data->{slugs}{$slug} ) )
+		$slug = $json->{suricata_extract_submit}{slug};
+		if ( !defined( $data->{slugs}{$slug} ) ) {
+			$data->{slugs}{$slug} = {
+				hash_changed => 0,
+				size_min     => 0,
+				size_mean    => 0,
+				size_median  => 0,
+				size_mode    => 0,
+				size_max     => 0,
+				size_stddev  => 0,
+				size_sum     => 0,
+				sub_count    => 0,
+				app_proto    => {},
+			};
+			$slug_sizes->{$slug} = [];
+		} ## end if ( !defined( $data->{slugs}{$slug} ) )
 
-			push( @{ $slug_sizes->{$slug} }, $json->{cape_submit}{size} );
+		push( @{ $slug_sizes->{$slug} }, $json->{cape_submit}{size} );
 
-			if ( $json->{cape_submit}{sha256} ne $json->{suricata_extract_submit}{sha256} ) {
-				$hash_changed = 1;
-				push( @{ $data->{changed_hashes} }, $short_file );
-			}
-			if ( defined( $data->{slugs}{$slug} ) ) {
-				$data->{slugs}{$slug}{hash_changed} += $hash_changed;
-			}
-			$data->{totals}{hash_changed} += $hash_changed;
+		if ( $json->{cape_submit}{sha256} ne $json->{suricata_extract_submit}{sha256} ) {
+			$hash_changed = 1;
+			push( @{ $data->{changed_hashes} }, $short_file );
+		}
+		if ( defined( $data->{slugs}{$slug} ) ) {
+			$data->{slugs}{$slug}{hash_changed} += $hash_changed;
+		}
+		$data->{totals}{hash_changed} += $hash_changed;
 
-			$data->{slugs}{$slug}{sub_count}++;
-		} ## end if ( defined( $json->{suricata_extract_submit...}))
+		$data->{slugs}{$slug}{sub_count}++;
 	};
 	if ($@) {
 		$errorString = $errorString . $short_file . ': ' . $@;
@@ -130,6 +154,8 @@ foreach my $file (@files) {
 	}
 } ## end foreach my $file (@files)
 
+# only do this if we have values, otherwise they will end up as null
+# which will make the display very suboptimal for LibreNMS
 if ( defined( $all_sizes[0] ) ) {
 	$data->{totals}{size_min}    = min(@all_sizes);
 	$data->{totals}{size_mean}   = mean(@all_sizes);
