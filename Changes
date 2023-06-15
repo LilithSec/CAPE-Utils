@@ -2,6 +2,7 @@ Revision history for CAPE-Utils
 
 2.6.0   2023-06-14/
 		- add mojo_cape_submit_extend
+		- Fix sub_size for suricata_extract_submit
 
 
 2.5.0   2023-06-12/14:00

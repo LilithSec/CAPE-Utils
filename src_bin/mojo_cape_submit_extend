@@ -1,2 +1,167 @@
 #!perl
 
+use File::Find::Rule;
+use warnings;
+use strict;
+use Config::Tiny;
+use Time::Piece;
+use File::Slurp qw(read_file);
+use JSON;
+
+my $extend_version = 1;
+
+my $version;
+my $help;
+my $rewind_by         = 300;
+my $dont_compress     = 0;
+my $incoming_json_dir = '/malware/incoming-json/';
+GetOptions(
+	'h'       => \$help,
+	'help'    => \$help,
+	'v'       => \$version,
+	'version' => \$version,
+	'Z'       => \$dont_compress,
+	'm=s'     => \$incoming_json_dir,
+);
+
+sub version {
+	print "mojo_cape_submit_extend v. 0.0.1\n";
+}
+
+if ($help) {
+	version;
+
+	print '
+
+-m <dir>   Incoming JSON dir.
+           Default :: /malware/incoming-json/
+
+-Z         Do not gzip+base64 compress the results.
+
+-h         Print help.
+--help     Print help.
+-v         Print version info.
+--version  Print version info.
+';
+
+	exit;
+} ## end if ($help)
+
+my $t           = localtime;
+my $target_time = $t->epoch - $rewind_by;
+
+my @files = File::Find::Rule->file()->name(qr/^[0-9]+\.json$/)->in($incoming_json_dir)->ctime( '>=' . $target_time );
+
+my $data = {
+	totals => {
+		hash_changed => 0,
+		size_min     => 0,
+		size_mean    => 0,
+		size_median  => 0,
+		size_mode    => 0,
+		size_max     => 0,
+		size_stddev  => 0,
+		size_sum     => 0,
+		sub_count    => 0,
+		app_proto    => {},
+	},
+	slugs          => {},
+	changed_hashes => [],
+};
+
+my @all_sizes;
+my $slug_sizes;
+
+my $errorString = '';
+my $error       = 0;
+foreach my $file (@files) {
+	my $slug;
+	my $hash_changed;
+
+	$data->{totals}{sub_count}++;
+
+	eval {
+		my $json = decode_json( $incoming_json_dir . '/' . $file );
+
+		push( @all_sizes, $json->{cape_submit}{size} );
+
+		if ( defined( $json->{suricata_extract_submit}{sha256} ) ) {
+			$slug = $json->{suricata_extract_submit}{slug};
+			if ( !defined( $data->{slugs}{$slug} ) ) {
+				$data->{slugs}{$slug} = {
+					hash_changed => 0,
+					size_min     => 0,
+					size_mean    => 0,
+					size_median  => 0,
+					size_mode    => 0,
+					size_max     => 0,
+					size_stddev  => 0,
+					size_sum     => 0,
+					sub_count    => 0,
+					app_proto    => {},
+				};
+				$slug_sizes->{$slug} = [];
+			} ## end if ( !defined( $data->{slugs}{$slug} ) )
+
+			push( @{ $slug_sizes->{$slug} }, $json->{cape_submit}{size} );
+
+			if ( $json->{cape_submit}{sha256} eq $json->{suricata_extract_submit}{sha256} ) {
+				$hash_changed = 1;
+			}
+			if ( defined( $data->{slugs}{$slug} ) ) {
+				$data->{slugs}{$slug}{hash_changed} += $hash_changed;
+				push( @{ $data->{changed_hashes} }, $file );
+			}
+			$data->{totals}{hash_changed} += $hash_changed;
+
+			$data->{slugs}{$slug}{sub_count}++;
+		} ## end if ( defined( $json->{suricata_extract_submit...}))
+	};
+	if ($@) {
+		$errorString = $errorString . $file . ': ' . $@;
+		$error       = 1;
+	}
+} ## end foreach my $file (@files)
+
+$data->{totals}{size_min}    = min(@all_sizes);
+$data->{totals}{size_mean}   = mean(@all_sizes);
+$data->{totals}{size_median} = median(@all_sizes);
+$data->{totals}{size_mode}   = mode(@all_sizes);
+$data->{totals}{size_stddev} = stddev(@all_sizes);
+$data->{totals}{size_sum}    = sum(@all_sizes);
+
+my @slugs = keys( %{$slug_sizes} );
+foreach my $item (@slugs) {
+	$data->{slugs}{$item}{size_min}    = min(@all_sizes);
+	$data->{slugs}{$item}{size_mean}   = mean(@all_sizes);
+	$data->{slugs}{$item}{size_median} = median(@all_sizes);
+	$data->{slugs}{$item}{size_mode}   = mode(@all_sizes);
+	$data->{slugs}{$item}{size_stddev} = stddev(@all_sizes);
+	$data->{slugs}{$item}{size_sum}    = sum(@all_sizes);
+}
+
+my $json_string = encode_json(
+	{
+		data        => $data,
+		version     => $extend_version,
+		error       => $error,
+		errorString => $errorString,
+	}
+);
+
+if ( !$dont_compress ) {
+	# gzip and print encode in base64
+	# base64 is needed as snmp does not like
+	my $compressed = encode_base64( gzip($json_string) );
+	$compressed =~ s/\n//g;
+	$compressed = $compressed . "\n";
+
+	# check which is smaller and prints it
+	if ( length($compressed) > length($json_string) ) {
+		print $json_string. "\n";
+	} else {
+		print $compressed;
+	}
+} else {
+	print $data. "\n";
+}
