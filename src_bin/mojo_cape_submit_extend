@@ -9,6 +9,8 @@ use File::Slurp qw(read_file);
 use JSON;
 use Getopt::Long;
 use Statistics::Lite qw(:all);
+use Gzip::Faster;
+use MIME::Base64;
 
 my $extend_version = 1;
 
