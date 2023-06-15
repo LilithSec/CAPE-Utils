@@ -85,7 +85,7 @@ foreach my $file (@files) {
 	$data->{totals}{sub_count}++;
 
 	eval {
-		my $json = decode_json( $incoming_json_dir . '/' . $file );
+		my $json = decode_json( read_file( $incoming_json_dir . '/' . $file ) );
 
 		push( @all_sizes, $json->{cape_submit}{size} );
 
