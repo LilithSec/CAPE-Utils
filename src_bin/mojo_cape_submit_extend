@@ -216,6 +216,7 @@ foreach my $file (@files) {
 # which will make the display very suboptimal for LibreNMS
 if ( defined( $all_sizes[0] ) ) {
 	$data->{totals}{size_min}    = min(@all_sizes);
+	$data->{totals}{size_max}    = max(@all_sizes);
 	$data->{totals}{size_mean}   = mean(@all_sizes);
 	$data->{totals}{size_median} = median(@all_sizes);
 	$data->{totals}{size_mode}   = mode(@all_sizes);
@@ -225,6 +226,7 @@ if ( defined( $all_sizes[0] ) ) {
 	my @slugs = keys( %{$slug_sizes} );
 	foreach my $item (@slugs) {
 		$data->{slugs}{$item}{size_min}    = min(@all_sizes);
+		$data->{slugs}{$item}{size_max}    = max(@all_sizes);
 		$data->{slugs}{$item}{size_mean}   = mean(@all_sizes);
 		$data->{slugs}{$item}{size_median} = median(@all_sizes);
 		$data->{slugs}{$item}{size_mode}   = mode(@all_sizes);
