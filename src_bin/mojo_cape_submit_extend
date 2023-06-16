@@ -24,6 +24,47 @@ Default: /malware/incoming-json/
 
 Do not optionally GZip+Base64 compress the results.
 
+=head1 Generated JSON
+
+The generated JSON is a standard LibreNMS style return. For more
+information on that see L<https://docs.librenms.org/Developing/Application-Notes/>.
+
+    - .changed_hashes[] :: A array of IDs that has had the hashes changed from between
+        being checksumed prior to sending and after being received.
+
+All stats generated are gauges, just displaying the value for the current time slot.
+
+Totals hash...
+
+    - .totals.app_proto.$app_proto :: '.totals.app_proto' is a hash of totals for files
+        extracted using that app proto.
+
+    - .totals.hash_changed :: Total of hashes that changed.
+
+    - .totals.size_max :: Max submitted file size.
+
+    - .totals.size_mean :: Mean size of submitted files.
+
+    - .totals.size_median :: Median size of submitted files.
+
+    - .totals.size_min :: Min size of submitted files.
+
+    - .totals.size_mode :: Mode of the size of submitted files.
+
+    - .totals.size_stddev :: Standard deviation of the size of submitted files.
+
+    - .totals.size_sum :: Sum of the size of submitted files.
+
+    - .totals.slug_count :: Total number of submitted files.
+
+    - .totals.sub_count :: Total number of submitted files.
+
+Slugs hash...
+
+    - .slugs.$slug :: A per slug hash that is the same as the totals hash,
+        but only for the that specific slug. This only includes slug seen
+        during the current time slot.
+
 =cut
 
 use File::Find::Rule;
@@ -94,6 +135,7 @@ my $data = {
 		size_sum     => 0,
 		sub_count    => 0,
 		app_proto    => {},
+		app_protos   => 0,
 	},
 	slugs          => {},
 	changed_hashes => [],
@@ -131,6 +173,7 @@ foreach my $file (@files) {
 				size_sum     => 0,
 				sub_count    => 0,
 				app_proto    => {},
+				app_protos   => 0,
 			};
 			$slug_sizes->{$slug} = [];
 		} ## end if ( !defined( $data->{slugs}{$slug} ) )
@@ -147,6 +190,21 @@ foreach my $file (@files) {
 		$data->{totals}{hash_changed} += $hash_changed;
 
 		$data->{slugs}{$slug}{sub_count}++;
+
+		if ( defined( $json->{app_proto} ) ) {
+			my $app_proto = $json->{app_proto};
+			if ( !defined( $data->{totals}{app_proto}{$app_proto} ) ) {
+				$data->{totals}{app_protos}++;
+				$data->{totals}{app_proto}{$app_proto} = 0;
+			}
+			$data->{totals}{app_proto}{$app_proto}++;
+
+			if ( !defined( $data->{slugs}{$slug}{app_proto}{$app_proto} ) ) {
+				$data->{slugs}{$slug}{app_protos}++;
+				$data->{slugs}{$slug}{app_proto}{$app_proto} = 0;
+			}
+			$data->{slugs}{app_proto}{$app_proto}++;
+		} ## end if ( defined( $json->{app_proto} ) )
 	};
 	if ($@) {
 		$errorString = $errorString . $short_file . ': ' . $@;
