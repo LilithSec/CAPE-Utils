@@ -203,7 +203,7 @@ foreach my $file (@files) {
 				$data->{slugs}{$slug}{app_protos}++;
 				$data->{slugs}{$slug}{app_proto}{$app_proto} = 0;
 			}
-			$data->{slugs}{app_proto}{$app_proto}++;
+			$data->{slugs}{$slug}{app_proto}{$app_proto}++;
 		} ## end if ( defined( $json->{app_proto} ) )
 	};
 	if ($@) {
