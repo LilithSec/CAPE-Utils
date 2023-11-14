@@ -202,8 +202,8 @@ my $stats;
 
 # compute the deltas for these items
 my @to_delta = (
-	'sub',     'sub_fail', 'zero_sized',   'sub_2xx',    'sub_3xx',        'sub_4xx',
-	'sub_5xx', 'errors',   'ignored_host', 'ignored_ip', 'ignored_ip_src', 'ignored_ip_dest',
+	'sub',       'sub_fail', 'zero_sized',   'sub_2xx',    'sub_3xx',        'sub_4xx',
+	'sub_5xx',   'errors',   'ignored_host', 'ignored_ip', 'ignored_ip_src', 'ignored_ip_dest',
 	'truncated', 'sub_size',
 );
 
@@ -288,7 +288,7 @@ if ( defined($ignoreHosts_file) && -f $ignoreHosts_file ) {
 } ## end if ( defined($ignoreHosts_file) && -f $ignoreHosts_file)
 
 # create a tmpdir and chdir to it
-my $tempdir = tempdir();
+my $tempdir = tempdir( CLEANUP => 1 );
 chdir($tempdir);
 
 # find any json files
