@@ -385,9 +385,9 @@ foreach my $file (@files) {
 
 		my $filename = $file_json->{fileinfo}{filename};
 
-		my $md5    = `md5sum $filename`;
-		my $sha1   = `sha1sum $filename`;
-		my $sha256 = `sha256sum $filename`;
+		my $md5    = `md5sum $data_file`;
+		my $sha1   = `sha1sum $data_file`;
+		my $sha256 = `sha256sum $data_file`;
 		chomp($md5);
 		chomp($sha1);
 		chomp($sha256);
