@@ -19,6 +19,7 @@ cape_utils - A utility to help with various basic tasks related to CAPEv2.
 
 sub version {
 	print "cape_utils v. 0.1.0\n";
+	exit 255;
 }
 
 =head1 SYNOPSIS

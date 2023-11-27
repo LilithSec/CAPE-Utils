@@ -23,6 +23,7 @@ suricata_extract_submit_extend - Provides a LibreNMS style SNMP extend for suric
 
 sub version {
 	print "suricata_extract_submit_extend v. 0.1.0\n";
+	exit 255;
 }
 
 =head1 SYNOPSIS
