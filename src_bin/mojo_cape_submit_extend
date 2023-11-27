@@ -107,6 +107,10 @@ GetOptions(
 	'm=s'     => \$incoming_json_dir,
 );
 
+if ($version) {
+	version;
+}
+
 if ($help) {
 	pod2usage( -exitval => 255, -verbose => 2, -output => \*STDOUT, );
 } ## end if ($help)
