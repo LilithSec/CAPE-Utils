@@ -1,5 +1,8 @@
 Revision history for CAPE-Utils
 
+2.?.?   2023-?
+		 - Remove unused depend on YAML. Thanks @perlpunk in issues/2.
+
 2.8.0   2023-11-27/11:00
 		- convert to Pod::Usage
 		- replace CryptX with cli utils
