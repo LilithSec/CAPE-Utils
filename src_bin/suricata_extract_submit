@@ -395,15 +395,15 @@ if ( defined($ignoreWebACL_file) && -f $ignoreWebACL_file ) {
 	log_something( 'info', 'reading in ignoreWebACL file... ' . $ignoreWebACL_file );
 	my $parsed_acl;
 	eval {
-		$parsed_acl = decode_json( read_file($ignoreWebACL_file) );
+		my $raw_json=read_file($ignoreWebACL_file);
+		$parsed_acl = decode_json( $raw_json );
+		@acls = keys( %{$parsed_acl} );
 		$webacl     = Web::ACL->new( acl => $parsed_acl );
 	};
 	if ($@) {
 		log_something( 'err', 'reading in ignoreWebACL failed... ' . $@ );
 		die($@);
 	}
-
-	@acls = keys( %{$parsed_acl} );
 
 	my $found_regex = $#acls;
 	log_something( 'info', $found_regex . ' ACLs loaded to ignore for WebACL' );
