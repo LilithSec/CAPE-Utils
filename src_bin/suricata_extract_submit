@@ -106,7 +106,7 @@ The config file used is '/usr/local/etc/suricata_extract_submit.ini'.
     #ignorePaths=
 
     # a JSON file to use for using with Web::ACL for checking for ignores
-    #ignoreWebACL=
+    #ignoreWebACL=/usr/local/etc/suricata_extract_submit_webacl.json
 
     # if it should use HTTPS_PROXY and HTTP_PROXY from ENV or not
     env_proxy=0
@@ -116,6 +116,34 @@ The config file used is '/usr/local/etc/suricata_extract_submit.ini'.
 
     # stats dir
     stats_dir=/var/cache/suricata_extract_submit_stats/
+
+=head2 example Web::ACL
+
+A example Web::ACL that ignores UAs matching "foo bar" and
+paths matching "/derp.exe".
+
+    {
+      "foo": {
+        "ua_auth": 1,
+        "path_auth": 1,
+        "ua_regex_allow": [
+          "^foo bar$"
+        ],
+        "paths_regex_allow": [
+          "^\\/derp.exe$"
+        ],
+        "final": 1
+      }
+    }
+
+Each key will be tests twice. First with the IP set to the src
+IP and then set to the client IP. The var mapping is as below.
+
+    .http.http_user_agent -> ua
+    .fileinfo.filename -> path
+
+    .dest_ip -> ip
+    .src_ip -> ip
 
 =cut
 
@@ -395,9 +423,9 @@ if ( defined($ignoreWebACL_file) && -f $ignoreWebACL_file ) {
 	log_something( 'info', 'reading in ignoreWebACL file... ' . $ignoreWebACL_file );
 	my $parsed_acl;
 	eval {
-		my $raw_json=read_file($ignoreWebACL_file);
-		$parsed_acl = decode_json( $raw_json );
-		@acls = keys( %{$parsed_acl} );
+		my $raw_json = read_file($ignoreWebACL_file);
+		$parsed_acl = decode_json($raw_json);
+		@acls       = keys( %{$parsed_acl} );
 		$webacl     = Web::ACL->new( acl => $parsed_acl );
 	};
 	if ($@) {
@@ -587,53 +615,69 @@ foreach my $file (@files) {
 			foreach my $acl (@acls) {
 				if ( $add_it && defined( $file_json->{http} ) ) {
 					my $results = $webacl->check(
-												 apikey=>$acl,
-												 ua=>$file_json->{http}{http_user_agent},
-												 path=>$file_json->{fileinfo}{filename},
-												 ip => $file_json->{src_ip},
-												 );
+						apikey => $acl,
+						ua     => $file_json->{http}{http_user_agent},
+						path   => $file_json->{fileinfo}{filename},
+						ip     => $file_json->{src_ip},
+					);
 					if ($results) {
-						$add_it=0;
+						$add_it = 0;
 						$new_stats->{ignored_webacl}++;
-						my $ua='';
-						if (defined($file_json->{http}{http_user_agent})) {
+						my $ua = '';
+						if ( defined( $file_json->{http}{http_user_agent} ) ) {
 							$ua = $file_json->{http}{http_user_agent};
-							$ua =~s/\"/\\\"/g;
+							$ua =~ s/\"/\\\"/g;
 						}
-						my $path='';
-						if (defined($file_json->{http}{http_user_agent})) {
+						my $path = '';
+						if ( defined( $file_json->{http}{http_user_agent} ) ) {
 							$path = $file_json->{fileinfo}{filename};
-							$path =~s/\"/\\\"/g;
+							$path =~ s/\"/\\\"/g;
 						}
 						log_something( 'info',
-							'Ignore Listed WebACL, "' . $acl . '": src_ip="'.$file_json->{src_ip}.'", ua="'.$ua.'", path="'.$path.'"'  );
-					}else {
+								  'Ignore Listed WebACL, "'
+								. $acl
+								. '": src_ip="'
+								. $file_json->{src_ip}
+								. '", ua="'
+								. $ua
+								. '", path="'
+								. $path
+								. '"' );
+					} else {
 						$results = $webacl->check(
-												  apikey=>$acl,
-												  ua=>$file_json->{http}{http_user_agent},
-												  path=>$file_json->{fileinfo}{filename},
-												  ip => $file_json->{dest_ip},
-												  );
+							apikey => $acl,
+							ua     => $file_json->{http}{http_user_agent},
+							path   => $file_json->{fileinfo}{filename},
+							ip     => $file_json->{dest_ip},
+						);
 						if ($results) {
-							$add_it=0;
+							$add_it = 0;
 							$new_stats->{ignored_webacl}++;
-													my $ua='';
-						if (defined($file_json->{http}{http_user_agent})) {
-							$ua = $file_json->{http}{http_user_agent};
-							$ua =~s/\"/\\\"/g;
-						}
-						my $path='';
-						if (defined($file_json->{http}{http_user_agent})) {
-							$path = $file_json->{fileinfo}{filename};
-							$path =~s/\"/\\\"/g;
-						}
-						log_something( 'info',
-							'Ignore Listed WebACL, "' . $acl . '": dest_ip="'.$file_json->{dest_ip}.'", ua="'.$ua.'", path="'.$path.'"'  );
-						}
-					}
-				}
-			}
-		}
+							my $ua = '';
+							if ( defined( $file_json->{http}{http_user_agent} ) ) {
+								$ua = $file_json->{http}{http_user_agent};
+								$ua =~ s/\"/\\\"/g;
+							}
+							my $path = '';
+							if ( defined( $file_json->{http}{http_user_agent} ) ) {
+								$path = $file_json->{fileinfo}{filename};
+								$path =~ s/\"/\\\"/g;
+							}
+							log_something( 'info',
+									  'Ignore Listed WebACL, "'
+									. $acl
+									. '": dest_ip="'
+									. $file_json->{dest_ip}
+									. '", ua="'
+									. $ua
+									. '", path="'
+									. $path
+									. '"' );
+						} ## end if ($results)
+					} ## end else [ if ($results) ]
+				} ## end if ( $add_it && defined( $file_json->{http...}))
+			} ## end foreach my $acl (@acls)
+		} ## end if ($add_it)
 
 		$name
 			= $file_json->{src_ip} . '-'

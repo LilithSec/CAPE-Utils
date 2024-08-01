@@ -155,8 +155,8 @@ my $to_return = {
 
 # compute the deltas for these items
 my @to_delta = (
-	'sub',       'sub_fail', 'zero_sized',   'sub_2xx',    'sub_3xx',        'sub_4xx',
-	'sub_5xx',   'errors',   'ignored_host', 'ignored_ip', 'ignored_ip_src', 'ignored_ip_dest',
+	'sub',       'sub_fail', 'zero_sized',   'sub_2xx',      'sub_3xx',        'sub_4xx',
+	'sub_5xx',   'errors',   'ignored_host', 'ignored_ip',   'ignored_ip_src', 'ignored_ip_dest',
 	'truncated', 'sub_size', 'ignored_ua',   'ignored_path', 'ignored_webacl'
 );
 
