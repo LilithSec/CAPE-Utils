@@ -36,7 +36,7 @@ cape_utils -a tasks [B<-c> <config>] [B<-C>] [B<-w> <where>] [B<--direction> <di
 
 cape_utils -a fail [B<-c> <config>] B<-w> <where>
 
-cape_utils -a eve [B<-c> <config>]=head1 Action: submit
+cape_utils -a eve [B<-c> <config>]
 
 cape_utils -a munge [B<-c> <config>] B<-r> <report json>
 
