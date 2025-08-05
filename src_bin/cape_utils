@@ -42,7 +42,7 @@ cape_utils -a munge [B<-c> <config>] B<-r> <report json>
 
 =head1 GENERAL FLAGS
 
-=head2 --c <ini>
+=head2 -c <ini>
 
 Config INI file.
 
