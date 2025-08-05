@@ -3,19 +3,17 @@ package CAPE::Utils;
 use 5.006;
 use strict;
 use warnings;
-use JSON;
-use Config::Tiny;
-use DBI;
-use File::Slurp qw(append_file write_file read_file write_file);
-use Config::Tiny;
-use IPC::Cmd qw[ run ];
-use Text::ANSITable;
-use File::Spec;
-use IPC::Cmd qw(run);
-use Net::Subnet;
-use Sys::Hostname;
-use Sys::Syslog;
-use File::Copy;
+use JSON qw( decode_json encode_json );
+use Config::Tiny ();
+use DBI ();
+use File::Slurp qw( append_file read_file write_file );
+use IPC::Cmd qw( run );
+use Text::ANSITable ();
+use File::Spec ();
+use Net::Subnet qw( subnet_matcher );
+use Sys::Hostname qw( hostname );
+use Sys::Syslog qw( closelog openlog syslog );
+use File::Copy qw( copy );
 
 =head1 NAME
 
@@ -115,6 +113,8 @@ sub new {
 	return $self;
 } ## end sub new
 
+
+
 =head2 connect
 
 Return a DBH from DBI->connect for the CAPE SQL server.
@@ -133,6 +133,7 @@ sub connect {
 
 	return $dbh;
 }
+
 
 =head2 fail
 
@@ -183,6 +184,9 @@ sub fail {
 	return $rows;
 } ## end sub fail
 
+
+
+
 =head2 get_pending_count
 
 Get pending count pending tasks.
@@ -220,6 +224,8 @@ sub get_pending_count {
 
 	return $rows;
 } ## end sub get_pending_count
+
+
 
 =head2 get_pending
 
@@ -263,6 +269,8 @@ sub get_pending {
 
 	return \@rows;
 } ## end sub get_pending
+
+
 
 =head2 get_pending_table
 
@@ -350,6 +358,9 @@ sub get_pending_table {
 	return $tb->draw;
 } ## end sub get_pending_table
 
+
+
+
 =head2 get_running
 
 Returns a array ref of hash refs of rows from the tasks table where the
@@ -400,6 +411,9 @@ sub get_running {
 	return \@rows;
 } ## end sub get_running
 
+
+
+
 =head2 get_running_count
 
 Get pending count running tasks.
@@ -441,6 +455,8 @@ sub get_running_count {
 
 	return $rows;
 } ## end sub get_running_count
+
+
 
 =head2 get_running_table
 
@@ -534,6 +550,8 @@ sub get_running_table {
 	return $tb->draw;
 } ## end sub get_running_table
 
+
+
 =head2 get_tasks
 
 Returns a array ref of hash refs of rows from the tasks table where the
@@ -622,6 +640,8 @@ sub get_tasks {
 	return \@rows;
 } ## end sub get_tasks
 
+
+
 =head2 get_tasks_count
 
 Gets a count of tasks.
@@ -661,6 +681,8 @@ sub get_tasks_count {
 
 	return $rows;
 } ## end sub get_tasks_count
+
+
 
 =head2 get_tasks_table
 
@@ -792,6 +814,8 @@ sub get_tasks_table {
 	return $tb->draw;
 } ## end sub get_tasks_table
 
+
+
 =head2 munge
 
 Munges the specified report file.
@@ -922,6 +946,8 @@ sub munge {
 
 	return 1;
 } ## end sub munge
+
+
 
 =head2 search
 
@@ -1127,6 +1153,8 @@ sub search {
 	return $rows;
 } ## end sub search
 
+
+
 =head2 submit
 
 Submits files to CAPE.
@@ -1296,6 +1324,8 @@ sub submit {
 	return $added;
 } ## end sub submit
 
+
+
 =head2 timestamp
 
 Creates a timestamp to be used with utils/submit. localtime
@@ -1328,6 +1358,8 @@ sub timestamp {
 	return $mon . '-' . $mday . '-' . $year . ' ' . $hour . ':' . $min . ':' . $sec;
 } ## end sub timestamp
 
+
+
 =head2 shuffle
 
 Performa a Fisher Yates shuffle on the passed array ref.
@@ -1345,6 +1377,8 @@ sub shuffle {
 	}
 	return $array;
 } ## end sub shuffle
+
+
 
 =head2 check_remote
 
@@ -1421,6 +1455,8 @@ sub check_remote {
 
 	return 0;
 } ## end sub check_remote
+
+
 
 =head2 eve_process
 
@@ -1556,12 +1592,14 @@ sub log_drek {
 	closelog();
 } ## end sub log_drek
 
+
+
 =head1 CONFIG FILE
 
-The default config file is '/usr/local/etc/cape_utils.ini'.
+The default config file is /usr/local/etc/cape_utils.ini.
 
 The defaults are as below, which out of the box, it will work by
-default with CAPEv2 in it's default config.
+default with CAPEv2 in the default config.
 
     # The DBI dsn to use
     dsn=dbi:Pg:dbname=cape
