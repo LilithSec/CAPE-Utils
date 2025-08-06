@@ -15,6 +15,8 @@ use Sys::Hostname qw( hostname );
 use Sys::Syslog qw( closelog openlog syslog );
 use File::Copy qw( copy );
 
+=pod
+
 =head1 NAME
 
 CAPE::Utils - A helpful library for with CAPE.
@@ -113,7 +115,7 @@ sub new {
 	return $self;
 } ## end sub new
 
-
+=pod
 
 =head2 connect
 
@@ -134,6 +136,7 @@ sub connect {
 	return $dbh;
 }
 
+=pod
 
 =head2 fail
 
@@ -184,8 +187,7 @@ sub fail {
 	return $rows;
 } ## end sub fail
 
-
-
+=pod
 
 =head2 get_pending_count
 
@@ -225,7 +227,7 @@ sub get_pending_count {
 	return $rows;
 } ## end sub get_pending_count
 
-
+=pod
 
 =head2 get_pending
 
@@ -270,7 +272,7 @@ sub get_pending {
 	return \@rows;
 } ## end sub get_pending
 
-
+=pod
 
 =head2 get_pending_table
 
@@ -358,8 +360,7 @@ sub get_pending_table {
 	return $tb->draw;
 } ## end sub get_pending_table
 
-
-
+=pod
 
 =head2 get_running
 
@@ -411,8 +412,7 @@ sub get_running {
 	return \@rows;
 } ## end sub get_running
 
-
-
+=pod
 
 =head2 get_running_count
 
@@ -456,7 +456,7 @@ sub get_running_count {
 	return $rows;
 } ## end sub get_running_count
 
-
+=pod
 
 =head2 get_running_table
 
@@ -550,7 +550,7 @@ sub get_running_table {
 	return $tb->draw;
 } ## end sub get_running_table
 
-
+=pod
 
 =head2 get_tasks
 
@@ -640,7 +640,7 @@ sub get_tasks {
 	return \@rows;
 } ## end sub get_tasks
 
-
+=pod
 
 =head2 get_tasks_count
 
@@ -682,7 +682,7 @@ sub get_tasks_count {
 	return $rows;
 } ## end sub get_tasks_count
 
-
+=pod
 
 =head2 get_tasks_table
 
@@ -814,7 +814,7 @@ sub get_tasks_table {
 	return $tb->draw;
 } ## end sub get_tasks_table
 
-
+=pod
 
 =head2 munge
 
@@ -947,7 +947,7 @@ sub munge {
 	return 1;
 } ## end sub munge
 
-
+=pod
 
 =head2 search
 
@@ -1153,7 +1153,7 @@ sub search {
 	return $rows;
 } ## end sub search
 
-
+=pod
 
 =head2 submit
 
@@ -1324,7 +1324,7 @@ sub submit {
 	return $added;
 } ## end sub submit
 
-
+=pod
 
 =head2 timestamp
 
@@ -1358,7 +1358,7 @@ sub timestamp {
 	return $mon . '-' . $mday . '-' . $year . ' ' . $hour . ':' . $min . ':' . $sec;
 } ## end sub timestamp
 
-
+=pod
 
 =head2 shuffle
 
@@ -1378,7 +1378,7 @@ sub shuffle {
 	return $array;
 } ## end sub shuffle
 
-
+=pod
 
 =head2 check_remote
 
@@ -1456,7 +1456,7 @@ sub check_remote {
 	return 0;
 } ## end sub check_remote
 
-
+=pod
 
 =head2 eve_process
 
