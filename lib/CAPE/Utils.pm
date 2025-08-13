@@ -3,17 +3,18 @@ package CAPE::Utils;
 use 5.006;
 use strict;
 use warnings;
-use JSON qw( decode_json encode_json );
-use Config::Tiny ();
-use DBI ();
-use File::Slurp qw( append_file read_file write_file );
-use IPC::Cmd qw( run );
+use JSON            qw( decode_json encode_json );
+use Config::Tiny    ();
+use DBI             ();
+use File::Slurp     qw( append_file read_file write_file );
+use IPC::Cmd        qw( run );
 use Text::ANSITable ();
-use File::Spec ();
-use Net::Subnet qw( subnet_matcher );
-use Sys::Hostname qw( hostname );
-use Sys::Syslog qw( closelog openlog syslog );
-use File::Copy qw( copy );
+use File::Spec      ();
+use Net::Subnet     qw( subnet_matcher );
+use Sys::Hostname   qw( hostname );
+use Sys::Syslog     qw( closelog openlog syslog );
+use File::Copy      qw( copy );
+use Template        ();
 
 =pod
 
@@ -93,6 +94,11 @@ sub new {
 			eve_look_back       => 360,
 			malscore            => 0,
 			poetry_path         => '/etc/poetry/bin/poetry',
+			post_munge          => 0,
+			post_bin_rm         => 0,
+			post_link           => 0,
+			post_link_dir       => '/malware/storage/links',
+			post_link_format_template_file => '/usr/local/etc/cape_utils_link_format_template.t2',
 		},
 	};
 
@@ -111,6 +117,12 @@ sub new {
 	# init the object
 	my $self = { config => $config, };
 	bless $self;
+
+	# read in post_link_format_template_file
+	if ( -f $self->{post_link_format_template_file} ) {
+	} else {
+		$self->{post_link_format_template} = '[% lite.target.file.name %]';
+	}
 
 	return $self;
 } ## end sub new
@@ -1575,6 +1587,19 @@ sub eve_process {
 
 } ## end sub eve_process
 
+=pod2
+
+=head2 post
+
+Do assorted post processing tasks.
+
+=cut
+
+sub post {
+	my ( $self, %opts ) = @_;
+
+}
+
 # sends stuff to syslog
 sub log_drek {
 	my ( $self, $sender, $level, $message ) = @_;
@@ -1592,7 +1617,7 @@ sub log_drek {
 	closelog();
 } ## end sub log_drek
 
-
+=pod
 
 =head1 CONFIG FILE
 
@@ -1665,6 +1690,14 @@ default with CAPEv2 in the default config.
     eve_look_back=360
     # malscore for changing the event_type for eve from potential_malware_detonation to alert
     malscore=0
+    # If munge should be called on the report JSON for the post action.
+    post_munge=0
+    # If the binary should be removed during the post action.
+    post_bin_rm=0
+    # If symbolic links should be created for the report dir during the post action.
+    post_link=0
+    # Where to create the symbolic links to the submissions report dir
+    post_link_dir=/malware/storage/links
 
 =head2 Report Munge Section
 

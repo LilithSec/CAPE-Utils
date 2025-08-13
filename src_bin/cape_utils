@@ -177,6 +177,10 @@ Invoke CAPE::Utils->process_eve.
 
 The report JSON to munge.
 
+=head2 post
+
+Perform the post actions for a run.
+
 =head1 CONFIG FILE
 
 For this, see the docs for CAPE::Utils.

@@ -3,23 +3,22 @@
 use File::Find::Rule;
 use warnings;
 use strict;
-use Config::Tiny;
-use File::Slurp qw(append_file write_file read_file);
-use Time::Piece;
-use File::MimeInfo::Magic;
+use Config::Tiny ();
+use File::Slurp qw( append_file read_file write_file );
+use Time::Piece qw( localtime );
+use File::MimeInfo::Magic qw( mimetype );
 use Net::Subnet qw(subnet_matcher);
-use LWP::UserAgent;
-use HTTP::Request::Common;
-use File::Temp qw/ tempdir  /;
-use File::Copy;
-use POSIX 'strftime';
-use Sys::Syslog;
-use JSON;
-use Sys::Hostname;
-use Proc::PID::File;
-use Pod::Usage;
-use Getopt::Long;
-use Web::ACL;
+use LWP::UserAgent ();
+use HTTP::Request::Common qw( POST );
+use File::Temp qw( tempdir  );
+use File::Copy qw( copy move );
+use Sys::Syslog qw( closelog openlog syslog );
+use JSON qw( decode_json encode_json );
+use Sys::Hostname qw( hostname );
+use Proc::PID::File ();
+use Pod::Usage qw( pod2usage );
+use Getopt::Long qw( GetOptions );
+use Web::ACL ();
 
 =head1 NAME
 
@@ -27,12 +26,12 @@ suricata_extract_submit - Submits files extracted by Suricata to mojo_cape_submi
 
 =head1 VERSION
 
-1.0.0
+1.1.0
 
 =cut
 
 sub version {
-	print "suricata_extract_submit v. 1.0.0\n";
+	print "suricata_extract_submit v. 1.1.0\n";
 }
 
 =head1 SYNOPSIS
@@ -528,7 +527,6 @@ foreach my $file (@files) {
 		$md5    =~ s/[\ \t].+//;
 		$sha1   =~ s/[\ \t].+//;
 		$sha256 =~ s/[\ \t].+//;
-		my $extUID = lc( substr( $md5, 0, 18 ) );
 
 		my $mime = mimetype($filename);
 		if ( !defined($mime) ) {
@@ -701,7 +699,7 @@ foreach my $file (@files) {
 			. $file_json->{dest_ip} . '-'
 			. $file_json->{dest_port} . '-'
 			. $file_json->{proto} . '-'
-			. $extUID . '-'
+			. $sha1 . '-'
 			. $slug . '-'
 			. $t->epoch . '-'
 			. $mime;
