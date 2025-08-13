@@ -73,11 +73,11 @@ At that point it will just stop processing of it.
 =cut
 
 use Mojolicious::Lite -signatures;
-use Sys::Syslog;
-use JSON;
-use CAPE::Utils;
-use File::Slurp;
-use Sys::Hostname;
+use Sys::Syslog   qw( closelog openlog syslog );
+use JSON          qw( decode_json encode_json );
+use CAPE::Utils   ();
+use File::Slurp   qw( write_file );
+use Sys::Hostname qw( hostname );
 
 # two are needed as /* and / don't overlap... so pass it to the_stuff to actually handle it
 post '/*' => sub ($c) {
@@ -172,6 +172,7 @@ sub the_stuff {
 	my $orig_name = $name;
 	$name =~ s/\///;
 	log_drek( 'info', 'Got File... size=' . $size . ' filename="' . $name . '"' );
+	my $link_name = $cape_util->{config}->{_}->{incoming_json} . '/' . $name;
 	$name = $cape_util->{config}->{_}->{incoming} . '/' . $name;
 
 	# get the json metadata info
@@ -252,16 +253,16 @@ sub the_stuff {
 
 	# copy it into place
 	$file->move_to($name);
-	$json->{cape_submit}{sha256} = lc( `sha256sum $name` );
-	chomp($json->{cape_submit}{sha256});
+	$json->{cape_submit}{sha256} = lc(`sha256sum $name`);
+	chomp( $json->{cape_submit}{sha256} );
 	$json->{cape_submit}{sha256} =~ s/[\ \t].+//;
 	log_drek( 'info', 'SHA256: ' . $json->{cape_submit}{sha256} );
-	$json->{cape_submit}{sha1} = lc( `sha1sum $name` );
-	chomp($json->{cape_submit}{sha1});
+	$json->{cape_submit}{sha1} = lc(`sha1sum $name`);
+	chomp( $json->{cape_submit}{sha1} );
 	$json->{cape_submit}{sha1} =~ s/[\ \t].+//;
 	log_drek( 'info', 'SHA1: ' . $json->{cape_submit}{sha1} );
-	$json->{cape_submit}{md5} = lc( `md5sum $name` );
-	chomp($json->{cape_submit}{md5});
+	$json->{cape_submit}{md5} = lc(`md5sum $name`);
+	chomp( $json->{cape_submit}{md5} );
 	$json->{cape_submit}{md5} =~ s/[\ \t].+//;
 	log_drek( 'info', 'MD5: ' . $json->{cape_submit}{md5} );
 
@@ -302,7 +303,31 @@ sub the_stuff {
 		log_drek( 'err', 'Failed to write submission data JSON out to "' . $data_json_file . '"... ' . $@ );
 	} else {
 		log_drek( 'info', 'Wrote submission data JSON out to "' . $data_json_file . '"' );
-	}
+		# if it already exists and is not a link, something is not right... log it as this
+		# requires end user intervention as that should not exist
+		if ( -e $link_name && !-l $link_name ) {
+			log_drek( 'err', 'Link to submission data JSON, "' . $link_name . '", exists on FS and is not a link' );
+		} elsif ( -e $link_name && -l $link_name ) {
+			# if it exists already, it means it was re-submitted... update link to the
+			# newst one
+			log_drek( 'info',
+					  'Link to submission data JSON, "'
+					. $link_name
+					. '", exists already... removing and linking to '
+					. $submitted[0] );
+			eval {
+				unlink($link_name) || die( 'Failed to unlink "' . $link_name . '"' );
+				symlink( $data_json_file, $link_name )
+					|| die( 'Failed to link "' . $data_json_file . '" to "' . $link_name . '"' );
+			};
+			if ($@) {
+				log_drek( 'err', $@ );
+			}
+		} else {
+			symlink( $data_json_file, $link_name )
+				|| log_drek( 'err', 'Failed to link "' . $data_json_file . '" to "' . $link_name . '"' );
+		}
+	} ## end else [ if ($@) ]
 
 	return;
 } ## end sub the_stuff
