@@ -70,6 +70,14 @@ If you submit a file with a file with the size of 10 and matching
 /01234567890/ it will return "TEST RECIEVED\n", provided the submitter is authed.
 At that point it will just stop processing of it.
 
+=head1 ENVIROMENTAL VARIABLES
+
+=head2 MOJO_CAPE_SUBMIT_MAX_REQ_SIZE
+
+This is the max request size, which will affect the size of files the can be submitted.
+
+If undef, this defaults to 1G, 1073741824.
+
 =cut
 
 use Mojolicious::Lite -signatures;
@@ -331,5 +339,17 @@ sub the_stuff {
 
 	return;
 } ## end sub the_stuff
+
+# ensure we have something set for $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} and that it is a
+# int
+if (!defined($ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'})) {
+	if ($ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} !~ /^\d\d*$/) {
+		log_drek( 'err', '$ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} set to "'.$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}.'" which does not match /^\d\d*$/ ... defaulting to 1073741824' );
+		$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}=1073741824;
+	}
+}else {
+	$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}=1073741824;
+}
+app->max_request_size($ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'});
 
 app->start;
