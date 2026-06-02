@@ -330,22 +330,22 @@ sub the_stuff {
 	# get some info for logging purposes
 	# done this way for the purpose of not having to constantly check if something is undef
 	my %additional_info;
-	$additional_info{src_ip}       = $c->param('src_ip');
-	$additional_info{src_port}     = $c->param('src_port');
-	$additional_info{dest_ip}      = $c->param('dest_ip');
-	$additional_info{dest_port}    = $c->param('dest_port');
-	$additional_info{proto}        = $c->param('proto');
-	$additional_info{app_proto}    = $c->param('app_proto');
-	$additional_info{flow_id}      = $c->param('flow_id');
-	$additional_info{http_host}    = $c->param('http_host');
-	$additional_info{http_url}     = $c->param('http_url');
-	$additional_info{http_method}  = $c->param('http_method');
-	$additional_info{http_proto}   = $c->param('http_proto');
-	$additional_info{http_status}  = $c->param('http_status');
-	$additional_info{http_ctype}   = $c->param('http_ctype');
-	$additional_info{http_ua}      = $c->param('http_ua');
-	$additional_info{det_sub_type} = $c->param('type');
-	$additional_info{src_host}     = $c->param('src_host');
+	$additional_info{src_ip}       = $json->{'src_ip'};
+	$additional_info{src_port}     = $json->{'src_port'};
+	$additional_info{dest_ip}      = $json->{'dest_ip'};
+	$additional_info{dest_port}    = $json->{'dest_port'};
+	$additional_info{proto}        = $json->{'proto'};
+	$additional_info{app_proto}    = $json->{'app_proto'};
+	$additional_info{flow_id}      = $json->{'flow_id'};
+	$additional_info{http_host}    = $json->{'http'}{'hostname'};
+	$additional_info{http_url}     = $json->{'http'}{'url'};
+	$additional_info{http_method}  = $json->{'http'}{'method'};
+	$additional_info{http_proto}   = $json->{'http'}{'protocol'};
+	$additional_info{http_status}  = $json->{'http'}{'status'};
+	$additional_info{http_ctype}   = $json->{'http'}{'http_content_type'};
+	$additional_info{http_ua}      = $json->{'http'}{'http_user_agent'};
+	$additional_info{det_sub_type} = $json->{'http'}{'http_method'};
+	$additional_info{src_host}     = $json->{'suricata_extract_submit'}{'host'};
 
 	# set the value for anything not defined to undef for the purpose of logging
 	# this will avoid perl from throwing errors about undef used in cating
