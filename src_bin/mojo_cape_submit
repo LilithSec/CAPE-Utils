@@ -412,7 +412,7 @@ sub the_stuff {
 		log_drek( 'err', 'Failed to write submission data JSON out to "' . $json_filename . '"... ' . $@ );
 	} else {
 		log_drek( 'info', 'Wrote submission data JSON out to "' . $json_filename . '"' );
-		my $link_name = $cape_util->{config}->{_}->{incoming} . '/task_to_json/' . $submitted[0];
+		my $link_name = $cape_util->{config}->{_}->{incoming} . '/task_to_json/' . $results->{ $submitted[0] };
 		# if it already exists and is not a link, something is not right... log it as this
 		# requires end user intervention as that should not exist
 		if ( -e $link_name && !-l $link_name ) {
