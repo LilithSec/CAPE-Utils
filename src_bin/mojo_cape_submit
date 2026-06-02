@@ -109,6 +109,7 @@ use CAPE::Utils   ();
 use File::Slurp   qw( write_file );
 use Sys::Hostname qw( hostname );
 use File::Temp    qw( tempfile );
+use File::Copy    qw( move );
 
 # two are needed as /* and / don't overlap... so pass it to the_stuff to actually handle it
 post '/*' => sub ($c) {
@@ -250,11 +251,11 @@ sub the_stuff {
 	}
 
 	# initial filename bits
-	my $name = $file->filename;
-	my $size = $file->size;
+	my $name      = $file->filename;
+	my $size      = $file->size;
 	my $orig_name = $name;
 	$name =~ s/\///;
-	my $json_filename = $cape_util->{config}->{_}->{incoming} . '/json/'.$name;
+	my $json_filename = $cape_util->{config}->{_}->{incoming} . '/json/' . $name;
 
 	# if size is 10, test if the contents are a test ping packet
 	if ( $size == 10 ) {
@@ -285,7 +286,7 @@ sub the_stuff {
 		time      => time,
 		host      => hostname,
 	};
-	
+
 	# copy it into place
 	# save it here for getting SHA256 checksum
 	$file->move_to($temp_filename);
@@ -302,22 +303,29 @@ sub the_stuff {
 	chomp( $json->{'cape_submit'}{'md5'} );
 	$json->{'cape_submit'}{'md5'} =~ s/[\ \t].+//;
 	log_drek( 'info', 'MD5: ' . $json->{'cape_submit'}{'md5'} );
-	my $sha256_filename=$cape_util->{config}->{_}->{incoming} . '/sha256/'.$json->{'cape_submit'}{'sha256'};
-	my $name_filename = $cape_util->{config}->{_}->{incoming} . '/name_to_sha256/'.$name;
+	my $sha256_filename = $cape_util->{config}->{_}->{incoming} . '/sha256/' . $json->{'cape_submit'}{'sha256'};
+	my $name_filename   = $cape_util->{config}->{_}->{incoming} . '/name_to_sha256/' . $name;
 	# If it has already been received, we can skip this step and just unlink it.
-	if ( ! -f $sha256_filename ){
-		move($temp_filename, $sha256_filename);
-	}else{
+	if ( !-f $sha256_filename ) {
+		move( $temp_filename, $sha256_filename );
+	} else {
 		unlink($temp_filename);
 	}
 	# make sure it is always linked to the newest one if it is resubmitted
-	if ( -e $name_filename ){
+	if ( -e $name_filename ) {
 		unlink($name_filename);
 	}
-	symlink($sha256_filename, $name_filename);
+	symlink( $sha256_filename, $name_filename );
 
 	# log incoming file
-	log_drek( 'info', 'Got File... size=' . $size . ' filename="' . $name . '" sha256="'.$json->{'cape_submit'}{'sha256'}.'"' );
+	log_drek( 'info',
+			  'Got File... size='
+			. $size
+			. ' filename="'
+			. $name
+			. '" sha256="'
+			. $json->{'cape_submit'}{'sha256'}
+			. '"' );
 
 	# get some info for logging purposes
 	# done this way for the purpose of not having to constantly check if something is undef
@@ -379,7 +387,7 @@ sub the_stuff {
 	my $results;
 	eval { $results = $cape_util->submit( items => [$name_filename], quiet => 1, ); };
 	if ($@) {
-		log_drek( 'err', '$cape_util->submit( items => ["'.$name_filename.'"], quiet => 1, );  ... '.$@ );
+		log_drek( 'err', '$cape_util->submit( items => ["' . $name_filename . '"], quiet => 1, );  ... ' . $@ );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	}
@@ -398,13 +406,13 @@ sub the_stuff {
 	$json->{cape_submit}{task} = $results->{ $submitted[0] };
 
 	# write out the json containing the submission info
-	my $data_json      = encode_json($json) . "\n";
+	my $data_json = encode_json($json) . "\n";
 	eval { write_file( $json_filename, $data_json ); };
 	if ($@) {
 		log_drek( 'err', 'Failed to write submission data JSON out to "' . $json_filename . '"... ' . $@ );
 	} else {
 		log_drek( 'info', 'Wrote submission data JSON out to "' . $json_filename . '"' );
-		my $link_name = $cape_util->{config}->{_}->{incoming} . '/task_to_json/'.$submitted[0];
+		my $link_name = $cape_util->{config}->{_}->{incoming} . '/task_to_json/' . $submitted[0];
 		# if it already exists and is not a link, something is not right... log it as this
 		# requires end user intervention as that should not exist
 		if ( -e $link_name && !-l $link_name ) {
