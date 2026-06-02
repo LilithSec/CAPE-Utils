@@ -4,6 +4,9 @@ Revision history for CAPE-Utils
 		 - pod cleanup
 		 - no longer uses shortened md5 in suricata_extract_submit but full sha1
 		 - add $ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} for controlling max request size for mojo_cape_submit
+		 - fix handling of MOJO_CAPE_SUBMIT_MAX_REQ_SIZE
+		 - fix handling of printing received info in the log for mojo_cape_submit
+		 - add a incrementing int to mojo_cape_submit logging so log entries can more easily be corolated
 
 4.0.0   2025-07-21/15:00
 		 - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry
