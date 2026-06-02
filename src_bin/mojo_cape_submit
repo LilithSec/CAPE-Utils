@@ -479,14 +479,13 @@ sub the_stuff {
 
 # ensure we have something set for $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} and that it is a
 # int
-if ( !defined( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} ) ) {
+if ( defined( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} ) ) {
 	if ( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} !~ /^\d\d*$/ ) {
 		log_drek(
 			'err',
 			'$ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} set to "'
 				. $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}
 				. '" which does not match /^\d\d*$/ ... defaulting to 1073741824',
-			$current_tracking_int
 		);
 		$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} = 1073741824;
 	} ## end if ( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}...)
