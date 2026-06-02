@@ -251,7 +251,7 @@ sub the_stuff {
 	}
 
 	my ( $temp_fh, $temp_filename )
-		= tempfile( 'DIR' => $cape_util->{config}->{_}->{incoming} . '/tmp', $current_tracking_int );
+		= tempfile( 'DIR' => $cape_util->{config}->{_}->{incoming} . '/tmp' );
 
 	my $allow_remote;
 	eval { $allow_remote = $cape_util->check_remote( apikey => $apikey, ip => $remote_ip ); };
