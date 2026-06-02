@@ -78,6 +78,28 @@ This is the max request size, which will affect the size of files the can be sub
 
 If undef, this defaults to 1G, 1073741824.
 
+=head1 INCOMING DIR STRUCTURE
+
+The following directories are used under the incoming directory.
+
+    sha256
+    json
+    name_to_sha256
+    task_to_json
+    tmp
+
+"tmp" is where the written to first to get the checksum.
+
+"sha256" is where it is moved to after we have the checksum if it does not
+already exist.
+
+"json" is where the incoming JSON is written to based on filename.
+
+"name_to_sha256" contains links from incoming filename to the sha256
+in question. If it already exists it is updated to the newest one.
+
+"task_to_json" contains links to from the task name to the JSON it is for.
+
 =cut
 
 use Mojolicious::Lite -signatures;
@@ -86,6 +108,7 @@ use JSON          qw( decode_json encode_json );
 use CAPE::Utils   ();
 use File::Slurp   qw( write_file );
 use Sys::Hostname qw( hostname );
+use File::Temp    qw( tempfile );
 
 # two are needed as /* and / don't overlap... so pass it to the_stuff to actually handle it
 post '/*' => sub ($c) {
@@ -135,7 +158,71 @@ sub the_stuff {
 		log_drek( 'err', 'incoming directory, "' . $cape_util->{config}->{_}->{incoming} . '", does not exist' );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
+	} elsif ( !-w $cape_util->{config}->{_}->{incoming} ) {
+		log_drek( 'err', 'incoming directory, "' . $cape_util->{config}->{_}->{incoming} . '", is not writable' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/sha256' ) {
+		log_drek( 'err',
+			'incoming sha256 directory, "' . $cape_util->{config}->{_}->{incoming} . '/sha256", does not exist' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/sha256' ) {
+		log_drek( 'err',
+			'incoming sha256 directory, "' . $cape_util->{config}->{_}->{incoming} . '/sha256", is not writable' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/json' ) {
+		log_drek( 'err',
+			'incoming json directory, "' . $cape_util->{config}->{_}->{incoming} . '/json", does not exist' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/json' ) {
+		log_drek( 'err',
+			'incoming json directory, "' . $cape_util->{config}->{_}->{incoming} . '/json", is not writable' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/name_to_sha256' ) {
+		log_drek( 'err',
+				  'incoming name_to_sha256 directory, "'
+				. $cape_util->{config}->{_}->{incoming}
+				. '/name_to_sha256", does not exist' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/name_to_sha256' ) {
+		log_drek( 'err',
+				  'incoming name_to_sha256 directory, "'
+				. $cape_util->{config}->{_}->{incoming}
+				. '/name_to_sha256", is not writable' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/task_to_json' ) {
+		log_drek( 'err',
+				  'incoming task_to_json directory, "'
+				. $cape_util->{config}->{_}->{incoming}
+				. '/task_to_json", does not exist' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/task_to_json' ) {
+		log_drek( 'err',
+				  'incoming task_to_json directory, "'
+				. $cape_util->{config}->{_}->{incoming}
+				. '/task_to_json", is not writable' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/tmp' ) {
+		log_drek( 'err',
+			'incoming tmp directory, "' . $cape_util->{config}->{_}->{incoming} . '/tmp", does not exist' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
+	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/tmp' ) {
+		log_drek( 'err',
+			'incoming tmp directory, "' . $cape_util->{config}->{_}->{incoming} . '/tmp", is not writable' );
+		$c->render( text => "Error... please see syslog\n", status => 400, );
+		return;
 	}
+
+	my ( $temp_fh, $temp_filename ) = tempfile( 'DIR' => $cape_util->{config}->{_}->{incoming} . '/tmp' );
 
 	my $allow_remote;
 	eval { $allow_remote = $cape_util->check_remote( apikey => $apikey, ip => $remote_ip ); };
@@ -162,9 +249,12 @@ sub the_stuff {
 		$c->render( text => 'No file specified', status => 400 );
 	}
 
-	#get file info and log it
+	# initial filename bits
 	my $name = $file->filename;
 	my $size = $file->size;
+	my $orig_name = $name;
+	$name =~ s/\///;
+	my $json_filename = $cape_util->{config}->{_}->{incoming} . '/json/'.$name;
 
 	# if size is 10, test if the contents are a test ping packet
 	if ( $size == 10 ) {
@@ -175,13 +265,6 @@ sub the_stuff {
 			return;
 		}
 	}
-
-	# clean up the filename and log it
-	my $orig_name = $name;
-	$name =~ s/\///;
-	log_drek( 'info', 'Got File... size=' . $size . ' filename="' . $name . '"' );
-	my $link_name = $cape_util->{config}->{_}->{incoming_json} . '/' . $name;
-	$name = $cape_util->{config}->{_}->{incoming} . '/' . $name;
 
 	# get the json metadata info
 	my $raw_json = $c->param('json');
@@ -202,6 +285,39 @@ sub the_stuff {
 		time      => time,
 		host      => hostname,
 	};
+	
+	# copy it into place
+	# save it here for getting SHA256 checksum
+	$file->move_to($temp_filename);
+	$json->{'cape_submit'}{'sha256'} = lc(`sha256sum $temp_filename`);
+	chomp( $json->{'cape_submit'}{'sha256'} );
+	$json->{'cape_submit'}{'sha256'} =~ s/[\ \t].+//;
+
+	log_drek( 'info', 'SHA256: ' . $json->{'cape_submit'}{'sha256'} );
+	$json->{'cape_submit'}{'sha1'} = lc(`sha1sum $temp_filename`);
+	chomp( $json->{'cape_submit'}{'sha1'} );
+	$json->{'cape_submit'}{'sha1'} =~ s/[\ \t].+//;
+	log_drek( 'info', 'SHA1: ' . $json->{'cape_submit'}{'sha1'} );
+	$json->{'cape_submit'}{'md5'} = lc(`md5sum $temp_filename`);
+	chomp( $json->{'cape_submit'}{'md5'} );
+	$json->{'cape_submit'}{'md5'} =~ s/[\ \t].+//;
+	log_drek( 'info', 'MD5: ' . $json->{'cape_submit'}{'md5'} );
+	my $sha256_filename=$cape_util->{config}->{_}->{incoming} . '/sha256/'.$json->{'cape_submit'}{'sha256'};
+	my $name_filename = $cape_util->{config}->{_}->{incoming} . '/name_to_sha256/'.$name;
+	# If it has already been received, we can skip this step and just unlink it.
+	if ( ! -f $sha256_filename ){
+		move($temp_filename, $sha256_filename);
+	}else{
+		unlink($temp_filename);
+	}
+	# make sure it is always linked to the newest one if it is resubmitted
+	if ( -e $name_filename ){
+		unlink($name_filename);
+	}
+	symlink($sha256_filename, $name_filename);
+
+	# log incoming file
+	log_drek( 'info', 'Got File... size=' . $size . ' filename="' . $name . '" sha256="'.$json->{'cape_submit'}{'sha256'}.'"' );
 
 	# get some info for logging purposes
 	# done this way for the purpose of not having to constantly check if something is undef
@@ -259,26 +375,11 @@ sub the_stuff {
 		log_drek( 'info', 'App Proto: ' . $additional_info{app_proto} );
 	}
 
-	# copy it into place
-	$file->move_to($name);
-	$json->{cape_submit}{sha256} = lc(`sha256sum $name`);
-	chomp( $json->{cape_submit}{sha256} );
-	$json->{cape_submit}{sha256} =~ s/[\ \t].+//;
-	log_drek( 'info', 'SHA256: ' . $json->{cape_submit}{sha256} );
-	$json->{cape_submit}{sha1} = lc(`sha1sum $name`);
-	chomp( $json->{cape_submit}{sha1} );
-	$json->{cape_submit}{sha1} =~ s/[\ \t].+//;
-	log_drek( 'info', 'SHA1: ' . $json->{cape_submit}{sha1} );
-	$json->{cape_submit}{md5} = lc(`md5sum $name`);
-	chomp( $json->{cape_submit}{md5} );
-	$json->{cape_submit}{md5} =~ s/[\ \t].+//;
-	log_drek( 'info', 'MD5: ' . $json->{cape_submit}{md5} );
-
 	# finally submit it
 	my $results;
-	eval { $results = $cape_util->submit( items => [$name], quiet => 1, ); };
+	eval { $results = $cape_util->submit( items => [$name_filename], quiet => 1, ); };
 	if ($@) {
-		log_drek( 'err', $@ );
+		log_drek( 'err', '$cape_util->submit( items => ["'.$name_filename.'"], quiet => 1, );  ... '.$@ );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	}
@@ -286,7 +387,7 @@ sub the_stuff {
 	# can't continue if submission failed
 	my @submitted = keys( %{$results} );
 	if ( !defined( $submitted[0] ) ) {
-		log_drek( 'err', 'Submitting "' . $name . '" failed' );
+		log_drek( 'err', 'Submitting "' . $name_filename . '" failed' );
 		$c->render( text => "Submission failed\n", status => 400, );
 		return;
 	}
@@ -296,21 +397,14 @@ sub the_stuff {
 	$c->render( text => "Submitted as task ID " . $results->{ $submitted[0] } . "\n", status => 200, );
 	$json->{cape_submit}{task} = $results->{ $submitted[0] };
 
-	# can't continue if this dir does not exist
-	if ( !-d $cape_util->{config}->{_}->{incoming_json} ) {
-		log_drek( 'err',
-			'incoming_json directory, "' . $cape_util->{config}->{_}->{incoming_json} . '", does not exist' );
-		return;
-	}
-
 	# write out the json containing the submission info
 	my $data_json      = encode_json($json) . "\n";
-	my $data_json_file = $cape_util->{config}->{_}->{incoming_json} . '/' . $results->{ $submitted[0] } . '.json';
-	eval { write_file( $data_json_file, $data_json ); };
+	eval { write_file( $json_filename, $data_json ); };
 	if ($@) {
-		log_drek( 'err', 'Failed to write submission data JSON out to "' . $data_json_file . '"... ' . $@ );
+		log_drek( 'err', 'Failed to write submission data JSON out to "' . $json_filename . '"... ' . $@ );
 	} else {
-		log_drek( 'info', 'Wrote submission data JSON out to "' . $data_json_file . '"' );
+		log_drek( 'info', 'Wrote submission data JSON out to "' . $json_filename . '"' );
+		my $link_name = $cape_util->{config}->{_}->{incoming} . '/task_to_json/'.$submitted[0];
 		# if it already exists and is not a link, something is not right... log it as this
 		# requires end user intervention as that should not exist
 		if ( -e $link_name && !-l $link_name ) {
@@ -325,15 +419,15 @@ sub the_stuff {
 					. $submitted[0] );
 			eval {
 				unlink($link_name) || die( 'Failed to unlink "' . $link_name . '"' );
-				symlink( $data_json_file, $link_name )
-					|| die( 'Failed to link "' . $data_json_file . '" to "' . $link_name . '"' );
+				symlink( $json_filename, $link_name )
+					|| die( 'Failed to link "' . $json_filename . '" to "' . $link_name . '"' );
 			};
 			if ($@) {
 				log_drek( 'err', $@ );
 			}
 		} else {
-			symlink( $data_json_file, $link_name )
-				|| log_drek( 'err', 'Failed to link "' . $data_json_file . '" to "' . $link_name . '"' );
+			symlink( $json_filename, $link_name )
+				|| log_drek( 'err', 'Failed to link "' . $json_filename . '" to "' . $link_name . '"' );
 		}
 	} ## end else [ if ($@) ]
 
@@ -342,14 +436,17 @@ sub the_stuff {
 
 # ensure we have something set for $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} and that it is a
 # int
-if (!defined($ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'})) {
-	if ($ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} !~ /^\d\d*$/) {
-		log_drek( 'err', '$ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} set to "'.$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}.'" which does not match /^\d\d*$/ ... defaulting to 1073741824' );
-		$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}=1073741824;
+if ( !defined( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} ) ) {
+	if ( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} !~ /^\d\d*$/ ) {
+		log_drek( 'err',
+				  '$ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} set to "'
+				. $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}
+				. '" which does not match /^\d\d*$/ ... defaulting to 1073741824' );
+		$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} = 1073741824;
 	}
-}else {
-	$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}=1073741824;
+} else {
+	$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} = 1073741824;
 }
-app->max_request_size($ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'});
+app->max_request_size( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} );
 
 app->start;
