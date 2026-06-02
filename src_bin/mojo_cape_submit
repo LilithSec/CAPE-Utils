@@ -119,12 +119,18 @@ post '/' => sub ($c) {
 	the_stuff($c);
 };
 
+our $tracking_int = 0;
+
 # sends stuff to syslog
 sub log_drek {
-	my ( $level, $message ) = @_;
+	my ( $level, $message, $tracking_int ) = @_;
 
 	if ( !defined($level) ) {
 		$level = 'info';
+	}
+
+	if ( defined($tracking_int) ) {
+		$message = $tracking_int . ' : ' . $message;
 	}
 
 	openlog( 'mojo_cape_submit', 'cons,pid', 'daemon' );
@@ -138,6 +144,9 @@ sub the_stuff {
 	my $remote_ip = $c->{tx}{original_remote_address};
 	my $apikey    = $c->param('apikey');
 
+	my $current_tracking_int = $tracking_int;
+	$tracking_int++;
+
 	# log the connection
 	my $message = 'Started. Remote IP: ' . $remote_ip . '  API key: ';
 	if ( defined($apikey) ) {
@@ -145,7 +154,7 @@ sub the_stuff {
 	} else {
 		$message = $message . 'undef';
 	}
-	log_drek( 'info', $message );
+	log_drek( 'info', $message, $current_tracking_int );
 
 	my $cape_util;
 	eval { $cape_util = CAPE::Utils->new(); };
@@ -156,97 +165,116 @@ sub the_stuff {
 	}
 
 	if ( !-d $cape_util->{config}->{_}->{incoming} ) {
-		log_drek( 'err', 'incoming directory, "' . $cape_util->{config}->{_}->{incoming} . '", does not exist' );
+		log_drek( 'err', 'incoming directory, "' . $cape_util->{config}->{_}->{incoming} . '", does not exist',
+			$current_tracking_int );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-w $cape_util->{config}->{_}->{incoming} ) {
-		log_drek( 'err', 'incoming directory, "' . $cape_util->{config}->{_}->{incoming} . '", is not writable' );
+		log_drek( 'err', 'incoming directory, "' . $cape_util->{config}->{_}->{incoming} . '", is not writable',
+			$current_tracking_int );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/sha256' ) {
 		log_drek( 'err',
-			'incoming sha256 directory, "' . $cape_util->{config}->{_}->{incoming} . '/sha256", does not exist' );
+			'incoming sha256 directory, "' . $cape_util->{config}->{_}->{incoming} . '/sha256", does not exist',
+			$current_tracking_int );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/sha256' ) {
 		log_drek( 'err',
-			'incoming sha256 directory, "' . $cape_util->{config}->{_}->{incoming} . '/sha256", is not writable' );
+			'incoming sha256 directory, "' . $cape_util->{config}->{_}->{incoming} . '/sha256", is not writable',
+			$current_tracking_int );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/json' ) {
 		log_drek( 'err',
-			'incoming json directory, "' . $cape_util->{config}->{_}->{incoming} . '/json", does not exist' );
+			'incoming json directory, "' . $cape_util->{config}->{_}->{incoming} . '/json", does not exist',
+			$current_tracking_int );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/json' ) {
 		log_drek( 'err',
-			'incoming json directory, "' . $cape_util->{config}->{_}->{incoming} . '/json", is not writable' );
+			'incoming json directory, "' . $cape_util->{config}->{_}->{incoming} . '/json", is not writable',
+			$current_tracking_int );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/name_to_sha256' ) {
-		log_drek( 'err',
-				  'incoming name_to_sha256 directory, "'
+		log_drek(
+			'err',
+			'incoming name_to_sha256 directory, "'
 				. $cape_util->{config}->{_}->{incoming}
-				. '/name_to_sha256", does not exist' );
+				. '/name_to_sha256", does not exist',
+			$current_tracking_int
+		);
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/name_to_sha256' ) {
-		log_drek( 'err',
-				  'incoming name_to_sha256 directory, "'
+		log_drek(
+			'err',
+			'incoming name_to_sha256 directory, "'
 				. $cape_util->{config}->{_}->{incoming}
-				. '/name_to_sha256", is not writable' );
+				. '/name_to_sha256", is not writable',
+			$current_tracking_int
+		);
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/task_to_json' ) {
-		log_drek( 'err',
-				  'incoming task_to_json directory, "'
+		log_drek(
+			'err',
+			'incoming task_to_json directory, "'
 				. $cape_util->{config}->{_}->{incoming}
-				. '/task_to_json", does not exist' );
+				. '/task_to_json", does not exist',
+			$current_tracking_int
+		);
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/task_to_json' ) {
-		log_drek( 'err',
-				  'incoming task_to_json directory, "'
+		log_drek(
+			'err',
+			'incoming task_to_json directory, "'
 				. $cape_util->{config}->{_}->{incoming}
-				. '/task_to_json", is not writable' );
+				. '/task_to_json", is not writable',
+			$current_tracking_int
+		);
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/tmp' ) {
-		log_drek( 'err',
-			'incoming tmp directory, "' . $cape_util->{config}->{_}->{incoming} . '/tmp", does not exist' );
+		log_drek( 'err', 'incoming tmp directory, "' . $cape_util->{config}->{_}->{incoming} . '/tmp", does not exist',
+			$current_tracking_int );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/tmp' ) {
-		log_drek( 'err',
-			'incoming tmp directory, "' . $cape_util->{config}->{_}->{incoming} . '/tmp", is not writable' );
+		log_drek( 'err', 'incoming tmp directory, "' . $cape_util->{config}->{_}->{incoming} . '/tmp", is not writable',
+			$current_tracking_int );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	}
 
-	my ( $temp_fh, $temp_filename ) = tempfile( 'DIR' => $cape_util->{config}->{_}->{incoming} . '/tmp' );
+	my ( $temp_fh, $temp_filename )
+		= tempfile( 'DIR' => $cape_util->{config}->{_}->{incoming} . '/tmp', $current_tracking_int );
 
 	my $allow_remote;
 	eval { $allow_remote = $cape_util->check_remote( apikey => $apikey, ip => $remote_ip ); };
 	if ($@) {
-		log_drek( 'err', $@ );
+		log_drek( 'err', $@, $current_tracking_int );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	}
 	if ( !$allow_remote ) {
-		log_drek( 'info', 'API key or IP not allowed' );
+		log_drek( 'info', 'API key or IP not allowed', $current_tracking_int );
 		$c->render( text => "IP not allowed or invalid API key\n", status => 403, );
 		return;
 	}
 
 	if ( $c->req->is_limit_exceeded ) {
-		log_drek( 'err', 'Log size exceeded' );
+		log_drek( 'err', 'Log size exceeded', $current_tracking_int );
 		$c->render( text => 'File is too big.', status => 400 );
 		return;
 	}
 
 	my $file = $c->param('filename');
 	if ( !$file ) {
-		log_drek( 'err', 'No file specified' );
+		log_drek( 'err', 'No file specified', $current_tracking_int );
 		$c->render( text => 'No file specified', status => 400 );
 	}
 
@@ -261,7 +289,7 @@ sub the_stuff {
 	if ( $size == 10 ) {
 		my $file_data = $file->slurp;
 		if ( $file_data =~ /1234567890/ ) {
-			log_drek( 'info', 'got ping test, size=10 payload=01234567890' );
+			log_drek( 'info', 'got ping test, size=10 payload=01234567890', $current_tracking_int );
 			$c->render( text => "TEST RECIEVED\n", status => 200, );
 			return;
 		}
@@ -294,15 +322,15 @@ sub the_stuff {
 	chomp( $json->{'cape_submit'}{'sha256'} );
 	$json->{'cape_submit'}{'sha256'} =~ s/[\ \t].+//;
 
-	log_drek( 'info', 'SHA256: ' . $json->{'cape_submit'}{'sha256'} );
+	log_drek( 'info', 'SHA256: ' . $json->{'cape_submit'}{'sha256'}, $current_tracking_int );
 	$json->{'cape_submit'}{'sha1'} = lc(`sha1sum $temp_filename`);
 	chomp( $json->{'cape_submit'}{'sha1'} );
 	$json->{'cape_submit'}{'sha1'} =~ s/[\ \t].+//;
-	log_drek( 'info', 'SHA1: ' . $json->{'cape_submit'}{'sha1'} );
+	log_drek( 'info', 'SHA1: ' . $json->{'cape_submit'}{'sha1'}, $current_tracking_int );
 	$json->{'cape_submit'}{'md5'} = lc(`md5sum $temp_filename`);
 	chomp( $json->{'cape_submit'}{'md5'} );
 	$json->{'cape_submit'}{'md5'} =~ s/[\ \t].+//;
-	log_drek( 'info', 'MD5: ' . $json->{'cape_submit'}{'md5'} );
+	log_drek( 'info', 'MD5: ' . $json->{'cape_submit'}{'md5'}, $current_tracking_int );
 	my $sha256_filename = $cape_util->{config}->{_}->{incoming} . '/sha256/' . $json->{'cape_submit'}{'sha256'};
 	my $name_filename   = $cape_util->{config}->{_}->{incoming} . '/name_to_sha256/' . $name;
 	# If it has already been received, we can skip this step and just unlink it.
@@ -318,14 +346,11 @@ sub the_stuff {
 	symlink( $sha256_filename, $name_filename );
 
 	# log incoming file
-	log_drek( 'info',
-			  'Got File... size='
-			. $size
-			. ' filename="'
-			. $name
-			. '" sha256="'
-			. $json->{'cape_submit'}{'sha256'}
-			. '"' );
+	log_drek(
+		'info',
+		'Got File... size=' . $size . ' filename="' . $name . '" sha256="' . $json->{'cape_submit'}{'sha256'} . '"',
+		$current_tracking_int
+	);
 
 	# get some info for logging purposes
 	# done this way for the purpose of not having to constantly check if something is undef
@@ -357,10 +382,11 @@ sub the_stuff {
 	$json->{det_sub_type} = $additional_info{det_sub_type};
 
 	# log additional info
-	log_drek( 'info', 'Source Host: ' . $additional_info{src_host} );
-	log_drek( 'info', 'Submission Type: ' . $additional_info{det_sub_type} );
-	log_drek( 'info',
-			  'proto='
+	log_drek( 'info', 'Source Host: ' . $additional_info{src_host},         $current_tracking_int );
+	log_drek( 'info', 'Submission Type: ' . $additional_info{det_sub_type}, $current_tracking_int );
+	log_drek(
+		'info',
+		'proto='
 			. $additional_info{proto}
 			. ' src_ip='
 			. $additional_info{src_ip}
@@ -371,23 +397,27 @@ sub the_stuff {
 			. ' dest_port='
 			. $additional_info{dest_port}
 			. ' flow_id='
-			. $additional_info{flow_id} );
+			. $additional_info{flow_id},
+		$current_tracking_int
+	);
 	if ( $additional_info{app_proto} eq 'http' ) {
-		log_drek( 'info', $additional_info{http_proto} . ' ' . $additional_info{http_host} );
-		log_drek( 'info',
-				  $additional_info{http_method} . ' '
-				. $additional_info{http_status} . ' '
-				. $additional_info{http_url} );
-		log_drek( 'info', 'useragent: ' . $additional_info{http_ua} );
+		log_drek( 'info', $additional_info{http_proto} . ' ' . $additional_info{http_host}, $current_tracking_int );
+		log_drek(
+			'info',
+			$additional_info{http_method} . ' ' . $additional_info{http_status} . ' ' . $additional_info{http_url},
+			$current_tracking_int
+		);
+		log_drek( 'info', 'useragent: ' . $additional_info{http_ua}, $current_tracking_int );
 	} else {
-		log_drek( 'info', 'App Proto: ' . $additional_info{app_proto} );
+		log_drek( 'info', 'App Proto: ' . $additional_info{app_proto}, $current_tracking_int );
 	}
 
 	# finally submit it
 	my $results;
 	eval { $results = $cape_util->submit( items => [$name_filename], quiet => 1, ); };
 	if ($@) {
-		log_drek( 'err', '$cape_util->submit( items => ["' . $name_filename . '"], quiet => 1, );  ... ' . $@ );
+		log_drek( 'err', '$cape_util->submit( items => ["' . $name_filename . '"], quiet => 1, );  ... ' . $@,
+			$current_tracking_int );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	}
@@ -395,13 +425,13 @@ sub the_stuff {
 	# can't continue if submission failed
 	my @submitted = keys( %{$results} );
 	if ( !defined( $submitted[0] ) ) {
-		log_drek( 'err', 'Submitting "' . $name_filename . '" failed' );
+		log_drek( 'err', 'Submitting "' . $name_filename . '" failed', $current_tracking_int );
 		$c->render( text => "Submission failed\n", status => 400, );
 		return;
 	}
 
 	# log the submission
-	log_drek( 'info', 'Submitting "' . $name . '" submitted as ' . $results->{ $submitted[0] } );
+	log_drek( 'info', 'Submitting "' . $name . '" submitted as ' . $results->{ $submitted[0] }, $current_tracking_int );
 	$c->render( text => "Submitted as task ID " . $results->{ $submitted[0] } . "\n", status => 200, );
 	$json->{cape_submit}{task} = $results->{ $submitted[0] };
 
@@ -411,31 +441,36 @@ sub the_stuff {
 	if ($@) {
 		log_drek( 'err', 'Failed to write submission data JSON out to "' . $json_filename . '"... ' . $@ );
 	} else {
-		log_drek( 'info', 'Wrote submission data JSON out to "' . $json_filename . '"' );
+		log_drek( 'info', 'Wrote submission data JSON out to "' . $json_filename . '"', $current_tracking_int );
 		my $link_name = $cape_util->{config}->{_}->{incoming} . '/task_to_json/' . $results->{ $submitted[0] };
 		# if it already exists and is not a link, something is not right... log it as this
 		# requires end user intervention as that should not exist
 		if ( -e $link_name && !-l $link_name ) {
-			log_drek( 'err', 'Link to submission data JSON, "' . $link_name . '", exists on FS and is not a link' );
+			log_drek( 'err', 'Link to submission data JSON, "' . $link_name . '", exists on FS and is not a link',
+				$current_tracking_int );
 		} elsif ( -e $link_name && -l $link_name ) {
 			# if it exists already, it means it was re-submitted... update link to the
 			# newst one
-			log_drek( 'info',
-					  'Link to submission data JSON, "'
+			log_drek(
+				'info',
+				'Link to submission data JSON, "'
 					. $link_name
 					. '", exists already... removing and linking to '
-					. $submitted[0] );
+					. $submitted[0],
+				$current_tracking_int
+			);
 			eval {
 				unlink($link_name) || die( 'Failed to unlink "' . $link_name . '"' );
 				symlink( $json_filename, $link_name )
 					|| die( 'Failed to link "' . $json_filename . '" to "' . $link_name . '"' );
 			};
 			if ($@) {
-				log_drek( 'err', $@ );
+				log_drek( 'err', $@, $current_tracking_int );
 			}
 		} else {
 			symlink( $json_filename, $link_name )
-				|| log_drek( 'err', 'Failed to link "' . $json_filename . '" to "' . $link_name . '"' );
+				|| log_drek( 'err', 'Failed to link "' . $json_filename . '" to "' . $link_name . '"',
+					$current_tracking_int );
 		}
 	} ## end else [ if ($@) ]
 
@@ -446,12 +481,15 @@ sub the_stuff {
 # int
 if ( !defined( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} ) ) {
 	if ( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} !~ /^\d\d*$/ ) {
-		log_drek( 'err',
-				  '$ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} set to "'
+		log_drek(
+			'err',
+			'$ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} set to "'
 				. $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}
-				. '" which does not match /^\d\d*$/ ... defaulting to 1073741824' );
+				. '" which does not match /^\d\d*$/ ... defaulting to 1073741824',
+			$current_tracking_int
+		);
 		$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} = 1073741824;
-	}
+	} ## end if ( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}...)
 } else {
 	$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} = 1073741824;
 }
