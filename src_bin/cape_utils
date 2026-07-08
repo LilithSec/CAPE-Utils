@@ -191,7 +191,7 @@ Out of the box, it will work by default with CAPEv2 in it's default config.
 
 sub help {
 	pod2usage( -exitval => 255, -verbose => 2, -output => \*STDOUT, );
-} ## end sub help
+}
 
 # get the commandline options
 my $help    = 0;

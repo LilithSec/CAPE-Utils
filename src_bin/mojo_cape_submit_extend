@@ -3,14 +3,14 @@
 use warnings;
 use strict;
 use File::Find::Rule ();
-use Time::Piece qw( localtime );
-use File::Slurp qw(read_file);
-use JSON qw( decode_json encode_json );
-use Getopt::Long qw( GetOptions );
+use Time::Piece      qw( localtime );
+use File::Slurp      qw(read_file);
+use JSON             qw( decode_json encode_json );
+use Getopt::Long     qw( GetOptions );
 use Statistics::Lite qw( max mean median min mode stddev sum );
-use Gzip::Faster qw( gzip );
-use MIME::Base64 qw( encode_base64 );
-use Pod::Usage qw( pod2usage );
+use Gzip::Faster     qw( gzip );
+use MIME::Base64     qw( encode_base64 );
+use Pod::Usage       qw( pod2usage );
 
 =head1 NAME
 
@@ -112,7 +112,7 @@ if ($version) {
 
 if ($help) {
 	pod2usage( -exitval => 255, -verbose => 2, -output => \*STDOUT, );
-} ## end if ($help)
+}
 
 my $t           = localtime;
 my $target_time = $t->epoch - $rewind_by;

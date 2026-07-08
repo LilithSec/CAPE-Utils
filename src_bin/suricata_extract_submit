@@ -3,22 +3,22 @@
 use File::Find::Rule;
 use warnings;
 use strict;
-use Config::Tiny ();
-use File::Slurp qw( append_file read_file write_file );
-use Time::Piece qw( localtime );
+use Config::Tiny          ();
+use File::Slurp           qw( append_file read_file write_file );
+use Time::Piece           qw( localtime );
 use File::MimeInfo::Magic qw( mimetype );
-use Net::Subnet qw(subnet_matcher);
-use LWP::UserAgent ();
+use Net::Subnet           qw(subnet_matcher);
+use LWP::UserAgent        ();
 use HTTP::Request::Common qw( POST );
-use File::Temp qw( tempdir  );
-use File::Copy qw( copy move );
-use Sys::Syslog qw( closelog openlog syslog );
-use JSON qw( decode_json encode_json );
-use Sys::Hostname qw( hostname );
-use Proc::PID::File ();
-use Pod::Usage qw( pod2usage );
-use Getopt::Long qw( GetOptions );
-use Web::ACL ();
+use File::Temp            qw( tempdir  );
+use File::Copy            qw( copy move );
+use Sys::Syslog           qw( closelog openlog syslog );
+use JSON                  qw( decode_json encode_json );
+use Sys::Hostname         qw( hostname );
+use Proc::PID::File       ();
+use Pod::Usage            qw( pod2usage );
+use Getopt::Long          qw( GetOptions );
+use Web::ACL              ();
 
 =head1 NAME
 
@@ -289,9 +289,11 @@ my $stats;
 
 # compute the deltas for these items
 my @to_delta = (
-	'sub',       'sub_fail', 'zero_sized',   'sub_2xx',      'sub_3xx',        'sub_4xx',
-	'sub_5xx',   'errors',   'ignored_host', 'ignored_ip',   'ignored_ip_src', 'ignored_ip_dest',
-	'truncated', 'sub_size', 'ignored_ua',   'ignored_path', 'ignored_webacl', 'ignored_size_max',
+	'sub',            'sub_fail',   'zero_sized',     'sub_2xx',
+	'sub_3xx',        'sub_4xx',    'sub_5xx',        'errors',
+	'ignored_host',   'ignored_ip', 'ignored_ip_src', 'ignored_ip_dest',
+	'truncated',      'sub_size',   'ignored_ua',     'ignored_path',
+	'ignored_webacl', 'ignored_size_max',
 );
 
 # handle the stats file if it exists and is readable
@@ -545,11 +547,10 @@ foreach my $file (@files) {
 		}
 
 		my $add_it = 1;
-		if ($data_size > $max_size) {
-			log_something( 'info',
-						   'Ignored Max Size: '.$data_size. ' > '.$max_size);
+		if ( $data_size > $max_size ) {
+			log_something( 'info', 'Ignored Max Size: ' . $data_size . ' > ' . $max_size );
 			$new_stats->{ignored_size_max}++;
-			$add_it=0;
+			$add_it = 0;
 		}
 		if ( $add_it && $ip_ignore->( $file_json->{src_ip} ) ) {
 			my $file_hostname = '';
@@ -566,7 +567,7 @@ foreach my $file (@files) {
 			$new_stats->{ignored_ip}++;
 			$new_stats->{ignored_ip_src}++;
 			$add_it = 0;
-		} ## end if ( $ip_ignore->( $file_json->{src_ip} ) )
+		} ## end if ( $add_it && $ip_ignore->( $file_json->...))
 		if ( $add_it && $ip_ignore->( $file_json->{dest_ip} ) ) {
 			my $file_hostname = '';
 			if ( defined( $file_json->{http} ) && defined( $file_json->{http}{hostname} ) ) {

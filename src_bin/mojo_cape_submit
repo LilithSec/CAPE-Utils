@@ -488,7 +488,7 @@ if ( defined( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} ) ) {
 				. '" which does not match /^\d\d*$/ ... defaulting to 1073741824',
 		);
 		$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} = 1073741824;
-	} ## end if ( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}...)
+	}
 } else {
 	$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} = 1073741824;
 }
