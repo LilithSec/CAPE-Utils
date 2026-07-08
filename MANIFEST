@@ -4,9 +4,14 @@ Makefile.PL
 MANIFEST			This list of files
 README.md
 t/00-load.t
+t/input_validation.t
 t/manifest.t
+t/munge.t
+t/new.t
 t/pod-coverage.t
 t/pod.t
+t/shuffle.t
+t/timestamp.t
 src_bin/cape_utils
 src_bin/mojo_cape_submit
 src_bin/mojo_cape_submit_extend
