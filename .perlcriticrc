@@ -1,1 +1,2 @@
 exclude = ProhibitExplicitReturnUndef ProhibitOneArgBless ProhibitStringyEval
+severity = 5
