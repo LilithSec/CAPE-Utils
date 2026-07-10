@@ -65,40 +65,40 @@ sub new {
 
 	my $base_config = {
 		'_' => {
-			dsn                 => 'dbi:Pg:dbname=cape',
-			user                => 'cape',
-			pass                => '',
-			base                => '/opt/CAPEv2/',
-			eve                 => '/opt/CAPEv2/log/eve.json',
-			poetry              => 1,
-			fail_all            => 0,
-			pending_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on',
-			running_columns     => 'id,target,package,timeout,ET,route,options,clock,added_on,started_on,machine',
-			task_columns        => 'id,target,package,timeout,ET,route,options,clock,added_on,latest,machine,status',
-			running_target_clip => 1,
-			running_time_clip   => 1,
-			pending_target_clip => 1,
-			pending_time_clip   => 1,
-			task_target_clip    => 1,
-			task_time_clip      => 1,
-			table_color         => 'Text::ANSITable::Standard::NoGradation',
-			table_border        => 'ASCII::None',
-			set_clock_to_now    => 1,
-			timeout             => 200,
-			enforce_timeout     => 0,
-			subnets             => '192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8',
-			apikey              => '',
-			auth                => 'ip',
-			incoming            => '/malware/client-incoming',
-			incoming_json       => '/malware/incoming-json',
-			eve_look_back       => 360,
-			malscore            => 0,
-			poetry_path         => '/etc/poetry/bin/poetry',
-			post_munge          => 0,
-			post_bin_rm         => 0,
-			post_link           => 0,
-			post_link_dir       => '/malware/storage/links',
-			post_link_format_template_file => '/usr/local/etc/cape_utils_link_format_template.t2',
+			'dsn'                 => 'dbi:Pg:dbname=cape',
+			'user'                => 'cape',
+			'pass'                => '',
+			'base'                => '/opt/CAPEv2/',
+			'eve'                 => '/opt/CAPEv2/log/eve.json',
+			'poetry'              => 1,
+			'fail_all'            => 0,
+			'pending_columns'     => 'id,target,package,timeout,ET,route,options,clock,added_on',
+			'running_columns'     => 'id,target,package,timeout,ET,route,options,clock,added_on,started_on,machine',
+			'task_columns'        => 'id,target,package,timeout,ET,route,options,clock,added_on,latest,machine,status',
+			'running_target_clip' => 1,
+			'running_time_clip'   => 1,
+			'pending_target_clip' => 1,
+			'pending_time_clip'   => 1,
+			'task_target_clip'    => 1,
+			'task_time_clip'      => 1,
+			'table_color'         => 'Text::ANSITable::Standard::NoGradation',
+			'table_border'        => 'ASCII::None',
+			'set_clock_to_now'    => 1,
+			'timeout'             => 200,
+			'enforce_timeout'     => 0,
+			'subnets'             => '192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8',
+			'apikey'              => '',
+			'auth'                => 'ip',
+			'incoming'            => '/malware/client-incoming',
+			'incoming_json'       => '/malware/incoming-json',
+			'eve_look_back'       => 360,
+			'malscore'            => 0,
+			'poetry_path'         => '/etc/poetry/bin/poetry',
+			'post_munge'          => 0,
+			'post_bin_rm'         => 0,
+			'post_link'           => 0,
+			'post_link_dir'       => '/malware/storage/links',
+			'post_link_format_template_file' => '/usr/local/etc/cape_utils_link_format_template.t2',
 		},
 	};
 
@@ -106,22 +106,24 @@ sub new {
 	if ( !defined($config) ) {
 		$config = $base_config;
 	} else {
-		my @to_merge = keys( %{ $base_config->{_} } );
+		my @to_merge = keys( %{ $base_config->{'_'} } );
 		foreach my $item (@to_merge) {
-			if ( !defined( $config->{_}->{$item} ) ) {
-				$config->{_}->{$item} = $base_config->{_}->{$item};
+			if ( !defined( $config->{'_'}->{$item} ) ) {
+				$config->{'_'}->{$item} = $base_config->{'_'}->{$item};
 			}
 		}
 	}
 
 	# init the object
-	my $self = { config => $config, };
+	my $self = { 'config' => $config, };
 	bless $self;
 
 	# read in post_link_format_template_file
-	if ( -f $self->{post_link_format_template_file} ) {
+	if ( -f $self->{'config'}->{'_'}->{'post_link_format_template_file'} ) {
+		$self->{'post_link_format_template'}
+			= read_file( $self->{'config'}->{'_'}->{'post_link_format_template_file'} );
 	} else {
-		$self->{post_link_format_template} = '[% lite.target.file.name %]';
+		$self->{'post_link_format_template'} = '[% lite.target.file.name %]';
 	}
 
 	return $self;
@@ -142,7 +144,7 @@ This will die with the output from $DBI::errstr if it fails.
 sub connect {
 	my $self = $_[0];
 
-	my $dbh = DBI->connect( $self->{config}->{_}->{dsn}, $self->{config}->{_}->{user}, $self->{config}->{_}->{pass} )
+	my $dbh = DBI->connect( $self->{'config'}->{'_'}->{'dsn'}, $self->{'config'}->{'_'}->{'user'}, $self->{'config'}->{'_'}->{'pass'} )
 		|| die($DBI::errstr);
 
 	return $dbh;
@@ -169,11 +171,11 @@ The following options are also supported.
 sub fail {
 	my ( $self, %opts ) = @_;
 
-	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
-		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	if ( defined( $opts{'where'} ) && $opts{'where'} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{'where'} . '", contains a ";"';
 	}
 
-	if ( !defined( $opts{where} ) && !$self->{config}->{_}->{fail_all} ) {
+	if ( !defined( $opts{'where'} ) && !$self->{'config'}->{'_'}->{'fail_all'} ) {
 		die "fail_all is disabled and nothing specified for where";
 	}
 
@@ -181,8 +183,8 @@ sub fail {
 
 	my $statement = "UPDATE tasks SET status = 'failed_processing' WHERE status = 'pending'";
 
-	if ( defined( $opts{where} ) ) {
-		$statement = $statement . ' AND ' . $opts{where};
+	if ( defined( $opts{'where'} ) ) {
+		$statement = $statement . ' AND ' . $opts{'where'};
 	}
 
 	$statement = $statement . ';';
@@ -217,15 +219,15 @@ Get pending count pending tasks.
 sub get_pending_count {
 	my ( $self, %opts ) = @_;
 
-	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
-		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	if ( defined( $opts{'where'} ) && $opts{'where'} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{'where'} . '", contains a ";"';
 	}
 
 	my $dbh = $self->connect;
 
 	my $statement = "select * from tasks where status = 'pending'";
-	if ( defined( $opts{where} ) ) {
-		$statement = $statement . ' AND ' . $opts{where};
+	if ( defined( $opts{'where'} ) ) {
+		$statement = $statement . ' AND ' . $opts{'where'};
 	}
 
 	my $sth = $dbh->prepare($statement);
@@ -258,15 +260,15 @@ status is set to pending via "select * from tasks where status = 'pending'"
 sub get_pending {
 	my ( $self, %opts ) = @_;
 
-	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
-		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	if ( defined( $opts{'where'} ) && $opts{'where'} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{'where'} . '", contains a ";"';
 	}
 
 	my $dbh = $self->connect;
 
 	my $statement = "select * from tasks where status = 'pending'";
-	if ( defined( $opts{where} ) ) {
-		$statement = $statement . ' AND ' . $opts{where};
+	if ( defined( $opts{'where'} ) ) {
+		$statement = $statement . ' AND ' . $opts{'where'};
 	}
 
 	my $sth = $dbh->prepare($statement);
@@ -316,17 +318,17 @@ sub get_pending_table {
 	my @overrides = ( 'table_border', 'table_color', 'pending_columns', 'pending_target_clip', 'pending_time_clip' );
 	foreach my $override (@overrides) {
 		if ( !defined( $opts{$override} ) ) {
-			$opts{$override} = $self->{config}->{_}->{$override};
+			$opts{$override} = $self->{'config'}->{'_'}->{$override};
 		}
 	}
 
-	my $rows = $self->get_pending( where => $opts{where} );
+	my $rows = $self->get_pending( 'where' => $opts{'where'} );
 
 	my $tb = Text::ANSITable->new;
-	$tb->border_style( $opts{table_border} );
-	$tb->color_theme( $opts{table_color} );
+	$tb->border_style( $opts{'table_border'} );
+	$tb->color_theme( $opts{'table_color'} );
 
-	my @columns    = split( /,/, $opts{pending_columns} );
+	my @columns    = split( /,/, $opts{'pending_columns'} );
 	my $header_int = 0;
 	my $padding    = 0;
 	foreach my $header (@columns) {
@@ -345,17 +347,17 @@ sub get_pending_table {
 		my @new_line;
 		foreach my $column (@columns) {
 			if ( $column eq 'ET' ) {
-				$row->{ET} = $row->{enforce_timeout};
+				$row->{ET} = $row->{'enforce_timeout'};
 			}
 
 			if ( defined( $row->{$column} ) ) {
 				if ( $column eq 'ET' ) {
-					$row->{ET} = $row->{enforce_timeout};
+					$row->{ET} = $row->{'enforce_timeout'};
 				}
 
-				if ( ( $column eq 'clock' || $column eq 'added_on' ) && $opts{pending_time_clip} ) {
+				if ( ( $column eq 'clock' || $column eq 'added_on' ) && $opts{'pending_time_clip'} ) {
 					$row->{$column} =~ s/\.[0-9]+$//;
-				} elsif ( $column eq 'target' && $opts{pending_target_clip} ) {
+				} elsif ( $column eq 'target' && $opts{'pending_target_clip'} ) {
 					$row->{target} =~ s/^.*\///;
 				}
 				push( @new_line, $row->{$column} );
@@ -398,15 +400,15 @@ The statement above is used to find running tasks.
 sub get_running {
 	my ( $self, %opts ) = @_;
 
-	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
-		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	if ( defined( $opts{'where'} ) && $opts{'where'} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{'where'} . '", contains a ";"';
 	}
 
 	my $dbh = $self->connect;
 
 	my $statement = "select * from tasks where status = 'running'";
-	if ( defined( $opts{where} ) ) {
-		$statement = $statement . ' AND ' . $opts{where};
+	if ( defined( $opts{'where'} ) ) {
+		$statement = $statement . ' AND ' . $opts{'where'};
 	}
 
 	my $sth = $dbh->prepare($statement);
@@ -446,15 +448,15 @@ The statement above is used to find running tasks.
 sub get_running_count {
 	my ( $self, %opts ) = @_;
 
-	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
-		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	if ( defined( $opts{'where'} ) && $opts{'where'} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{'where'} . '", contains a ";"';
 	}
 
 	my $dbh = $self->connect;
 
 	my $statement = "select * from tasks where status = 'running'";
-	if ( defined( $opts{where} ) ) {
-		$statement = $statement . ' AND ' . $opts{where};
+	if ( defined( $opts{'where'} ) ) {
+		$statement = $statement . ' AND ' . $opts{'where'};
 	}
 
 	my $sth = $dbh->prepare($statement);
@@ -504,17 +506,17 @@ sub get_running_table {
 	my @overrides = ( 'table_border', 'table_color', 'running_columns', 'running_target_clip', 'running_time_clip' );
 	foreach my $override (@overrides) {
 		if ( !defined( $opts{$override} ) ) {
-			$opts{$override} = $self->{config}->{_}->{$override};
+			$opts{$override} = $self->{'config'}->{'_'}->{$override};
 		}
 	}
 
-	my $rows = $self->get_running( where => $opts{where} );
+	my $rows = $self->get_running( 'where' => $opts{'where'} );
 
 	my $tb = Text::ANSITable->new;
-	$tb->border_style( $opts{table_border} );
-	$tb->color_theme( $opts{table_color} );
+	$tb->border_style( $opts{'table_border'} );
+	$tb->color_theme( $opts{'table_color'} );
 
-	my @columns    = split( /,/, $opts{running_columns} );
+	my @columns    = split( /,/, $opts{'running_columns'} );
 	my $header_int = 0;
 	my $padding    = 0;
 	foreach my $header (@columns) {
@@ -533,19 +535,19 @@ sub get_running_table {
 		my @new_line;
 		foreach my $column (@columns) {
 			if ( $column eq 'ET' ) {
-				$row->{ET} = $row->{enforce_timeout};
+				$row->{'ET'} = $row->{'enforce_timeout'};
 			}
 
 			if ( defined( $row->{$column} ) ) {
 				if ( $column eq 'ET' ) {
-					$row->{ET} = $row->{enforce_timeout};
+					$row->{'ET'} = $row->{'enforce_timeout'};
 				}
 
 				if ( ( $column eq 'clock' || $column eq 'added_on' || $column eq 'started_on' )
-					&& $opts{running_time_clip} )
+					&& $opts{'running_time_clip'} )
 				{
 					$row->{$column} =~ s/\.[0-9]+$//;
-				} elsif ( $column eq 'target' && $opts{running_target_clip} ) {
+				} elsif ( $column eq 'target' && $opts{'running_target_clip'} ) {
 					$row->{target} =~ s/^.*\///;
 				}
 				push( @new_line, $row->{$column} );
@@ -593,8 +595,8 @@ A small example showing getting running, ordering by category, and limiting to 2
 sub get_tasks {
 	my ( $self, %opts ) = @_;
 
-	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
-		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	if ( defined( $opts{'where'} ) && $opts{'where'} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{'where'} . '", contains a ";"';
 	}
 
 	if ( defined( $opts{order} ) && $opts{order} !~ /^[0-9a-zA-Z]+$/ ) {
@@ -625,8 +627,8 @@ sub get_tasks {
 	}
 
 	my $statement = "select * from tasks";
-	if ( defined( $opts{where} ) ) {
-		$statement = $statement . ' where ' . $opts{where};
+	if ( defined( $opts{'where'} ) ) {
+		$statement = $statement . ' where ' . $opts{'where'};
 	}
 
 	$statement = $statement . ' order by ' . $opts{order} . ' ' . $opts{direction} . ' limit ' . $opts{limit} . ';';
@@ -672,15 +674,15 @@ A small example showing getting running, ordering by category, and limiting to 2
 sub get_tasks_count {
 	my ( $self, %opts ) = @_;
 
-	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
-		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	if ( defined( $opts{'where'} ) && $opts{'where'} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{'where'} . '", contains a ";"';
 	}
 
 	my $dbh = $self->connect;
 
 	my $statement = "select * from tasks";
-	if ( defined( $opts{where} ) ) {
-		$statement = $statement . ' ' . $opts{where};
+	if ( defined( $opts{'where'} ) ) {
+		$statement = $statement . ' ' . $opts{'where'};
 	}
 
 	my $sth = $dbh->prepare($statement);
@@ -733,12 +735,12 @@ sub get_tasks_table {
 	my @overrides = ( 'table_border', 'table_color', 'task_columns', 'task_target_clip', 'task_time_clip' );
 	foreach my $override (@overrides) {
 		if ( !defined( $opts{$override} ) ) {
-			$opts{$override} = $self->{config}->{_}->{$override};
+			$opts{$override} = $self->{'config'}->{'_'}->{$override};
 		}
 	}
 
 	my $rows = $self->get_tasks(
-		where     => $opts{where},
+		where     => $opts{'where'},
 		order     => $opts{order},
 		limit     => $opts{limit},
 		direction => $opts{direction}
@@ -865,7 +867,7 @@ sub munge {
 	}
 
 	# find the munge keys
-	my @sections = sort( keys( %{ $self->{config} } ) );
+	my @sections = sort( keys( %{ $self->{'config'} } ) );
 	my @munges;
 	foreach my $item (@sections) {
 		if ( $item =~ /^munge\_/ ) {
@@ -882,10 +884,10 @@ sub munge {
 		my %scratch;
 
 		# only process the specified munge if we have both keys
-		if ( defined( $self->{config}{$item}{check} ) && defined( $self->{config}{$item}{munge} ) ) {
+		if ( defined( $self->{'config'}{$item}{check} ) && defined( $self->{'config'}{$item}{munge} ) ) {
 			# now that we know we have the keys, get the full file path if needed
-			my $check_file = $self->{config}{$item}{check};
-			my $munge_file = $self->{config}{$item}{munge};
+			my $check_file = $self->{'config'}{$item}{check};
+			my $munge_file = $self->{'config'}{$item}{munge};
 			if ( $check_file !~ /^\// && $check_file !~ /^.\// && $check_file !~ /^..\// ) {
 				$check_file = '/usr/local/etc/cape_utils_munge/' . $check_file;
 			}
@@ -932,23 +934,23 @@ sub munge {
 		# if changed, update the malscore
 		my $malscore = 0.0;
 		my $sig_int  = 0;
-		while ( defined( $report->{signatures}[$sig_int] ) ) {
-			if ( $report->{signatures}[$sig_int]{severity} ) {
-				$malscore += $report->{signatures}[$sig_int]{weight} * 0.5
-					* ( $report->{signatures}[$sig_int]{confidence} / 100 );
+		while ( defined( $report->{'signatures'}[$sig_int] ) ) {
+			if ( $report->{'signatures'}[$sig_int]{severity} ) {
+				$malscore += $report->{'signatures'}[$sig_int]{weight} * 0.5
+					* ( $report->{'signatures'}[$sig_int]{confidence} / 100 );
 			} else {
 				$malscore
-					+= $report->{signatures}[$sig_int]{weight}
-					* ( $report->{signatures}[$sig_int]{weight} - 1 )
-					* ( $report->{signatures}[$sig_int]{confidence} / 100 );
+					+= $report->{'signatures'}[$sig_int]{weight}
+					* ( $report->{'signatures'}[$sig_int]{weight} - 1 )
+					* ( $report->{'signatures'}[$sig_int]{confidence} / 100 );
 			}
 
 			$sig_int++;
-		} ## end while ( defined( $report->{signatures}[$sig_int...]))
+		} ## end while ( defined( $report->{'signatures'}[$sig_int...]))
 		if ( $malscore > 10.0 ) {
 			$malscore = 10.0;
 		}
-		$report->{malscore} = $malscore;
+		$report->{'malscore'} = $malscore;
 
 		eval { write_file( $opts{file}, encode_json($report) ); };
 		if ($@) {
@@ -1031,8 +1033,8 @@ ending in '_like', they will be evaluated as a like.
 sub search {
 	my ( $self, %opts ) = @_;
 
-	if ( defined( $opts{where} ) && $opts{where} =~ /\;/ ) {
-		die '$opts{where},"' . $opts{where} . '", contains a ";"';
+	if ( defined( $opts{'where'} ) && $opts{'where'} =~ /\;/ ) {
+		die '$opts{where},"' . $opts{'where'} . '", contains a ";"';
 	}
 
 	#
@@ -1062,8 +1064,8 @@ sub search {
 
 	my $sql = "select * from tasks where id >= 0";
 
-	if ( defined( $opts{where} ) ) {
-		$sql = $sql . ' AND ' . $opts{where};
+	if ( defined( $opts{'where'} ) ) {
+		$sql = $sql . ' AND ' . $opts{'where'};
 	}
 
 	#
@@ -1238,16 +1240,16 @@ sub submit {
 		die 'No items to submit passed';
 	}
 
-	if ( !defined( $opts{clock} ) && $self->{config}->{_}->{set_clock_to_now} ) {
+	if ( !defined( $opts{clock} ) && $self->{'config'}->{'_'}->{set_clock_to_now} ) {
 		$opts{clock} = $self->timestamp;
 	}
 
 	if ( !defined( $opts{timeout} ) ) {
-		$opts{timeout} = $self->{config}->{_}->{timeout};
+		$opts{timeout} = $self->{'config'}->{'_'}->{timeout};
 	}
 
 	if ( !defined( $opts{enforce_timeout} ) ) {
-		$opts{enforce_timeout} = $self->{config}->{_}->{enforce_timeout};
+		$opts{enforce_timeout} = $self->{'config'}->{'_'}->{enforce_timeout};
 	}
 
 	my @to_submit;
@@ -1266,15 +1268,15 @@ sub submit {
 		}
 	} ## end foreach my $item ( @{ $opts{items} } )
 
-	chdir( $self->{config}->{_}->{base} ) || die( 'Unable to CD to "' . $self->{config}->{_}->{base} . '"' );
+	chdir( $self->{'config'}->{'_'}->{'base'} ) || die( 'Unable to CD to "' . $self->{'config'}->{'_'}->{'base'} . '"' );
 
 	my @to_run = ();
 
-	if ( $self->{config}->{_}->{poetry} ) {
-		push( @to_run, $self->{config}->{_}->{poetry_path}, 'run' );
+	if ( $self->{'config'}->{'_'}->{poetry} ) {
+		push( @to_run, $self->{'config'}->{'_'}->{poetry_path}, 'run' );
 	}
 
-	push( @to_run, 'python3', $self->{config}->{_}->{base} . '/utils/submit.py' );
+	push( @to_run, 'python3', $self->{'config'}->{'_'}->{'base'} . '/utils/submit.py' );
 
 	if ( defined( $opts{clock} ) ) {
 		push( @to_run, '--clock', $opts{clock} );
@@ -1410,36 +1412,36 @@ sub check_remote {
 	my ( $self, %opts ) = @_;
 
 	# if we don't have a API key, we can only auth via IP
-	if ( ( $self->{config}->{_}->{auth} ne 'ip' || $self->{config}->{_}->{auth} ne 'either' )
-		&& !defined( $opts{apikey} ) )
+	if ( ( $self->{'config'}->{'_'}->{'auth'} ne 'ip' || $self->{'config'}->{'_'}->{'auth'} ne 'either' )
+		&& !defined( $opts{'apikey'} ) )
 	{
 		return 0;
 	}
 
 	# make sure the API key is what it is expecting if we are not using IP only
-	if (   $self->{config}->{_}->{auth} ne 'ip'
-		&& defined( $opts{apikey} )
-		&& $opts{apikey} ne $self->{config}->{_}->{apikey} )
+	if (   $self->{'config'}->{'_'}->{'auth'} ne 'ip'
+		&& defined( $opts{'apikey'} )
+		&& $opts{'apikey'} ne $self->{'config'}->{'_'}->{'apikey'} )
 	{
 		# don't return if it is either as IP may still go off
-		if ( $self->{config}->{_}->{auth} ne 'either' ) {
+		if ( $self->{'config'}->{'_'}->{'auth'} ne 'either' ) {
 			return 0;
 		}
 	}
 
 	# if we have a apikey and method is set to apikey or either, we are good to return true
-	if ( defined( $opts{apikey} )
-		&& ( $self->{config}->{_}->{auth} ne 'apikey' || $self->{config}->{_}->{auth} ne 'either' ) )
+	if ( defined( $opts{'apikey'} )
+		&& ( $self->{'config'}->{'_'}->{'auth'} ne 'apikey' || $self->{'config'}->{'_'}->{'auth'} ne 'either' ) )
 	{
 		return 1;
 	}
 
 	# can't do anything else with out a IP
-	if ( !defined( $opts{ip} ) ) {
+	if ( !defined( $opts{'ip'} ) ) {
 		return 0;
 	}
 
-	my $subnets_string = $self->{config}->{_}->{subnets};
+	my $subnets_string = $self->{'config'}->{'_'}->{'subnets'};
 	$subnets_string =~ s/[\ \t]+//g;
 	$subnets_string =~ s/\,+/,/g;
 	my @subnets_split = split( /,/, $subnets_string );
@@ -1461,7 +1463,7 @@ sub check_remote {
 		die( 'Failed it init subnet matcher... ' . $@ );
 	}
 
-	if ( $allowed_subnets->( $opts{ip} ) ) {
+	if ( $allowed_subnets->( $opts{'ip'} ) ) {
 		return 1;
 	}
 
@@ -1489,7 +1491,7 @@ sub eve_process {
 
 	my $statement
 		= "select * from tasks where ( status = 'reported' ) AND ( completed_on  >= CURRENT_TIMESTAMP - interval '"
-		. $self->{config}{_}{eve_look_back}
+		. $self->{'config'}{'_'}{eve_look_back}
 		. " seconds' )";
 
 	my $sth = $dbh->prepare($statement);
@@ -1504,12 +1506,12 @@ sub eve_process {
 	$sth->finish;
 	$dbh->disconnect;
 
-	my $main_eve = $self->{config}{_}{eve};
+	my $main_eve = $self->{'config'}{'_'}{'eve'};
 
 	foreach my $row (@rows) {
-		my $report        = $self->{config}{_}{base} . '/storage/analyses/' . $row->{id} . '/reports/lite.json';
-		my $id_eve        = $self->{config}{_}{incoming_json} . '/' . $row->{id} . '.eve.json';
-		my $incoming_json = $self->{config}{_}{incoming_json} . '/' . $row->{id} . '.json';
+		my $report        = $self->{'config'}{'_'}{'base'} . '/storage/analyses/' . $row->{'id'} . '/reports/lite.json';
+		my $id_eve        = $self->{'config'}{'_'}{'incoming_json'} . '/' . $row->{'id'} . '.eve.json';
+		my $incoming_json = $self->{'config'}{'_'}{'incoming_json'} . '/' . $row->{'id'} . '.json';
 
 		# make sure we have the required files and they are accessible
 		# id_eve is being used as a lock file to make sure we don't reprocess it
@@ -1523,7 +1525,7 @@ sub eve_process {
 					$eve_json->{cape_eve_process} = { incoming_json_error => undef, };
 				};
 				if ($@) {
-					my $error_message = 'Failed to decode incoming JSON for ' . $row->{id} . ' ... ' . $@;
+					my $error_message = 'Failed to decode incoming JSON for ' . $row->{'id'} . ' ... ' . $@;
 					$self->log_drek( 'cape_eve_process', 'err', $error_message );
 					$eve_json = {
 						cape_eve_process => {
@@ -1549,20 +1551,20 @@ sub eve_process {
 			eval {
 				$lite_json = decode_json( read_file($report) );
 
-				if ( defined( $lite_json->{signatures} ) ) {
-					$eve_json->{signatures} = $lite_json->{signatures};
+				if ( defined( $lite_json->{'signatures'} ) ) {
+					$eve_json->{'signatures'} = $lite_json->{'signatures'};
 				}
 
-				if ( defined( $lite_json->{malscore} ) ) {
-					$eve_json->{malscore} = $lite_json->{malscore};
+				if ( defined( $lite_json->{'malscore'} ) ) {
+					$eve_json->{'malscore'} = $lite_json->{'malscore'};
 
-					if ( $lite_json->{malscore} >= $self->{config}{_}{malscore} ) {
+					if ( $lite_json->{'malscore'} >= $self->{'config'}{'_'}{'malscore'} ) {
 						$eve_json->{event_type} = 'alert';
 					}
 				}
 			};
 			if ($@) {
-				my $error_message = 'Failed to decode lite.json for ' . $row->{id} . ' ... ' . $@;
+				my $error_message = 'Failed to decode lite.json for ' . $row->{'id'} . ' ... ' . $@;
 				$self->log_drek( 'cape_eve_process', 'err', $error_message );
 				$eve_json->{cape_eve_process}{lite_json_error} = $error_message,;
 			}
@@ -1573,14 +1575,14 @@ sub eve_process {
 
 			eval { write_file( $id_eve, $raw_eve_json ); };
 			if ($@) {
-				my $error_message = 'Failed to write out ID EVE for ' . $row->{id} . ' at ' . $id_eve . '  ... ' . $@;
+				my $error_message = 'Failed to write out ID EVE for ' . $row->{'id'} . ' at ' . $id_eve . '  ... ' . $@;
 				$self->log_drek( 'cape_eve_process', 'err', $error_message );
 			}
 
-			eval { append_file( $self->{config}{_}{eve}, $raw_eve_json ); };
+			eval { append_file( $self->{'config'}{'_'}{'eve'}, $raw_eve_json ); };
 		} else {
 			if ( !-f $report || !-r $report ) {
-				warn( $row->{id} . ' reported, but lite.json does not exist for it or it is not readable' );
+				warn( $row->{'id'} . ' reported, but lite.json does not exist for it or it is not readable' );
 			}
 		}
 	} ## end foreach my $row (@rows)
