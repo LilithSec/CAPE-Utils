@@ -49,6 +49,7 @@ my %WriteMakefileArgs = (
 		'Statistics::Lite'      => '0',
 		'Web::ACL'              => '0.1.0',
 		'DBIx::Class'   => '0',
+		'App::Cmd'              => '0',
 	},
 	dist       => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
 	clean      => { FILES    => 'CAPE-Utils-*' },

@@ -1,5 +1,14 @@
 Changes
 lib/CAPE/Utils.pm
+lib/CAPE/Utils/Cmd.pm
+lib/CAPE/Utils/Cmd/Base.pm
+lib/CAPE/Utils/Cmd/Command/eve.pm
+lib/CAPE/Utils/Cmd/Command/fail.pm
+lib/CAPE/Utils/Cmd/Command/munge.pm
+lib/CAPE/Utils/Cmd/Command/pending.pm
+lib/CAPE/Utils/Cmd/Command/running.pm
+lib/CAPE/Utils/Cmd/Command/submit.pm
+lib/CAPE/Utils/Cmd/Command/tasks.pm
 Makefile.PL
 MANIFEST			This list of files
 README.md
