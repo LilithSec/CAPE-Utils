@@ -14,6 +14,8 @@ sub usage_desc {
 	return '%c post [-d] -r ID
 
 Performs the configured post actions for the specified run ID.
+
+See CAPE::Utils->post for more information.
 ';
 }
 
