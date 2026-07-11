@@ -15,8 +15,8 @@ cape_utils - A utility to help with various basic tasks related to CAPEv2.
 =head1 SYNOPSIS
 
 cape_utils submit [B<-i> <config>] [B<--clock> <time>] [B<--timeout> <seconds>] [B<--machine> <machine>]
-[B<--package> <package>] [B<--options> <options>] [B<--tags> <tags>] [B<--enforce_timeout>]
-[B<--unique>] [B<--json>] [B<--pretty>] [B<--quiet>] <file/dir> [<file/dir>...]
+[B<--package> <package>] [B<--options> <options>] [B<--tags> <tags>] [B<--platform> <platform>]
+[B<--enforce_timeout>] [B<--unique>] [B<--json>] [B<--pretty>] [B<--quiet>] <file/dir> [<file/dir>...]
 
 cape_utils running [B<-i> <config>] [B<-C>] [B<-w> <where>] [B<--json>] [B<--pretty>]
 
@@ -29,6 +29,8 @@ cape_utils fail [B<-i> <config>] B<-w> <where>
 cape_utils eve [B<-i> <config>]
 
 cape_utils munge [B<-i> <config>] B<-r> <report json>
+
+cape_utils post [B<-i> <config>] B<-r> <report json>
 
 cape_utils commands
 
@@ -86,6 +88,10 @@ Invoke CAPE::Utils->eve_process. See L<CAPE::Utils::Cmd::Command::eve>.
 =head2 munge
 
 Munge a report JSON. See L<CAPE::Utils::Cmd::Command::munge>.
+
+=head2 post
+
+Perform the post actions for a run. See L<CAPE::Utils::Cmd::Command::post>.
 
 =head1 CONFIG FILE
 

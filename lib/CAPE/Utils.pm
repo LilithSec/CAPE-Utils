@@ -14,6 +14,8 @@ use Net::Subnet     qw( subnet_matcher );
 use Sys::Hostname   qw( hostname );
 use Sys::Syslog     qw( closelog openlog syslog );
 use File::Copy      qw( copy );
+use File::Basename  qw( basename dirname );
+use File::Path      qw( make_path );
 use Template        ();
 
 =pod
@@ -97,7 +99,8 @@ sub new {
 			'post_munge'          => 0,
 			'post_bin_rm'         => 0,
 			'post_link'           => 0,
-			'post_link_dir'       => '/malware/storage/links',
+				'post_link_dir'       => '/malware/storage/links',
+				'post_link_format_template' => '[% lite.target.file.name %]',
 			'post_link_format_template_file' => '/usr/local/etc/cape_utils_link_format_template.t2',
 		},
 	};
@@ -120,10 +123,8 @@ sub new {
 
 	# read in post_link_format_template_file
 	if ( -f $self->{'config'}->{'_'}->{'post_link_format_template_file'} ) {
-		$self->{'post_link_format_template'}
+		$self->{'config'}->{'_'}->{'post_link_format_template'}
 			= read_file( $self->{'config'}->{'_'}->{'post_link_format_template_file'} );
-	} else {
-		$self->{'post_link_format_template'} = '[% lite.target.file.name %]';
 	}
 
 	return $self;
@@ -144,11 +145,14 @@ This will die with the output from $DBI::errstr if it fails.
 sub connect {
 	my $self = $_[0];
 
-	my $dbh = DBI->connect( $self->{'config'}->{'_'}->{'dsn'}, $self->{'config'}->{'_'}->{'user'}, $self->{'config'}->{'_'}->{'pass'} )
-		|| die($DBI::errstr);
+	my $dbh = DBI->connect(
+		$self->{'config'}->{'_'}->{'dsn'},
+		$self->{'config'}->{'_'}->{'user'},
+		$self->{'config'}->{'_'}->{'pass'}
+	) || die($DBI::errstr);
 
 	return $dbh;
-}
+} ## end sub connect
 
 =pod
 
@@ -201,7 +205,37 @@ sub fail {
 	return $rows;
 } ## end sub fail
 
-=pod
+=head2 get_analyses_dir
+
+Returns the analyses directory.
+
+Does not check if it exists.
+
+    my $analyses_dir = $cape_util->get_analyses_dir;
+
+=cut
+
+sub get_analyses_dir {
+	my ( $self ) = @_;
+
+	return $self->{'config'}->{'_'}->{'base'}.'/storage/analyses';
+}
+
+=head2 get_base_dir
+
+Returns the base directory.
+
+Does not check if it exists.
+
+    my $base_dir = $cape_util->get_base_dir;
+
+=cut
+
+sub get_base_dir {
+	my ( $self ) = @_;
+
+	return $self->{'config'}->{'_'}->{'base'};
+}
 
 =head2 get_pending_count
 
@@ -373,6 +407,32 @@ sub get_pending_table {
 
 	return $tb->draw;
 } ## end sub get_pending_table
+
+=head2 get_results_dir
+
+Returns the path to a results directory for a anaylyses.
+
+Takes a ID.
+
+Does not check if it exists.
+
+    my $results_dir = $cape_util->get_results_dir($id);
+
+=cut
+
+sub get_results_dir {
+	my ( $self, $id ) = @_;
+
+	if (!defined($id)){
+		die('Nothing specified for ID');
+	}elsif(ref($id) ne '') {
+		die('ref($id) is "'.ref($id).'" and nod ""');
+	}elsif($id !~ /^[1-9][0-9]*$/){
+		die('$id does not match /^[1-9][0-9]*$/');
+	}
+	
+	return $self->{'config'}->{'_'}->{'base'}.'/storage/analyses/'.$id;
+}
 
 =pod
 
@@ -564,7 +624,21 @@ sub get_running_table {
 	return $tb->draw;
 } ## end sub get_running_table
 
-=pod
+=head2 get_storage_dir
+
+Returns the storage directory.
+
+Does not check if it exists.
+
+    my $storage_dir = $cape_util->get_storage_dir;
+
+=cut
+
+sub get_storage_dir {
+	my ( $self ) = @_;
+
+	return $self->{'config'}->{'_'}->{'base'}.'/storage';
+}
 
 =head2 get_tasks
 
@@ -599,25 +673,25 @@ sub get_tasks {
 		die '$opts{where},"' . $opts{'where'} . '", contains a ";"';
 	}
 
-	if ( defined( $opts{order} ) && $opts{order} !~ /^[0-9a-zA-Z]+$/ ) {
-		die '$opts{order},"' . $opts{order} . '", does not match /^[0-9a-zA-Z]+$/';
-	} else {
+	if ( !defined( $opts{order} ) ) {
 		$opts{order} = 'id';
+	} elsif ( $opts{order} !~ /^[0-9a-zA-Z]+$/ ) {
+		die '$opts{order},"' . $opts{order} . '", does not match /^[0-9a-zA-Z]+$/';
 	}
 
-	if ( defined( $opts{limit} ) && $opts{limit} !~ /^[0-9]+$/ ) {
-		die '$opts{limit},"' . $opts{limit} . '", does not match /^[0-9]+$/';
-	} else {
+	if ( !defined( $opts{limit} ) ) {
 		$opts{limit} = '100';
+	} elsif ( $opts{limit} !~ /^[0-9]+$/ ) {
+		die '$opts{limit},"' . $opts{limit} . '", does not match /^[0-9]+$/';
 	}
 
-	if ( defined( $opts{direction} ) ) {
-		$opts{direction} = lc( $opts{direction} );
-	}
-	if ( defined( $opts{direction} ) && ( $opts{direction} ne 'desc' || $opts{direction} ne 'asc' ) ) {
-		die '$opts{diirection},"' . $opts{direction} . '", does not match desc or asc';
-	} else {
+	if ( !defined( $opts{direction} ) ) {
 		$opts{direction} = 'desc';
+	} else {
+		$opts{direction} = lc( $opts{direction} );
+		if ( $opts{direction} ne 'desc' && $opts{direction} ne 'asc' ) {
+			die '$opts{direction},"' . $opts{direction} . '", does not match desc or asc';
+		}
 	}
 
 	my $dbh;
@@ -1268,7 +1342,8 @@ sub submit {
 		}
 	} ## end foreach my $item ( @{ $opts{items} } )
 
-	chdir( $self->{'config'}->{'_'}->{'base'} ) || die( 'Unable to CD to "' . $self->{'config'}->{'_'}->{'base'} . '"' );
+	chdir( $self->{'config'}->{'_'}->{'base'} )
+		|| die( 'Unable to CD to "' . $self->{'config'}->{'_'}->{'base'} . '"' );
 
 	my @to_run = ();
 
@@ -1308,6 +1383,10 @@ sub submit {
 
 	if ( defined( $opts{tags} ) ) {
 		push( @to_run, '--tags', $opts{tags} );
+	}
+
+	if ( defined( $opts{platform} ) ) {
+		push( @to_run, '--platform', $opts{platform} );
 	}
 
 	my $added = {};
@@ -1593,14 +1672,129 @@ sub eve_process {
 
 =head2 post
 
-Do assorted post processing tasks.
+Performs the post processing actions for a single finished run.
+
+    $cape_utils->post( id => $id );
+
+Takes one required option.
+
+    - id :: This is the ID that will be used for processed.
+      <base>/storage/analyses/<id>/reports/lite.json. The analysis
+      directory and task ID are derived from this.
+
+Which actions are taken is controlled entirely via the config. All of them
+default to off. They are performed in the following order so that anything
+derived from the report (such as the link name) reflects the munged report and
+the destructive removal happens last.
+
+    - post_munge :: If true, C<munge> is called on the report first.
+
+    - post_link :: If true, a symlink pointing at the analysis directory is
+      created under C<post_link_dir>. The link name is produced by rendering
+      C<post_link_format_template> with the parsed report exposed as the
+      C<lite> variable.
+
+    - post_bin_rm :: If true, the run's stored binary is removed. If the
+      binary is a symlink, the target it points at is removed as well.
+
+Failures for any individual action are logged via syslog and warned about
+rather than being fatal, so that one failing action does not block the others.
+Returns 1.
 
 =cut
 
 sub post {
 	my ( $self, %opts ) = @_;
 
-}
+	if ( !defined( $opts{id} ) ) {
+		die('No file specified via $opts{id}');
+	}
+
+	my $results_dir=$self->get_results_dir($opts{'id'});
+	$opts{'file'}=$results_dir.'/reports/lite.json';
+
+	if ( !-f $opts{'file'} ) {
+		die( '"' . $opts{'file'} . '" is not a file' );
+	}
+
+	# munge the report first so that anything derived from it below, such as
+	# the link name, reflects the munged report
+	if ( $self->{'config'}{'_'}{'post_munge'} ) {
+		eval { $self->munge( 'file' => $opts{'file'} ); };
+		if ($@) {
+			my $error_message = 'post munge failed for "' . $opts{'file'} . '"... ' . $@;
+			$self->log_drek( 'cape_post', 'err', $error_message );
+			warn($error_message);
+		}
+	}
+
+	# create a symlink to the analysis dir named after the rendered template
+	if ( $self->{'config'}{'_'}{'post_link'} ) {
+		eval {
+			my $lite = decode_json( read_file( $opts{file} ) );
+
+			my $link_name;
+			my $tt = Template->new( { ABSOLUTE => 1, } ); 
+			$tt->process( \$self->{'config'}{'_'}{'post_link_format_template'}, { lite => $lite }, \$link_name )
+				or die( $tt->error . '' );
+
+			# tidy up the rendered name
+			$link_name =~ s/^\s+//;
+			$link_name =~ s/\s+$//;
+			if ( $link_name eq '' ) {
+				die('rendered link name is empty');
+			}
+
+			my $link = $self->{'config'}{'_'}{'post_link_dir'} . '/' . $link_name;
+
+			# make sure the parent dir exists in case the name contains a path
+			make_path( dirname($link) );
+
+			# replace an existing link, but do not clobber a real file
+			if ( -l $link ) {
+				unlink($link) || die( 'failed to remove existing link "' . $link . '"... ' . $! );
+			} elsif ( -e $link ) {
+				die( '"' . $link . '" already exists and is not a symlink' );
+			}
+
+			symlink( $results_dir, $link ) || die( 'symlink to "' . $results_dir . '" failed... ' . $! );
+		};
+		if ($@) {
+			my $error_message = 'post link failed for task ' . $opts{'id'} . '... ' . $@;
+			$self->log_drek( 'cape_post', 'err', $error_message );
+			warn($error_message);
+		}
+	} ## end if ( $self->{'config'}{'_'}{'post_link'} )
+
+	# remove the stored binary to reclaim disk
+	if ( $self->{'config'}{'_'}{'post_bin_rm'} ) {
+		eval {
+			my $binary = $results_dir . '/binary';
+			if ( -l $binary ) {
+				# also remove the real sample the link points at
+				my $target = readlink($binary);
+				if ( defined($target) ) {
+					if ( !File::Spec->file_name_is_absolute($target) ) {
+						$target = File::Spec->rel2abs( $target, $results_dir );
+					}
+					if ( -f $target ) {
+						unlink($target) || die( 'failed to remove binary "' . $target . '"... ' . $! );
+					}
+				}
+				unlink($binary) || die( 'failed to remove binary link "' . $binary . '"... ' . $! );
+			} elsif ( -f $binary ) {
+				unlink($binary) || die( 'failed to remove binary "' . $binary . '"... ' . $! );
+			}
+		};
+		if ($@) {
+			my $error_message = 'post binary removal failed for task ' . $opts{'id'} . '... ' . $@;
+			$self->log_drek( 'cape_post', 'err', $error_message );
+			warn($error_message);
+		}
+	} ## end if ( $self->{'config'}{'_'}{'post_bin_rm'})
+
+	return 1;
+} ## end sub post
 
 # sends stuff to syslog
 sub log_drek {

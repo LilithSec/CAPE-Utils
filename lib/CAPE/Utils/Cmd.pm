@@ -46,6 +46,8 @@ The available commands are:
 
 =item * L<munge|CAPE::Utils::Cmd::Command::munge>
 
+=item * L<post|CAPE::Utils::Cmd::Command::post>
+
 =back
 
 =head1 CONFIG FILE

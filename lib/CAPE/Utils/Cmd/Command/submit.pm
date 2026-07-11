@@ -65,6 +65,8 @@ Returns the L<Getopt::Long::Descriptive> option spec for this command.
 
 =item * B<--tags> <tags> - Tags to be passed via --tags.
 
+=item * B<--platform> <platform> - What to pass to --platform.
+
 =item * B<--enforce_timeout> - Force it to run the entire period. Also B<--et>.
 
 =item * B<--unique> - Only submit unique items.
@@ -85,6 +87,7 @@ sub opt_spec {
 		[ 'options=s',          'option string to be passed via --options' ],
 		[ 'random=i',           'randomize the order of submission, default 1', { default => 1 } ],
 		[ 'tags=s',             'tags to be passed via --tags' ],
+		[ 'platform=s',         'what to pass to --platform' ],
 		[ 'enforce_timeout|et', 'force it to run the entire period' ],
 		[ 'unique',             'only submit unique items' ],
 		[ 'quiet',              'do not print the output from the submission command' ],
@@ -132,6 +135,7 @@ sub execute {
 		options         => $opt->{options},
 		random          => $opt->{random},
 		tags            => $opt->{tags},
+		platform        => $opt->{platform},
 		enforce_timeout => $opt->{enforce_timeout},
 		unique          => $opt->{unique},
 		quiet           => $quiet,
