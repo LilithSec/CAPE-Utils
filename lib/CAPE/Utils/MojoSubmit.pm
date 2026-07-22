@@ -346,7 +346,7 @@ sub receive {
 	$additional_info{http_ctype}   = $json->{'http'}{'http_content_type'};
 	$additional_info{http_ua}      = $json->{'http'}{'http_user_agent'};
 	$additional_info{det_sub_type} = $json->{'http'}{'http_method'};
-	$additional_info{src_host}     = $json->{'suricata_extract_submit'}{'host'};
+	$additional_info{src_host} = $json->{'suricata_extract_submit'}{'host'} // $json->{'lilith_cape_submit'}{'host'};
 
 	# set the value for anything not defined to undef for the purpose of logging
 	# this will avoid perl from throwing errors about undef used in cating
