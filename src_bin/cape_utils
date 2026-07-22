@@ -43,6 +43,15 @@ individual sub command. Run C<cape_utils commands> to list them and
 C<cape_utils help E<lt>commandE<gt>> for the options available for a specific
 command.
 
+=head1 COMPATIBILITY
+
+The pre-L<App::Cmd> command line is still accepted. Invocations using the legacy
+C<cape_utils -a E<lt>actionE<gt>> form (with C<-c>/C<--config> for the INI file)
+are transparently rewritten into the sub command form, so C<cape_utils -a submit
+-c /etc/cape_utils.ini foo> is equivalent to C<cape_utils submit -i
+/etc/cape_utils.ini foo>. Native invocations are unaffected. See
+L<CAPE::Utils::Cmd/legacy_rewrite>.
+
 =head1 GENERAL FLAGS
 
 =head2 -i <ini>
@@ -100,5 +109,9 @@ For this, see the docs for L<CAPE::Utils>.
 Out of the box, it will work by default with CAPEv2 in it's default config.
 
 =cut
+
+# rewrite the legacy "-a <action>" command line into App::Cmd form; a no-op
+# for native invocations
+@ARGV = CAPE::Utils::Cmd->legacy_rewrite(@ARGV);
 
 CAPE::Utils::Cmd->run;
