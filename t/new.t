@@ -26,7 +26,12 @@ is( $cape->{config}->{_}->{enforce_timeout},  0,                             'de
 is( $cape->{config}->{_}->{auth},             'ip',                          'default auth' );
 is( $cape->{config}->{_}->{set_clock_to_now}, 1,                             'default set_clock_to_now' );
 is( $cape->{config}->{_}->{eve_look_back},    360,                           'default eve_look_back' );
-is( $cape->{post_link_format_template},       '[% lite.target.file.name %]', 'default post_link_format_template' );
+SKIP: {
+       my $template_file = '/usr/local/etc/cape_utils_link_format_template.t2';
+       skip "$template_file exists and overrides the default", 1 if -f $template_file;
+       is( $cape->{config}->{_}->{post_link_format_template},
+               '[% lite.target.file.name %]', 'default post_link_format_template' );
+}
 
 #
 # config file with some items set... set items should be used and the rest merged from the defaults
@@ -45,5 +50,19 @@ is(
 	'192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8',
 	'unset subnets merged from defaults'
 );
+
+#
+# post_link_format_template_file, when it exists, replaces post_link_format_template
+#
+my $template_file = $tempdir . '/link_format_template.t2';
+write_file( $template_file, '[% lite.target.file.sha256 %]' );
+my $ini3 = $tempdir . '/cape_utils_template.ini';
+write_file( $ini3, "post_link_format_template_file=$template_file\n" );
+my $cape3 = CAPE::Utils->new($ini3);
+is( $cape3->{config}->{_}->{post_link_format_template},
+       '[% lite.target.file.sha256 %]',
+       'post_link_format_template read from post_link_format_template_file'
+);
+
 
 done_testing;
