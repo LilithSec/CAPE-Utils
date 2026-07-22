@@ -99,8 +99,8 @@ sub new {
 			'post_munge'          => 0,
 			'post_bin_rm'         => 0,
 			'post_link'           => 0,
-				'post_link_dir'       => '/malware/storage/links',
-				'post_link_format_template' => '[% lite.target.file.name %]',
+			'post_link_dir'       => '/malware/storage/links',
+			'post_link_format_template'      => '[% lite.target.file.name %]',
 			'post_link_format_template_file' => '/usr/local/etc/cape_utils_link_format_template.t2',
 		},
 	};
@@ -216,9 +216,9 @@ Does not check if it exists.
 =cut
 
 sub get_analyses_dir {
-	my ( $self ) = @_;
+	my ($self) = @_;
 
-	return $self->{'config'}->{'_'}->{'base'}.'/storage/analyses';
+	return $self->{'config'}->{'_'}->{'base'} . '/storage/analyses';
 }
 
 =head2 get_base_dir
@@ -232,7 +232,7 @@ Does not check if it exists.
 =cut
 
 sub get_base_dir {
-	my ( $self ) = @_;
+	my ($self) = @_;
 
 	return $self->{'config'}->{'_'}->{'base'};
 }
@@ -423,16 +423,16 @@ Does not check if it exists.
 sub get_results_dir {
 	my ( $self, $id ) = @_;
 
-	if (!defined($id)){
+	if ( !defined($id) ) {
 		die('Nothing specified for ID');
-	}elsif(ref($id) ne '') {
-		die('ref($id) is "'.ref($id).'" and nod ""');
-	}elsif($id !~ /^[1-9][0-9]*$/){
+	} elsif ( ref($id) ne '' ) {
+		die( 'ref($id) is "' . ref($id) . '" and nod ""' );
+	} elsif ( $id !~ /^[1-9][0-9]*$/ ) {
 		die('$id does not match /^[1-9][0-9]*$/');
 	}
-	
-	return $self->{'config'}->{'_'}->{'base'}.'/storage/analyses/'.$id;
-}
+
+	return $self->{'config'}->{'_'}->{'base'} . '/storage/analyses/' . $id;
+} ## end sub get_results_dir
 
 =pod
 
@@ -635,9 +635,9 @@ Does not check if it exists.
 =cut
 
 sub get_storage_dir {
-	my ( $self ) = @_;
+	my ($self) = @_;
 
-	return $self->{'config'}->{'_'}->{'base'}.'/storage';
+	return $self->{'config'}->{'_'}->{'base'} . '/storage';
 }
 
 =head2 get_tasks
@@ -1299,7 +1299,8 @@ Submits files to CAPE.
         - Default :: 0
 
 The retuned value is a hash ref where the keys are successfully submitted files
-and values of those keys is the task ID.
+and values of those keys is the task ID. Should CAPE create multiple tasks for
+a single submitted file, the value is those task IDs joined via ','.
 
     my $sub_results=$cape_util->submit(items=>@to_detonate,unique=>0, quiet=>1);
     use JSON;
@@ -1410,8 +1411,14 @@ sub submit {
 				$item =~ s/^Success\:\ File\ \"//;
 				my ( $file, $task ) = split( /\"\ added\ as\ task\ with\ ID\ /, $item );
 				$added->{$file} = $task;
+			} elsif ( $item =~ /^Success\:\ File\ \".*\"\ added\ as\ task\ with\ IDs\ \[[0-9,\ ]+\]$/ ) {
+				# newer CAPE emits this form when a single submission fans out into multiple tasks
+				$item =~ s/^Success\:\ File\ \"//;
+				my ( $file, $task_ids ) = split( /\"\ added\ as\ task\ with\ IDs\ \[/, $item );
+				$task_ids =~ s/[\]\ ]//g;
+				$added->{$file} = $task_ids;
 			}
-		}
+		} ## end foreach my $item (@results_split)
 	} ## end foreach (@to_submit)
 
 	return $added;
@@ -1710,8 +1717,8 @@ sub post {
 		die('No file specified via $opts{id}');
 	}
 
-	my $results_dir=$self->get_results_dir($opts{'id'});
-	$opts{'file'}=$results_dir.'/reports/lite.json';
+	my $results_dir = $self->get_results_dir( $opts{'id'} );
+	$opts{'file'} = $results_dir . '/reports/lite.json';
 
 	if ( !-f $opts{'file'} ) {
 		die( '"' . $opts{'file'} . '" is not a file' );
@@ -1734,7 +1741,7 @@ sub post {
 			my $lite = decode_json( read_file( $opts{file} ) );
 
 			my $link_name;
-			my $tt = Template->new( { ABSOLUTE => 1, } ); 
+			my $tt = Template->new( { ABSOLUTE => 1, } );
 			$tt->process( \$self->{'config'}{'_'}{'post_link_format_template'}, { lite => $lite }, \$link_name )
 				or die( $tt->error . '' );
 

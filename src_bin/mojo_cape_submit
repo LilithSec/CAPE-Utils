@@ -103,13 +103,11 @@ in question. If it already exists it is updated to the newest one.
 =cut
 
 use Mojolicious::Lite -signatures;
-use Sys::Syslog   qw( closelog openlog syslog );
-use JSON          qw( decode_json encode_json );
-use CAPE::Utils   ();
-use File::Slurp   qw( write_file );
-use Sys::Hostname qw( hostname );
-use File::Temp    qw( tempfile );
-use File::Copy    qw( move );
+use CAPE::Utils::MojoSubmit ();
+use CAPE::Utils::LogDrek    qw( log_drek );
+
+# one instance shared across requests so the tracking int keeps incrementing
+my $submitter = CAPE::Utils::MojoSubmit->new;
 
 # two are needed as /* and / don't overlap... so pass it to the_stuff to actually handle it
 post '/*' => sub ($c) {
@@ -119,360 +117,27 @@ post '/' => sub ($c) {
 	the_stuff($c);
 };
 
-our $tracking_int = 0;
-
-# sends stuff to syslog
-sub log_drek {
-	my ( $level, $message, $tracking_int ) = @_;
-
-	if ( !defined($level) ) {
-		$level = 'info';
-	}
-
-	if ( defined($tracking_int) ) {
-		$message = $tracking_int . ' : ' . $message;
-	}
-
-	openlog( 'mojo_cape_submit', 'cons,pid', 'daemon' );
-	syslog( $level, '%s', $message );
-	closelog();
-} ## end sub log_drek
-
-# handle it
+# thin adapter: pull the request bits off $c, hand them to the backend, render the result
 sub the_stuff {
-	my $c         = $_[0];
-	my $remote_ip = $c->{tx}{original_remote_address};
-	my $apikey    = $c->param('apikey');
+	my $c = $_[0];
 
-	my $current_tracking_int = $tracking_int;
-	$tracking_int++;
-
-	# log the connection
-	my $message = 'Started. Remote IP: ' . $remote_ip . '  API key: ';
-	if ( defined($apikey) ) {
-		$message = $message . $apikey;
-	} else {
-		$message = $message . 'undef';
-	}
-	log_drek( 'info', $message, $current_tracking_int );
-
-	my $cape_util;
-	eval { $cape_util = CAPE::Utils->new(); };
+	my $result;
+	eval {
+		$result = $submitter->receive(
+			remote_ip => $c->{tx}{original_remote_address},
+			apikey    => $c->param('apikey'),
+			raw_json  => $c->param('json'),
+			upload    => $c->param('filename'),
+			oversized => $c->req->is_limit_exceeded,
+		);
+	};
 	if ($@) {
 		log_drek( 'err', $@ );
 		$c->render( text => "Error... please see syslog\n", status => 400, );
 		return;
 	}
 
-	if ( !-d $cape_util->{config}->{_}->{incoming} ) {
-		log_drek( 'err', 'incoming directory, "' . $cape_util->{config}->{_}->{incoming} . '", does not exist',
-			$current_tracking_int );
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-w $cape_util->{config}->{_}->{incoming} ) {
-		log_drek( 'err', 'incoming directory, "' . $cape_util->{config}->{_}->{incoming} . '", is not writable',
-			$current_tracking_int );
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/sha256' ) {
-		log_drek( 'err',
-			'incoming sha256 directory, "' . $cape_util->{config}->{_}->{incoming} . '/sha256", does not exist',
-			$current_tracking_int );
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/sha256' ) {
-		log_drek( 'err',
-			'incoming sha256 directory, "' . $cape_util->{config}->{_}->{incoming} . '/sha256", is not writable',
-			$current_tracking_int );
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/json' ) {
-		log_drek( 'err',
-			'incoming json directory, "' . $cape_util->{config}->{_}->{incoming} . '/json", does not exist',
-			$current_tracking_int );
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/json' ) {
-		log_drek( 'err',
-			'incoming json directory, "' . $cape_util->{config}->{_}->{incoming} . '/json", is not writable',
-			$current_tracking_int );
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/name_to_sha256' ) {
-		log_drek(
-			'err',
-			'incoming name_to_sha256 directory, "'
-				. $cape_util->{config}->{_}->{incoming}
-				. '/name_to_sha256", does not exist',
-			$current_tracking_int
-		);
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/name_to_sha256' ) {
-		log_drek(
-			'err',
-			'incoming name_to_sha256 directory, "'
-				. $cape_util->{config}->{_}->{incoming}
-				. '/name_to_sha256", is not writable',
-			$current_tracking_int
-		);
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/task_to_json' ) {
-		log_drek(
-			'err',
-			'incoming task_to_json directory, "'
-				. $cape_util->{config}->{_}->{incoming}
-				. '/task_to_json", does not exist',
-			$current_tracking_int
-		);
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/task_to_json' ) {
-		log_drek(
-			'err',
-			'incoming task_to_json directory, "'
-				. $cape_util->{config}->{_}->{incoming}
-				. '/task_to_json", is not writable',
-			$current_tracking_int
-		);
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-d $cape_util->{config}->{_}->{incoming} . '/tmp' ) {
-		log_drek( 'err', 'incoming tmp directory, "' . $cape_util->{config}->{_}->{incoming} . '/tmp", does not exist',
-			$current_tracking_int );
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	} elsif ( !-w $cape_util->{config}->{_}->{incoming} . '/tmp' ) {
-		log_drek( 'err', 'incoming tmp directory, "' . $cape_util->{config}->{_}->{incoming} . '/tmp", is not writable',
-			$current_tracking_int );
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	}
-
-	my ( $temp_fh, $temp_filename )
-		= tempfile( 'DIR' => $cape_util->{config}->{_}->{incoming} . '/tmp' );
-
-	my $allow_remote;
-	eval { $allow_remote = $cape_util->check_remote( apikey => $apikey, ip => $remote_ip ); };
-	if ($@) {
-		log_drek( 'err', $@, $current_tracking_int );
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	}
-	if ( !$allow_remote ) {
-		log_drek( 'info', 'API key or IP not allowed', $current_tracking_int );
-		$c->render( text => "IP not allowed or invalid API key\n", status => 403, );
-		return;
-	}
-
-	if ( $c->req->is_limit_exceeded ) {
-		log_drek( 'err', 'Log size exceeded', $current_tracking_int );
-		$c->render( text => 'File is too big.', status => 400 );
-		return;
-	}
-
-	my $file = $c->param('filename');
-	if ( !$file ) {
-		log_drek( 'err', 'No file specified', $current_tracking_int );
-		$c->render( text => 'No file specified', status => 400 );
-	}
-
-	# initial filename bits
-	my $name      = $file->filename;
-	my $size      = $file->size;
-	my $orig_name = $name;
-	$name =~ s/\///;
-	my $json_filename = $cape_util->{config}->{_}->{incoming} . '/json/' . $name;
-
-	# if size is 10, test if the contents are a test ping packet
-	if ( $size == 10 ) {
-		my $file_data = $file->slurp;
-		if ( $file_data =~ /1234567890/ ) {
-			log_drek( 'info', 'got ping test, size=10 payload=01234567890', $current_tracking_int );
-			$c->render( text => "TEST RECIEVED\n", status => 200, );
-			return;
-		}
-	}
-
-	# get the json metadata info
-	my $raw_json = $c->param('json');
-	my $json;
-	eval { $json = decode_json($raw_json); };
-	if ($@) {
-		log_drek( 'err', 'json param decode error: ' . $@ );
-		$json = {};
-	}
-
-	# add initial relevant submission data
-	$json->{cape_submit} = {
-		orig_name => $orig_name,
-		name      => $name,
-		apikey    => $apikey,
-		remote_ip => $remote_ip,
-		size      => $size,
-		time      => time,
-		host      => hostname,
-	};
-
-	# copy it into place
-	# save it here for getting SHA256 checksum
-	$file->move_to($temp_filename);
-	$json->{'cape_submit'}{'sha256'} = lc(`sha256sum $temp_filename`);
-	chomp( $json->{'cape_submit'}{'sha256'} );
-	$json->{'cape_submit'}{'sha256'} =~ s/[\ \t].+//;
-
-	log_drek( 'info', 'SHA256: ' . $json->{'cape_submit'}{'sha256'}, $current_tracking_int );
-	$json->{'cape_submit'}{'sha1'} = lc(`sha1sum $temp_filename`);
-	chomp( $json->{'cape_submit'}{'sha1'} );
-	$json->{'cape_submit'}{'sha1'} =~ s/[\ \t].+//;
-	log_drek( 'info', 'SHA1: ' . $json->{'cape_submit'}{'sha1'}, $current_tracking_int );
-	$json->{'cape_submit'}{'md5'} = lc(`md5sum $temp_filename`);
-	chomp( $json->{'cape_submit'}{'md5'} );
-	$json->{'cape_submit'}{'md5'} =~ s/[\ \t].+//;
-	log_drek( 'info', 'MD5: ' . $json->{'cape_submit'}{'md5'}, $current_tracking_int );
-	my $sha256_filename = $cape_util->{config}->{_}->{incoming} . '/sha256/' . $json->{'cape_submit'}{'sha256'};
-	my $name_filename   = $cape_util->{config}->{_}->{incoming} . '/name_to_sha256/' . $name;
-	# If it has already been received, we can skip this step and just unlink it.
-	if ( !-f $sha256_filename ) {
-		move( $temp_filename, $sha256_filename );
-	} else {
-		unlink($temp_filename);
-	}
-	# make sure it is always linked to the newest one if it is resubmitted
-	if ( -e $name_filename ) {
-		unlink($name_filename);
-	}
-	symlink( $sha256_filename, $name_filename );
-
-	# log incoming file
-	log_drek(
-		'info',
-		'Got File... size=' . $size . ' filename="' . $name . '" sha256="' . $json->{'cape_submit'}{'sha256'} . '"',
-		$current_tracking_int
-	);
-
-	# get some info for logging purposes
-	# done this way for the purpose of not having to constantly check if something is undef
-	my %additional_info;
-	$additional_info{src_ip}       = $json->{'src_ip'};
-	$additional_info{src_port}     = $json->{'src_port'};
-	$additional_info{dest_ip}      = $json->{'dest_ip'};
-	$additional_info{dest_port}    = $json->{'dest_port'};
-	$additional_info{proto}        = $json->{'proto'};
-	$additional_info{app_proto}    = $json->{'app_proto'};
-	$additional_info{flow_id}      = $json->{'flow_id'};
-	$additional_info{http_host}    = $json->{'http'}{'hostname'};
-	$additional_info{http_url}     = $json->{'http'}{'url'};
-	$additional_info{http_method}  = $json->{'http'}{'method'};
-	$additional_info{http_proto}   = $json->{'http'}{'protocol'};
-	$additional_info{http_status}  = $json->{'http'}{'status'};
-	$additional_info{http_ctype}   = $json->{'http'}{'http_content_type'};
-	$additional_info{http_ua}      = $json->{'http'}{'http_user_agent'};
-	$additional_info{det_sub_type} = $json->{'http'}{'http_method'};
-	$additional_info{src_host}     = $json->{'suricata_extract_submit'}{'host'};
-
-	# set the value for anything not defined to undef for the purpose of logging
-	# this will avoid perl from throwing errors about undef used in cating
-	foreach my $item ( keys(%additional_info) ) {
-		if ( !defined( $additional_info{$item} ) ) {
-			$additional_info{$item} = 'undef';
-		}
-	}
-	$json->{det_sub_type} = $additional_info{det_sub_type};
-
-	# log additional info
-	log_drek( 'info', 'Source Host: ' . $additional_info{src_host},         $current_tracking_int );
-	log_drek( 'info', 'Submission Type: ' . $additional_info{det_sub_type}, $current_tracking_int );
-	log_drek(
-		'info',
-		'proto='
-			. $additional_info{proto}
-			. ' src_ip='
-			. $additional_info{src_ip}
-			. ' src_port='
-			. $additional_info{src_port}
-			. ' dest_ip='
-			. $additional_info{dest_ip}
-			. ' dest_port='
-			. $additional_info{dest_port}
-			. ' flow_id='
-			. $additional_info{flow_id},
-		$current_tracking_int
-	);
-	if ( $additional_info{app_proto} eq 'http' ) {
-		log_drek( 'info', $additional_info{http_proto} . ' ' . $additional_info{http_host}, $current_tracking_int );
-		log_drek(
-			'info',
-			$additional_info{http_method} . ' ' . $additional_info{http_status} . ' ' . $additional_info{http_url},
-			$current_tracking_int
-		);
-		log_drek( 'info', 'useragent: ' . $additional_info{http_ua}, $current_tracking_int );
-	} else {
-		log_drek( 'info', 'App Proto: ' . $additional_info{app_proto}, $current_tracking_int );
-	}
-
-	# finally submit it
-	my $results;
-	eval { $results = $cape_util->submit( items => [$name_filename], quiet => 1, ); };
-	if ($@) {
-		log_drek( 'err', '$cape_util->submit( items => ["' . $name_filename . '"], quiet => 1, );  ... ' . $@,
-			$current_tracking_int );
-		$c->render( text => "Error... please see syslog\n", status => 400, );
-		return;
-	}
-
-	# can't continue if submission failed
-	my @submitted = keys( %{$results} );
-	if ( !defined( $submitted[0] ) ) {
-		log_drek( 'err', 'Submitting "' . $name_filename . '" failed', $current_tracking_int );
-		$c->render( text => "Submission failed\n", status => 400, );
-		return;
-	}
-
-	# log the submission
-	log_drek( 'info', 'Submitting "' . $name . '" submitted as ' . $results->{ $submitted[0] }, $current_tracking_int );
-	$c->render( text => "Submitted as task ID " . $results->{ $submitted[0] } . "\n", status => 200, );
-	$json->{cape_submit}{task} = $results->{ $submitted[0] };
-
-	# write out the json containing the submission info
-	my $data_json = encode_json($json) . "\n";
-	eval { write_file( $json_filename, $data_json ); };
-	if ($@) {
-		log_drek( 'err', 'Failed to write submission data JSON out to "' . $json_filename . '"... ' . $@ );
-	} else {
-		log_drek( 'info', 'Wrote submission data JSON out to "' . $json_filename . '"', $current_tracking_int );
-		my $link_name = $cape_util->{config}->{_}->{incoming} . '/task_to_json/' . $results->{ $submitted[0] };
-		# if it already exists and is not a link, something is not right... log it as this
-		# requires end user intervention as that should not exist
-		if ( -e $link_name && !-l $link_name ) {
-			log_drek( 'err', 'Link to submission data JSON, "' . $link_name . '", exists on FS and is not a link',
-				$current_tracking_int );
-		} elsif ( -e $link_name && -l $link_name ) {
-			# if it exists already, it means it was re-submitted... update link to the
-			# newst one
-			log_drek(
-				'info',
-				'Link to submission data JSON, "'
-					. $link_name
-					. '", exists already... removing and linking to '
-					. $submitted[0],
-				$current_tracking_int
-			);
-			eval {
-				unlink($link_name) || die( 'Failed to unlink "' . $link_name . '"' );
-				symlink( $json_filename, $link_name )
-					|| die( 'Failed to link "' . $json_filename . '" to "' . $link_name . '"' );
-			};
-			if ($@) {
-				log_drek( 'err', $@, $current_tracking_int );
-			}
-		} else {
-			symlink( $json_filename, $link_name )
-				|| log_drek( 'err', 'Failed to link "' . $json_filename . '" to "' . $link_name . '"',
-					$current_tracking_int );
-		}
-	} ## end else [ if ($@) ]
+	$c->render( text => $result->{body}, status => $result->{status}, );
 
 	return;
 } ## end sub the_stuff
