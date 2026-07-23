@@ -581,12 +581,20 @@ sub resub {
 		}
 	} ## end if ( defined( $opts{task} ) )
 
-	# locate the sample via the content addressed sha256 store
+	# resubmit via the name_to_sha256 link rather than the content addressed
+	# sha256 store... the sha256 store file is named after its hash, so CAPE would
+	# record the hash as the filename. name_to_sha256/<name> is a symlink to the
+	# same bytes but keeps the original submission name, so the resubmission
+	# matches the original.
 	my $sha256 = $json->{cape_submit}{sha256};
 	if ( !defined($sha256) ) {
 		die '"' . $json_file . '" has no .cape_submit.sha256';
 	}
-	my $sample = $incoming . '/sha256/' . $sha256;
+	my $sample_name = $json->{cape_submit}{name};
+	if ( !defined($sample_name) ) {
+		die '"' . $json_file . '" has no .cape_submit.name';
+	}
+	my $sample = $incoming . '/name_to_sha256/' . $sample_name;
 	if ( !-f $sample ) {
 		die 'sample missing at "' . $sample . '"';
 	}

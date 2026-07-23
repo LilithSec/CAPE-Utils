@@ -19,10 +19,13 @@ foreach my $subdir (qw( sha256 json name_to_sha256 task_to_json tmp )) {
 my $ini = $incoming . '/cape_utils.ini';
 write_file( $ini, "incoming=$incoming\n" );
 
-# lay down a fake submission: sample in sha256/, json in json/, task_to_json link
+# lay down a fake submission the way receive() does: sample in sha256/, json in
+# json/, a name_to_sha256 link to the sample, and a task_to_json link to the json
 sub make_submission {
 	my ( $name, $sha256, $task, $time ) = @_;
-	write_file( $incoming . '/sha256/' . $sha256, 'sample-' . $name );
+	my $sha256_file = $incoming . '/sha256/' . $sha256;
+	write_file( $sha256_file, 'sample-' . $name );
+	symlink( $sha256_file, $incoming . '/name_to_sha256/' . $name );
 	my $json_file = $incoming . '/json/' . $name;
 	write_file( $json_file,
 		encode_json( { cape_submit => { name => $name, sha256 => $sha256, task => $task, time => $time } } )
@@ -35,9 +38,11 @@ sub make_submission {
 # mock the actual CAPE submission and silence syslog
 #
 my $next_task = 0;
+my $submitted_path;
 no warnings qw( redefine once );
 local *CAPE::Utils::submit = sub {
 	my ( $self, %o ) = @_;
+	$submitted_path = $o{items}[0];
 	return { $o{items}[0] => $next_task };
 };
 local *CAPE::Utils::LogDrek::openlog  = sub { };
@@ -55,6 +60,11 @@ $next_task = 4242;
 my $r = $sub->resub( task => 11 );
 is( $r->{task},     4242, 'resub -r returns the new task ID' );
 is( $r->{old_task}, 11,   'resub -r reports the previous task ID' );
+is(
+	$submitted_path,
+	$incoming . '/name_to_sha256/foo',
+	'resub submits via name_to_sha256 (preserving the original name), not the sha256 store'
+);
 
 my $foo = decode_json( read_file( $incoming . '/json/foo' ) );
 is( $foo->{cape_submit}{task}, 4242, 'json .cape_submit.task updated to new task' );
