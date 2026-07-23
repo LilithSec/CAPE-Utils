@@ -21,7 +21,9 @@ t/input_validation.t
 t/legacy_argv.t
 t/logdrek.t
 t/manifest.t
+t/acl.t
 t/nergal.t
+t/results.t
 t/munge.t
 t/new.t
 t/pod-coverage.t

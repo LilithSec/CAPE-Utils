@@ -117,10 +117,16 @@ timeout=200
 enforce_timeout=0
 # the api key to for with nergal
 #apikey=
-# auth by IP only for nergal
-auth_by_IP_only=1
- # comma seperated list of allowed subnets for nergal
+# how to auth for nergal (ip/apikey/both/either)
+auth=ip
+# comma seperated list of allowed subnets for nergal
 subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
+# how to auth for the nergal results endpoint (ip/apikey/both/either)
+results_auth=ip
+# the api key for the nergal results endpoint
+#results_apikey=
+# comma seperated list of allowed subnets for the nergal results endpoint
+results_subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
 # incoming dir to use for nergal
 incoming=/malware/client-incoming
 ```
@@ -142,8 +148,8 @@ which by default is
 value is a comma seperated string of subnets to accept submissions
 from.
 
-To enable the use of a API key, it requires setting the value of
-'apikey' and setting 'auth_by_IP_only' to '0'.
+To enable the use of a API key, set the value of 'apikey' and set 'auth'
+to 'apikey' (key only), 'both' (key and IP), or 'either' (key or IP).
 
 Using the provided systemd service file, you will also need to create
 '/usr/local/etc/nergal.env' and configure it akin to below.
@@ -156,6 +162,28 @@ The service runs as the user and group 'cape' via the unit's 'User='
 and 'Group=' directives. If you need it to run as a different user, edit
 those in 'systemd/nergal.service' rather than setting an environment
 variable.
+
+### nergal results endpoint
+
+nergal can also serve the detonation results CAPEv2 writes under
+'<base>/storage/analyses/<task_id>/' via GET.
+
+```
+# JSON array of which result files exist for a task
+GET /results/<task_id>
+# fetch one of them
+GET /results/<task_id>/<path>
+```
+
+Only a fixed set of files may be fetched: 'reports/lite.json',
+'reports/report.json', 'reports/report.html',
+'reports/summary-report.html', and 'shots/*.jpg'. Anything else,
+including path traversal attempts, returns a 404.
+
+Access is gated separately from submission via the 'results_auth',
+'results_apikey', and 'results_subnets' config values, so results can be
+locked down independently. If an API key is used it is passed as the
+'apikey' query parameter.
 
 ### cape_utils eve
 

@@ -10,6 +10,8 @@ Revision history for CAPE-Utils
 		 - rename mojo_cape_submit to nergal, mojo_cape_submit_extend to nergal_extend, and CAPE::Utils::MojoSubmit to CAPE::Utils::Nergal; the syslog ident, systemd service, env file, and MOJO_CAPE_SUBMIT_MAX_REQ_SIZE env var (now NERGAL_MAX_REQ_SIZE) follow suit
 		 - add a systemd timer for running cape_utils eve every two minutes
 		 - eve now writes per-task JSONs under the incoming dir's eve/ subdir and reads incoming JSON via task_to_json; drop the dead incoming_json config setting
+		 - add a nergal results endpoint (GET /results/<task_id> and /results/<task_id>/<file>) for fetching detonation artifacts (reports/lite.json, reports/report.json, reports/report.html, reports/summary-report.html, shots/*.jpg), gated by a separate ACL (results_auth/results_apikey/results_subnets)
+		 - fix check_remote ACL logic: ip/apikey/both/either now behave correctly (previously a bare apikey bypassed the IP check and ip-only auth denied keyless requests)
 
 4.0.0   2025-07-21/15:00
 		 - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry

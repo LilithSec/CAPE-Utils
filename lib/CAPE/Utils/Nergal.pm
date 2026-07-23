@@ -10,6 +10,7 @@ use Sys::Hostname        qw( hostname );
 use File::Temp           qw( tempfile );
 use File::Copy           qw( move );
 use File::Basename       qw( dirname );
+use Cwd                  qw( abs_path );
 use Digest::SHA          ();
 use Digest::MD5          ();
 use CAPE::Utils::LogDrek qw( log_drek );
@@ -630,6 +631,198 @@ sub resub {
 		task     => $new_task,
 	};
 } ## end sub resub
+
+=head1 RESULTS FETCHING
+
+The results methods expose the detonation artifacts CAPEv2 writes under
+C<< <base>/storage/analyses/<task_id>/ >>. Only a fixed set of files may be
+fetched:
+
+    reports/lite.json
+    reports/report.json
+    reports/report.html
+    reports/summary-report.html
+    shots/*.jpg
+
+Access is gated by L<CAPE::Utils/check_remote_results>, which uses the separate
+C<results_auth>, C<results_apikey>, and C<results_subnets> config so results can
+be locked down independently of submission.
+
+=head2 results_list
+
+List which of the fetchable result files exist for a task. Returns a response
+hashref whose C<body> is a JSON array of the available relative paths.
+
+    my $result = $submitter->results_list(
+        task_id   => 33,
+        remote_ip => $c->tx->original_remote_address,
+        apikey    => $c->param('apikey'),
+    );
+    $c->render( text => $result->{body}, status => $result->{status} );
+
+Arguments are taken as a hash.
+
+    - task_id :: The CAPEv2 task ID.
+
+    - remote_ip :: The remote IP of the requester.
+
+    - apikey :: The submitted API key, or undef.
+
+=cut
+
+sub results_list {
+	my ( $self, %opts ) = @_;
+
+	my ( $cape_util, $auth_err ) = $self->_results_auth(%opts);
+	return $auth_err if ($auth_err);
+
+	my $task_id = $opts{task_id};
+	if ( !defined($task_id) || $task_id !~ /^[0-9]+$/ ) {
+		return { status => 400, body => "Invalid task ID\n" };
+	}
+
+	my $task_dir = $cape_util->get_analyses_dir . '/' . $task_id;
+	if ( !-d $task_dir ) {
+		return { status => 404, body => "No such task\n" };
+	}
+
+	my @available;
+	foreach my $candidate ( _results_candidates() ) {
+		if ( -f $task_dir . '/' . $candidate ) {
+			push( @available, $candidate );
+		}
+	}
+
+	# shots are a dynamic set of jpgs, so enumerate whatever is present
+	my $shots_dir = $task_dir . '/shots';
+	my $dh;
+	if ( -d $shots_dir && opendir( $dh, $shots_dir ) ) {
+		my @shots = sort grep { /^[A-Za-z0-9_\-]+\.jpg$/ && -f $shots_dir . '/' . $_ } readdir($dh);
+		closedir($dh);
+		foreach my $shot (@shots) {
+			push( @available, 'shots/' . $shot );
+		}
+	}
+
+	return { status => 200, body => encode_json( \@available ) . "\n" };
+} ## end sub results_list
+
+=head2 results_fetch
+
+Validate and locate a single result file for a task. On success returns a
+response hashref with C<path> (the absolute file path) and C<content_type> set,
+which the front end serves directly. On failure C<status> and C<body> are set
+instead.
+
+    my $result = $submitter->results_fetch(
+        task_id   => 33,
+        path      => 'reports/lite.json',
+        remote_ip => $c->tx->original_remote_address,
+        apikey    => $c->param('apikey'),
+    );
+    if ( $result->{path} ) {
+        $c->res->headers->content_type( $result->{content_type} );
+        $c->reply->file( $result->{path} );
+    } else {
+        $c->render( text => $result->{body}, status => $result->{status} );
+    }
+
+Only the files reported by L</results_list> may be fetched. Any path outside the
+allowed set, including traversal attempts, yields a 404.
+
+=cut
+
+sub results_fetch {
+	my ( $self, %opts ) = @_;
+
+	my ( $cape_util, $auth_err ) = $self->_results_auth(%opts);
+	return $auth_err if ($auth_err);
+
+	my $task_id = $opts{task_id};
+	if ( !defined($task_id) || $task_id !~ /^[0-9]+$/ ) {
+		return { status => 400, body => "Invalid task ID\n" };
+	}
+
+	my $path = $opts{path};
+	if ( !_results_path_allowed($path) ) {
+		return { status => 404, body => "Not found\n" };
+	}
+
+	my $task_dir = $cape_util->get_analyses_dir . '/' . $task_id;
+	my $file     = $task_dir . '/' . $path;
+
+	# belt and suspenders against traversal: the resolved path must exist and
+	# still live under the task dir. The allowlist above already blocks '..',
+	# but this catches anything symlinks or odd input might sneak through.
+	my $abs_task = abs_path($task_dir);
+	my $abs_file = abs_path($file);
+	if (   !defined($abs_task)
+		|| !defined($abs_file)
+		|| !-f $abs_file
+		|| index( $abs_file, $abs_task . '/' ) != 0 )
+	{
+		return { status => 404, body => "Not found\n" };
+	}
+
+	return {
+		status       => 200,
+		path         => $abs_file,
+		content_type => _results_content_type($path),
+	};
+} ## end sub results_fetch
+
+# Build a CAPE::Utils and run the results ACL. Returns ($cape_util, undef) on
+# success or (undef, $response) on failure so callers can early return.
+sub _results_auth {
+	my ( $self, %opts ) = @_;
+
+	my $cape_util;
+	eval { $cape_util = CAPE::Utils->new( $self->{ini} ); };
+	if ($@) {
+		_log_drek( 'err', $@ );
+		return ( undef, { status => 400, body => "Error... please see syslog\n" } );
+	}
+
+	my $allow;
+	eval { $allow = $cape_util->check_remote_results( apikey => $opts{apikey}, ip => $opts{remote_ip} ); };
+	if ($@) {
+		_log_drek( 'err', $@ );
+		return ( undef, { status => 400, body => "Error... please see syslog\n" } );
+	}
+	if ( !$allow ) {
+		_log_drek( 'info', 'results: API key or IP not allowed' );
+		return ( undef, { status => 403, body => "IP not allowed or invalid API key\n" } );
+	}
+
+	return ( $cape_util, undef );
+} ## end sub _results_auth
+
+# the fixed candidate result files, relative to the task dir; shots are dynamic
+sub _results_candidates {
+	return ( 'reports/lite.json', 'reports/report.json', 'reports/report.html', 'reports/summary-report.html' );
+}
+
+# true if $path is a fetchable result: one of the fixed candidates or a shot jpg
+sub _results_path_allowed {
+	my ($path) = @_;
+
+	return 0 if ( !defined($path) );
+	foreach my $candidate ( _results_candidates() ) {
+		return 1 if ( $path eq $candidate );
+	}
+	return 1 if ( $path =~ m,^shots/[A-Za-z0-9_\-]+\.jpg$, );
+	return 0;
+} ## end sub _results_path_allowed
+
+# content type for a fetchable result path, based on its extension
+sub _results_content_type {
+	my ($path) = @_;
+
+	return 'application/json' if ( $path =~ /[.]json$/ );
+	return 'text/html'        if ( $path =~ /[.]html$/ );
+	return 'image/jpeg'       if ( $path =~ /[.]jpg$/ );
+	return 'application/octet-stream';
+}
 
 =head1 AUTHOR
 

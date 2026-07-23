@@ -91,6 +91,9 @@ sub new {
 			'subnets'             => '192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8',
 			'apikey'              => '',
 			'auth'                => 'ip',
+			'results_auth'        => 'ip',
+			'results_apikey'      => '',
+			'results_subnets'     => '192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8',
 			'incoming'            => '/malware/client-incoming',
 			'eve_look_back'       => 360,
 			'malscore'            => 0,
@@ -1481,11 +1484,16 @@ sub shuffle {
 
 =head2 check_remote
 
-Checks the remote connection.
+Checks the remote connection against the submission ACL config, returning 1 if
+allowed and 0 otherwise. Takes the API key and IP as a hash.
 
-Two variablesare required, API key and IP.
+The C<auth> config value selects the mode:
 
-    $results=$cape_utils->check_remote(apikey=>$apikey, remote=>$remote_ip);
+    ip     -- allowed iff the remote IP is in an allowed subnet; apikey ignored
+    apikey -- allowed iff a non empty apikey is configured and the submitted one matches
+    either -- allowed if the IP matches or the API key matches
+
+    $results=$cape_utils->check_remote(apikey=>$apikey, ip=>$remote_ip);
     if (!$results){
         print "unauthed\n";
         return;
@@ -1496,64 +1504,113 @@ Two variablesare required, API key and IP.
 sub check_remote {
 	my ( $self, %opts ) = @_;
 
-	# if we don't have a API key, we can only auth via IP
-	if ( ( $self->{'config'}->{'_'}->{'auth'} ne 'ip' || $self->{'config'}->{'_'}->{'auth'} ne 'either' )
-		&& !defined( $opts{'apikey'} ) )
-	{
-		return 0;
-	}
-
-	# make sure the API key is what it is expecting if we are not using IP only
-	if (   $self->{'config'}->{'_'}->{'auth'} ne 'ip'
-		&& defined( $opts{'apikey'} )
-		&& $opts{'apikey'} ne $self->{'config'}->{'_'}->{'apikey'} )
-	{
-		# don't return if it is either as IP may still go off
-		if ( $self->{'config'}->{'_'}->{'auth'} ne 'either' ) {
-			return 0;
-		}
-	}
-
-	# if we have a apikey and method is set to apikey or either, we are good to return true
-	if ( defined( $opts{'apikey'} )
-		&& ( $self->{'config'}->{'_'}->{'auth'} ne 'apikey' || $self->{'config'}->{'_'}->{'auth'} ne 'either' ) )
-	{
-		return 1;
-	}
-
-	# can't do anything else with out a IP
-	if ( !defined( $opts{'ip'} ) ) {
-		return 0;
-	}
-
-	my $subnets_string = $self->{'config'}->{'_'}->{'subnets'};
-	$subnets_string =~ s/[\ \t]+//g;
-	$subnets_string =~ s/\,+/,/g;
-	my @subnets_split = split( /,/, $subnets_string );
-	my @subnets;
-	foreach my $item (@subnets_split) {
-		if ( $item =~ /^[\:A-Fa-f0-9]+$/ ) {
-			push( @subnets, $item . '/128' );
-		} elsif ( $item =~ /^[\:A-Fa-f0-9]+\/[0-9]+$/ ) {
-			push( @subnets, $item );
-		} elsif ( $item =~ /^[\.0-9]+$/ ) {
-			push( @subnets, $item . '/32' );
-		} elsif ( $item =~ /^[\.0-9]+\/[0-9]+$/ ) {
-			push( @subnets, $item );
-		}
-	} ## end foreach my $item (@subnets_split)
-	my $allowed_subnets;
-	eval { $allowed_subnets = subnet_matcher(@subnets); };
-	if ($@) {
-		die( 'Failed it init subnet matcher... ' . $@ );
-	}
-
-	if ( $allowed_subnets->( $opts{'ip'} ) ) {
-		return 1;
-	}
-
-	return 0;
+	return $self->_acl_check(
+		auth            => $self->{'config'}->{'_'}->{'auth'},
+		expected_apikey => $self->{'config'}->{'_'}->{'apikey'},
+		subnets         => $self->{'config'}->{'_'}->{'subnets'},
+		apikey          => $opts{'apikey'},
+		ip              => $opts{'ip'},
+	);
 } ## end sub check_remote
+
+=pod
+
+=head2 check_remote_results
+
+Like L</check_remote>, but auths against the separate results ACL config
+(C<results_auth>, C<results_apikey>, and C<results_subnets>). This lets the
+nergal results endpoint be gated independently of submission.
+
+    $results=$cape_utils->check_remote_results(apikey=>$apikey, ip=>$remote_ip);
+    if (!$results){
+        print "unauthed\n";
+        return;
+    }
+
+=cut
+
+sub check_remote_results {
+	my ( $self, %opts ) = @_;
+
+	return $self->_acl_check(
+		auth            => $self->{'config'}->{'_'}->{'results_auth'},
+		expected_apikey => $self->{'config'}->{'_'}->{'results_apikey'},
+		subnets         => $self->{'config'}->{'_'}->{'results_subnets'},
+		apikey          => $opts{'apikey'},
+		ip              => $opts{'ip'},
+	);
+} ## end sub check_remote_results
+
+# Shared ACL evaluation backing check_remote and check_remote_results. Takes the
+# auth mode, expected API key, and subnets string to check against, plus the
+# submitted apikey/ip. Returns 1 if allowed, 0 otherwise.
+#
+#   ip     -- allowed iff the remote IP is in an allowed subnet; apikey ignored
+#   apikey -- allowed iff a non empty key is configured and the submitted one matches
+#   both   -- allowed if the IP matches and the API key matches
+#   either -- allowed if the IP matches or the API key matches
+#
+# anything else for the auth mode is treated as 'ip'.
+sub _acl_check {
+	my ( $self, %opts ) = @_;
+
+	my $auth     = $opts{'auth'};
+	my $apikey   = $opts{'apikey'};
+	my $expected = $opts{'expected_apikey'};
+	my $ip       = $opts{'ip'};
+
+	if ( !defined($auth) || ( $auth ne 'apikey' && $auth ne 'either' && $auth ne 'both' ) ) {
+		$auth = 'ip';
+	}
+
+	# the API key is only valid if a non empty key is configured and it matches
+	my $apikey_ok = 0;
+	if ( defined($apikey) && defined($expected) && $expected ne '' && $apikey eq $expected ) {
+		$apikey_ok = 1;
+	}
+
+	# the IP is only valid if we were given one and it falls in an allowed subnet
+	my $ip_ok = 0;
+	if ( defined($ip) && defined( $opts{'subnets'} ) ) {
+		my $subnets_string = $opts{'subnets'};
+		$subnets_string =~ s/[\ \t]+//g;
+		$subnets_string =~ s/\,+/,/g;
+		my @subnets_split = split( /,/, $subnets_string );
+		my @subnets;
+		foreach my $item (@subnets_split) {
+			if ( $item =~ /^[\:A-Fa-f0-9]+$/ ) {
+				push( @subnets, $item . '/128' );
+			} elsif ( $item =~ /^[\:A-Fa-f0-9]+\/[0-9]+$/ ) {
+				push( @subnets, $item );
+			} elsif ( $item =~ /^[\.0-9]+$/ ) {
+				push( @subnets, $item . '/32' );
+			} elsif ( $item =~ /^[\.0-9]+\/[0-9]+$/ ) {
+				push( @subnets, $item );
+			}
+		} ## end foreach my $item (@subnets_split)
+		if (@subnets) {
+			my $allowed_subnets;
+			eval { $allowed_subnets = subnet_matcher(@subnets); };
+			if ($@) {
+				die( 'Failed it init subnet matcher... ' . $@ );
+			}
+			if ( $allowed_subnets->($ip) ) {
+				$ip_ok = 1;
+			}
+		} ## end if (@subnets)
+	} ## end if ( defined($ip) && defined( $opts{'subnets'...}))
+
+	if ( $auth eq 'apikey' ) {
+		return $apikey_ok;
+	} elsif ( $auth eq 'either' ) {
+		return ( $apikey_ok || $ip_ok ) ? 1 : 0;
+	} elsif ( $auth eq 'both' ) {
+		return ( $apikey_ok && $ip_ok ) ? 1 : 0;
+	}
+
+	# ip
+	return $ip_ok;
+} ## end sub _acl_check
 
 =pod
 
@@ -1884,6 +1941,12 @@ default with CAPEv2 in the default config.
     #apikey=
     # comma seperated list of allowed subnets for nergal
     subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
+    # how to auth for the nergal results endpoint (ip/apikey/both/either), like auth above
+    results_auth=ip
+    # the api key for the nergal results endpoint
+    #results_apikey=
+    # comma seperated list of allowed subnets for the nergal results endpoint
+    results_subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
     # incoming dir to use for nergal
     incoming=/malware/client-incoming
     # Location to write the eve log to.

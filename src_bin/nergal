@@ -43,8 +43,8 @@ By default this will auth of the remote IP via the setting 'subnets', which by d
 '192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8'. This value is a comma seperated
 string of subnets to accept submissions from.
 
-To enable the use of a API key, it requires setting the value of 'apikey' and setting
-'auth_by_IP_only' to '0'.
+To enable the use of a API key, set the value of 'apikey' and set 'auth' to 'apikey'
+(key only), 'both' (key and IP), or 'either' (key or IP).
 
 =head1 SUBMISSION
 
@@ -61,6 +61,24 @@ but helps to set them to something sane and relevant.
 
     - type :: The type of submission. Generally going
               to be 'manual' or 'suricata_extract'.
+
+=head1 RESULTS FETCHING
+
+Detonation results written by CAPEv2 under C<< <base>/storage/analyses/<task_id>/ >>
+can be fetched via GET.
+
+    GET /results/<task_id>            -- JSON array of available result files
+    GET /results/<task_id>/<path>     -- fetch one result file
+
+Only a fixed set of files may be fetched: C<reports/lite.json>,
+C<reports/report.json>, C<reports/report.html>, C<reports/summary-report.html>,
+and C<shots/*.jpg>. Anything else, including path traversal attempts, returns a
+404.
+
+This is gated separately from submission via the C<results_auth>,
+C<results_apikey>, and C<results_subnets> config values. See
+L<CAPE::Utils/check_remote_results>. The API key, if used, is passed as the
+C<apikey> query parameter.
 
 =head1 PINGING
 
@@ -106,6 +124,44 @@ use CAPE::Utils::LogDrek qw( log_drek );
 
 # one instance shared across requests so the tracking int keeps incrementing
 my $submitter = CAPE::Utils::Nergal->new;
+
+# results fetching. list what result files exist for a task...
+get '/results/:task_id' => sub ($c) {
+	my $result = $submitter->results_list(
+		task_id   => $c->stash('task_id'),
+		remote_ip => $c->tx->original_remote_address,
+		apikey    => $c->param('apikey'),
+	);
+	$c->render( text => $result->{body}, status => $result->{status} );
+	return;
+};
+
+# ...and fetch a single one of them. '*path' captures the slashes in eg
+# 'reports/lite.json' or 'shots/0001.jpg'
+get '/results/:task_id/*path' => sub ($c) {
+	my $result;
+	eval {
+		$result = $submitter->results_fetch(
+			task_id   => $c->stash('task_id'),
+			path      => $c->stash('path'),
+			remote_ip => $c->tx->original_remote_address,
+			apikey    => $c->param('apikey'),
+		);
+	};
+	if ($@) {
+		log_drek( 'err', $@ );
+		$c->render( text => "Error... please see syslog\n", status => 400 );
+		return;
+	}
+
+	if ( $result->{path} ) {
+		$c->res->headers->content_type( $result->{content_type} );
+		$c->reply->file( $result->{path} );
+	} else {
+		$c->render( text => $result->{body}, status => $result->{status} );
+	}
+	return;
+}; ## end sub
 
 # two are needed as /* and / don't overlap... so pass it to the_stuff to actually handle it
 post '/*' => sub ($c) {
