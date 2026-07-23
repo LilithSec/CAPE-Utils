@@ -157,3 +157,20 @@ Using the provided systemd service file, you will also need to create
 CAPE_USER="cape"
 LISTEN_ON="http://192.168.14.15:8080"
 ```
+
+### cape_utils eve
+
+`cape_utils eve` is not a daemon. It is meant to be run periodically to
+process CAPE's eve.json output. Provided systemd unit files handle this
+via a timer that runs it every two minutes as the user `cape`.
+
+```
+cp systemd/cape_utils_eve.service systemd/cape_utils_eve.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now cape_utils_eve.timer
+```
+
+Only the timer is enabled. It triggers `cape_utils_eve.service`, which
+runs `/usr/local/bin/cape_utils eve`. The next run starts two minutes
+after the previous one finishes, so runs will not overlap. Use
+`systemctl list-timers` to see when it will next fire.

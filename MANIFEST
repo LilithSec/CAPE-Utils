@@ -36,6 +36,8 @@ src_bin/mojo_cape_submit_extend
 src_bin/suricata_extract_submit
 src_bin/suricata_extract_submit_extend
 systemd/mojo_cape_submit.service
+systemd/cape_utils_eve.service
+systemd/cape_utils_eve.timer
 munge_examples/pdf_check
 munge_examples/pdf_munge
 .gitignore

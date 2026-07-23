@@ -1,0 +1,10 @@
+[Unit]
+Description=Run cape_utils eve every two minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+Unit=cape_utils_eve.service
+
+[Install]
+WantedBy=timers.target

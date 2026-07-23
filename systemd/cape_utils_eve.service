@@ -1,0 +1,8 @@
+[Unit]
+Description=Process CAPE eve.json via cape_utils eve
+After=syslog.target network-online.target
+
+[Service]
+Type=oneshot
+User=cape
+ExecStart=/usr/local/bin/cape_utils eve
