@@ -14,7 +14,7 @@ use Pod::Usage       qw( pod2usage );
 
 =head1 NAME
 
-mojo_cape_submit_extend - Compute stats for mojo_cape_submit based on incoming JSONs
+nergal_extend - Compute stats for nergal based on incoming JSONs
 
 =head1 VERSION
 
@@ -23,23 +23,23 @@ mojo_cape_submit_extend - Compute stats for mojo_cape_submit based on incoming J
 =cut
 
 sub version {
-	print "mojo_cape_submit_extend v. 0.1.1\n";
+	print "nergal_extend v. 0.1.1\n";
 	exit 255;
 }
 
 =head1 SYNOPSIS
 
-mojo_cape_submit_extend [B<-Z>] [B<-m> <incoming JSON dir>]
+nergal_extend [B<-Z>] [B<-m> <incoming JSON dir>]
 
 =head1 DESCRIPTION
 
-Computes the stats for mojo_cape_submit based on the incoming JSON files.
+Computes the stats for nergal based on the incoming JSON files.
 
 =head1 SWITCHES
 
 =head2 -m <dir>
 
-The incoming JSON dir. This is the 'json' subdirectory beneath the mojo_cape_submit
+The incoming JSON dir. This is the 'json' subdirectory beneath the nergal
 'incoming' directory. The files in it are named after the incoming file and do not
 end in '.json'.
 

@@ -12,9 +12,9 @@ my %WriteMakefileArgs = (
 	MIN_PERL_VERSION => '5.006',
 	INST_SCRIPT      => 'bin',
 	EXE_FILES        => [
-		'src_bin/cape_utils',              'src_bin/mojo_cape_submit',
+		'src_bin/cape_utils',              'src_bin/nergal',
 		'src_bin/suricata_extract_submit', 'src_bin/suricata_extract_submit_extend',
-		'src_bin/mojo_cape_submit_extend'
+		'src_bin/nergal_extend'
 	],
 	CONFIGURE_REQUIRES => {
 		'ExtUtils::MakeMaker' => '0',

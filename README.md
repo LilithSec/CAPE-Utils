@@ -31,7 +31,7 @@ The config file used is '/usr/local/etc/suricata_extract_submit.ini'.
 ```
 # the API key to use if needed
 #apikey=
-# URL to find mojo_cape_submit at
+# URL to find nergal at
 url=http://192.168.14.15:8080/
 # the group/client/whathaveya slug
 slug=foo
@@ -115,17 +115,17 @@ set_clock_to_now=1
 timeout=200
 # default value for enforce timeout for submit
 enforce_timeout=0
-# the api key to for with mojo_cape_submit
+# the api key to for with nergal
 #apikey=
-# auth by IP only for mojo_cape_submit
+# auth by IP only for nergal
 auth_by_IP_only=1
- # comma seperated list of allowed subnets for mojo_cape_submit
+ # comma seperated list of allowed subnets for nergal
 subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
-# incoming dir to use for mojo_cape_submit
+# incoming dir to use for nergal
 incoming=/malware/client-incoming
 ```
 
-### mojo_cape_submit
+### nergal
 
 If cape_utils has been configured and is working, this just requires
 the 'incoming' setting configured.
@@ -133,7 +133,7 @@ the 'incoming' setting configured.
 The 'incoming' setting is a directory in which incoming files are placed
 for submission. By default this is '/malware/client-incoming'. The
 submission data JSON, checksum store, and task-to-JSON links are all kept
-in subdirectories beneath it. See L<CAPE::Utils::MojoSubmit/"INCOMING DIR
+in subdirectories beneath it. See L<CAPE::Utils::Nergal/"INCOMING DIR
 STRUCTURE"> for the layout.
 
 By default this will auth of the remote IP via the setting 'subnets',
@@ -146,7 +146,7 @@ To enable the use of a API key, it requires setting the value of
 'apikey' and setting 'auth_by_IP_only' to '0'.
 
 Using the provided systemd service file, you will also need to create
-'/usr/local/etc/mojo_cape_submit.env' and configure it akin to below.
+'/usr/local/etc/nergal.env' and configure it akin to below.
 
 ```
 CAPE_USER="cape"

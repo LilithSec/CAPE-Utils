@@ -12,7 +12,7 @@ lib/CAPE/Utils/Cmd/Command/running.pm
 lib/CAPE/Utils/Cmd/Command/submit.pm
 lib/CAPE/Utils/Cmd/Command/tasks.pm
 lib/CAPE/Utils/LogDrek.pm
-lib/CAPE/Utils/MojoSubmit.pm
+lib/CAPE/Utils/Nergal.pm
 Makefile.PL
 MANIFEST			This list of files
 README.md
@@ -21,7 +21,7 @@ t/input_validation.t
 t/legacy_argv.t
 t/logdrek.t
 t/manifest.t
-t/mojosubmit.t
+t/nergal.t
 t/munge.t
 t/new.t
 t/pod-coverage.t
@@ -31,11 +31,11 @@ t/shuffle.t
 t/submit.t
 t/timestamp.t
 src_bin/cape_utils
-src_bin/mojo_cape_submit
-src_bin/mojo_cape_submit_extend
+src_bin/nergal
+src_bin/nergal_extend
 src_bin/suricata_extract_submit
 src_bin/suricata_extract_submit_extend
-systemd/mojo_cape_submit.service
+systemd/nergal.service
 systemd/cape_utils_eve.service
 systemd/cape_utils_eve.timer
 munge_examples/pdf_check

@@ -1,4 +1,4 @@
-package CAPE::Utils::MojoSubmit;
+package CAPE::Utils::Nergal;
 
 use 5.006;
 use strict;
@@ -18,7 +18,7 @@ use CAPE::Utils::LogDrek qw( log_drek );
 
 =head1 NAME
 
-CAPE::Utils::MojoSubmit - Transport agnostic backend for the mojo_cape_submit handler.
+CAPE::Utils::Nergal - Transport agnostic backend for the nergal handler.
 
 =head1 VERSION
 
@@ -30,9 +30,9 @@ our $VERSION = '0.1.0';
 
 =head1 SYNOPSIS
 
-    use CAPE::Utils::MojoSubmit ();
+    use CAPE::Utils::Nergal ();
 
-    my $submitter = CAPE::Utils::MojoSubmit->new;
+    my $submitter = CAPE::Utils::Nergal->new;
 
     # driven from a Mojolicious handler...
     my $result = $submitter->receive(
@@ -47,7 +47,7 @@ our $VERSION = '0.1.0';
 =head1 DESCRIPTION
 
 This holds the logic previously living inside the C<the_stuff> sub in
-C<mojo_cape_submit>. It is deliberately free of any Mojolicious dependency so
+C<nergal>. It is deliberately free of any Mojolicious dependency so
 the receive pipeline can be unit tested and reused from other front ends (for
 example a CGI wrapper).
 
@@ -90,7 +90,7 @@ Initiates the object. All arguments are optional and taken as a hash.
         fills it in from the config, but may be set directly when calling
         L</check_dirs> on its own.
 
-    my $submitter = CAPE::Utils::MojoSubmit->new( ini => '/path/to/config.ini' );
+    my $submitter = CAPE::Utils::Nergal->new( ini => '/path/to/config.ini' );
 
 =cut
 
@@ -106,11 +106,11 @@ sub new {
 	return bless $self, $class;
 } ## end sub new
 
-# thin wrapper so every log line from here is emitted under the mojo_cape_submit ident
+# thin wrapper so every log line from here is emitted under the nergal ident
 sub _log_drek {
 	my ( $level, $message, $tracking_int ) = @_;
 
-	return log_drek( $level, $message, $tracking_int, 'mojo_cape_submit' );
+	return log_drek( $level, $message, $tracking_int, 'nergal' );
 }
 
 =head2 check_dirs
@@ -473,7 +473,7 @@ sub _link_task_to_json {
 
 =head2 resub
 
-Resubmit a sample that was originally submitted via mojo_cape_submit, located
+Resubmit a sample that was originally submitted via nergal, located
 by exactly one of two keys.
 
     my $result = $submitter->resub( name => $name );

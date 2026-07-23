@@ -36,5 +36,5 @@ CAPE::Utils::LogDrek::log_drek( undef, 'no level' );
 is( $calls[0][0], 'info', 'level defaults to info when undef' );
 
 @idents = ();
-CAPE::Utils::LogDrek::log_drek( 'info', 'custom ident', undef, 'mojo_cape_submit' );
-is( $idents[0], 'mojo_cape_submit', 'ident can be overridden' );
+CAPE::Utils::LogDrek::log_drek( 'info', 'custom ident', undef, 'nergal' );
+is( $idents[0], 'nergal', 'ident can be overridden' );

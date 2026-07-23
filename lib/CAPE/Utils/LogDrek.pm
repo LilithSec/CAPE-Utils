@@ -31,7 +31,7 @@ our @EXPORT_OK = qw( log_drek );
 
 =head1 DESCRIPTION
 
-This holds the C<log_drek> sub that used to live inside C<mojo_cape_submit>. It
+This holds the C<log_drek> sub that used to live inside C<nergal>. It
 is exported on request so the various front ends can share one implementation
 instead of each carrying their own copy.
 

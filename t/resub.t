@@ -7,7 +7,7 @@ use File::Temp  qw( tempdir );
 use File::Slurp qw( read_file write_file );
 use JSON        qw( decode_json encode_json );
 
-use_ok('CAPE::Utils::MojoSubmit') || print "Bail out!\n";
+use_ok('CAPE::Utils::Nergal') || print "Bail out!\n";
 
 #
 # build a throwaway incoming dir + config pointing at it
@@ -45,7 +45,7 @@ local *CAPE::Utils::LogDrek::closelog = sub { };
 local *CAPE::Utils::LogDrek::syslog   = sub { };
 use warnings qw( redefine once );
 
-my $sub = CAPE::Utils::MojoSubmit->new( ini => $ini );
+my $sub = CAPE::Utils::Nergal->new( ini => $ini );
 
 #
 # resubmit by task ID

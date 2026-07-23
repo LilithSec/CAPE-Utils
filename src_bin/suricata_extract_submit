@@ -22,7 +22,7 @@ use Web::ACL              ();
 
 =head1 NAME
 
-suricata_extract_submit - Submits files extracted by Suricata to mojo_cape_submit for detonation via CAPEv2
+suricata_extract_submit - Submits files extracted by Suricata to nergal for detonation via CAPEv2
 
 =head1 VERSION
 
@@ -80,7 +80,7 @@ The config file used is '/usr/local/etc/suricata_extract_submit.ini'.
     # the API key to use if needed
     #apikey=
 
-    # URL to find mojo_cape_submit at
+    # URL to find nergal at
     url=http://192.168.14.15:8080/
 
     # the group/client/whathaveya slug

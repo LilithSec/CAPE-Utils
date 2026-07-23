@@ -3,18 +3,18 @@ package CAPE::Utils::Cmd::Command::resub;
 use strict;
 use warnings;
 use parent 'CAPE::Utils::Cmd::Base';
-use CAPE::Utils::MojoSubmit ();
+use CAPE::Utils::Nergal ();
 
 our $VERSION = '0.1.0';
 
 sub abstract {
-	return 'resubmit a sample previously submitted via mojo_cape_submit';
+	return 'resubmit a sample previously submitted via nergal';
 }
 
 sub usage_desc {
 	return 'cape_utils resub [-i <config>] ( -n <incoming name> | -r <task ID> ) [--json] [--pretty]
 
-Resubmit a sample that was originally submitted via mojo_cape_submit, located
+Resubmit a sample that was originally submitted via nergal, located
 by either its incoming name (-n) or a task ID (-r). As the incoming JSON store
 is keyed by name and overwritten per name, -n targets the most recent
 submission made under that name, while -r resolves the exact JSON the task was
@@ -24,7 +24,7 @@ The previous time and task are preserved under .cape_submit.time_orig and
 .cape_submit.task_orig, the incoming JSON is updated atomically, and a new
 task_to_json link is created for the new task ID.
 
-See CAPE::Utils::MojoSubmit->resub for more information.
+See CAPE::Utils::Nergal->resub for more information.
 ';
 } ## end sub usage_desc
 
@@ -53,7 +53,7 @@ sub validate_args {
 sub execute {
 	my ( $self, $opt, $args ) = @_;
 
-	my $result = CAPE::Utils::MojoSubmit->new( ini => $opt->{ini} )->resub(
+	my $result = CAPE::Utils::Nergal->new( ini => $opt->{ini} )->resub(
 		name => $opt->{n},
 		task => $opt->{r},
 	);

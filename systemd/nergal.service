@@ -5,8 +5,8 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-EnvironmentFile=/usr/local/etc/mojo_cape_submit.env
-ExecStart=/usr/bin/sudo -u $CAPE_USER /usr/local/bin/mojo_cape_submit daemon -m production -l $LISTEN_ON
+EnvironmentFile=/usr/local/etc/nergal.env
+ExecStart=/usr/bin/sudo -u $CAPE_USER /usr/local/bin/nergal daemon -m production -l $LISTEN_ON
 TimeoutStartSec=300
 Restart=always
 RestartSec=3

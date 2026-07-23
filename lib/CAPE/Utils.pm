@@ -1874,17 +1874,17 @@ default with CAPEv2 in the default config.
     timeout=200
     # default value for enforce timeout for submit
     enforce_timeout=0
-    # how to auth for mojo_cape_submit
+    # how to auth for nergal
     # ip = match against subnets
     # apikey = use apikey
     # both = require both to match
     # either = either may work
     auth=ip
-    # the api key to for with mojo_cape_submit
+    # the api key to for with nergal
     #apikey=
-    # comma seperated list of allowed subnets for mojo_cape_submit
+    # comma seperated list of allowed subnets for nergal
     subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
-    # incoming dir to use for mojo_cape_submit
+    # incoming dir to use for nergal
     incoming=/malware/client-incoming
     # Location to write the eve log to.
     eve=/opt/CAPEv2/log/eve.json
@@ -1946,7 +1946,7 @@ format $task_id.'.json'. So for task ID 33 with the default 'incoming' of
 will proceed.
 
 The incoming JSON for the task is located via the 'task_to_json' link under the 'incoming'
-directory, which points to the submission data JSON written by mojo_cape_submit. For task ID
+directory, which points to the submission data JSON written by nergal. For task ID
 33 this is 'incoming'.'/task_to_json/33'.
 
 It reads the 'lite.json' report for task as well as the incoming JSON. It then copies the keys

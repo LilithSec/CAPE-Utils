@@ -2,11 +2,11 @@
 
 =head1 NAME
 
-mojo_cape_submit - A mojolicious script for handling submissions of files for detonation.
+nergal - A mojolicious script for handling submissions of files for detonation.
 
 =head1 SYNOPSIS
 
-sudo -u cape mojo_cape_submit daemon -m production -l 'http://*:8080'
+sudo -u cape nergal daemon -m production -l 'http://*:8080'
 
 =head1 DESCRIPTION
 
@@ -17,8 +17,8 @@ To work, this script needs to be running as the same user as CAPEv2.
 
 This will write activity to syslog.
 
-A systemd service file is provided at 'systemd/mojo_cape_submit.service' in this modules
-tarball. It expects the enviromental '/usr/local/etc/mojo_cape_submit.env' file to be setup
+A systemd service file is provided at 'systemd/nergal.service' in this modules
+tarball. It expects the enviromental '/usr/local/etc/nergal.env' file to be setup
 with the variables 'CAPE_USER' and 'LISTEN_ON'. To lets say you want to listen on
 http://192.168.14.15:8080 with a user of cape, it would be like below.
 
@@ -35,7 +35,7 @@ configured.
 The 'incoming' setting is a directory in which incoming files are placed for submission. By
 default this is '/malware/client-incoming'. The submission data JSON, checksum store, and
 task-to-JSON links are all kept in subdirectories beneath it. See
-L<CAPE::Utils::MojoSubmit/"INCOMING DIR STRUCTURE"> for the layout.
+L<CAPE::Utils::Nergal/"INCOMING DIR STRUCTURE"> for the layout.
 
 =head1 SECURITY
 
@@ -70,7 +70,7 @@ At that point it will just stop processing of it.
 
 =head1 ENVIROMENTAL VARIABLES
 
-=head2 MOJO_CAPE_SUBMIT_MAX_REQ_SIZE
+=head2 NERGAL_MAX_REQ_SIZE
 
 This is the max request size, which will affect the size of files the can be submitted.
 
@@ -101,11 +101,11 @@ in question. If it already exists it is updated to the newest one.
 =cut
 
 use Mojolicious::Lite -signatures;
-use CAPE::Utils::MojoSubmit ();
-use CAPE::Utils::LogDrek    qw( log_drek );
+use CAPE::Utils::Nergal  ();
+use CAPE::Utils::LogDrek qw( log_drek );
 
 # one instance shared across requests so the tracking int keeps incrementing
-my $submitter = CAPE::Utils::MojoSubmit->new;
+my $submitter = CAPE::Utils::Nergal->new;
 
 # two are needed as /* and / don't overlap... so pass it to the_stuff to actually handle it
 post '/*' => sub ($c) {
@@ -140,21 +140,21 @@ sub the_stuff {
 	return;
 } ## end sub the_stuff
 
-# ensure we have something set for $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} and that it is a
+# ensure we have something set for $ENV{'NERGAL_MAX_REQ_SIZE'} and that it is a
 # int
-if ( defined( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} ) ) {
-	if ( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} !~ /^\d\d*$/ ) {
+if ( defined( $ENV{'NERGAL_MAX_REQ_SIZE'} ) ) {
+	if ( $ENV{'NERGAL_MAX_REQ_SIZE'} !~ /^\d\d*$/ ) {
 		log_drek(
 			'err',
-			'$ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} set to "'
-				. $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'}
+			'$ENV{NERGAL_MAX_REQ_SIZE} set to "'
+				. $ENV{'NERGAL_MAX_REQ_SIZE'}
 				. '" which does not match /^\d\d*$/ ... defaulting to 1073741824',
 		);
-		$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} = 1073741824;
+		$ENV{'NERGAL_MAX_REQ_SIZE'} = 1073741824;
 	}
 } else {
-	$ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} = 1073741824;
+	$ENV{'NERGAL_MAX_REQ_SIZE'} = 1073741824;
 }
-app->max_request_size( $ENV{'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE'} );
+app->max_request_size( $ENV{'NERGAL_MAX_REQ_SIZE'} );
 
 app->start;

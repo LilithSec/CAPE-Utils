@@ -7,6 +7,9 @@ Revision history for CAPE-Utils
 		 - fix handling of MOJO_CAPE_SUBMIT_MAX_REQ_SIZE
 		 - fix handling of printing received info in the log for mojo_cape_submit
 		 - add a incrementing int to mojo_cape_submit logging so log entries can more easily be corolated
+		 - rename mojo_cape_submit to nergal, mojo_cape_submit_extend to nergal_extend, and CAPE::Utils::MojoSubmit to CAPE::Utils::Nergal; the syslog ident, systemd service, env file, and MOJO_CAPE_SUBMIT_MAX_REQ_SIZE env var (now NERGAL_MAX_REQ_SIZE) follow suit
+		 - add a systemd timer for running cape_utils eve every two minutes
+		 - eve now writes per-task JSONs under the incoming dir's eve/ subdir and reads incoming JSON via task_to_json; drop the dead incoming_json config setting
 
 4.0.0   2025-07-21/15:00
 		 - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry

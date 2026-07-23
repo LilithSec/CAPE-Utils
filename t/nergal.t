@@ -7,7 +7,7 @@ use File::Temp  qw( tempdir tempfile );
 use File::Slurp qw( read_file write_file );
 use JSON        qw( decode_json );
 
-use_ok('CAPE::Utils::MojoSubmit') || print "Bail out!\n";
+use_ok('CAPE::Utils::Nergal') || print "Bail out!\n";
 
 # duck typed stand in for Mojo::Upload
 {
@@ -29,8 +29,8 @@ use_ok('CAPE::Utils::MojoSubmit') || print "Bail out!\n";
 	}
 }
 
-my $submitter = CAPE::Utils::MojoSubmit->new;
-isa_ok( $submitter, 'CAPE::Utils::MojoSubmit' );
+my $submitter = CAPE::Utils::Nergal->new;
+isa_ok( $submitter, 'CAPE::Utils::Nergal' );
 
 #
 # checksums, checked against the well known digests of the string "abc"
@@ -52,7 +52,7 @@ foreach my $subdir (qw( sha256 json name_to_sha256 task_to_json tmp )) {
 	mkdir( $incoming . '/' . $subdir );
 }
 
-my $checker = CAPE::Utils::MojoSubmit->new( incoming => $incoming );
+my $checker = CAPE::Utils::Nergal->new( incoming => $incoming );
 my $ok      = eval { $checker->check_dirs; };
 ok( $ok && !$@, 'check_dirs passes when every required dir is present' );
 
@@ -63,7 +63,7 @@ like( $@, qr/incoming tmp directory.*does not exist/, 'check_dirs dies on a miss
 mkdir( $incoming . '/tmp' );
 
 # missing incoming dir entirely
-my $gone = CAPE::Utils::MojoSubmit->new( incoming => $incoming . '/nope' );
+my $gone = CAPE::Utils::Nergal->new( incoming => $incoming . '/nope' );
 eval { $gone->check_dirs; };
 like( $@, qr/incoming directory.*does not exist/, 'check_dirs dies on a missing incoming dir' );
 
@@ -82,7 +82,7 @@ local *CAPE::Utils::LogDrek::closelog = sub { };
 local *CAPE::Utils::LogDrek::syslog   = sub { };
 use warnings qw( redefine once );
 
-my $receiver = CAPE::Utils::MojoSubmit->new( ini => $ini );
+my $receiver = CAPE::Utils::Nergal->new( ini => $ini );
 
 # single task ID
 $submit_returns = 99;
