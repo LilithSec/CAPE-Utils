@@ -1476,6 +1476,10 @@ The following options are supported.
     - quiet :: Do not print the output from the command.
         - Default :: 0
 
+    - verbose :: Print to STDERR what it is doing, such as the directory it is
+      changing to and the full command being run.
+        - Default :: 0
+
 The returned value is a hash ref as below.
 
     - command :: An array ref of the command actually run, including any poetry
@@ -1500,16 +1504,34 @@ sub exec {
 		die 'No command to exec passed';
 	}
 
-	chdir( $self->{'config'}->{'_'}->{'base'} )
-		|| die( 'Unable to CD to "' . $self->{'config'}->{'_'}->{'base'} . '"' );
+	my $base = $self->{'config'}->{'_'}->{'base'};
+	if ( $opts{verbose} ) {
+		print STDERR 'exec: changing directory to "' . $base . '"' . "\n";
+	}
+	chdir($base)
+		|| die( 'Unable to CD to "' . $base . '"' );
 
 	my @to_run = $self->_cape_runas_prefix;
+	if ( $opts{verbose} && @to_run ) {
+		print STDERR 'exec: running as user "'
+			. $self->{'config'}->{'_'}->{'cape_runas'}
+			. '" via prefix: '
+			. join( ' ', @to_run ) . "\n";
+	}
 
 	if ( $self->{'config'}->{'_'}->{poetry} ) {
+		if ( $opts{verbose} ) {
+			print STDERR 'exec: poetry enabled, wrapping command in "'
+				. $self->{'config'}->{'_'}->{poetry_path} . ' run"' . "\n";
+		}
 		push( @to_run, $self->{'config'}->{'_'}->{poetry_path}, 'run' );
 	}
 
 	push( @to_run, @{ $opts{command} } );
+
+	if ( $opts{verbose} ) {
+		print STDERR 'exec: running command: ' . join( ' ', @to_run ) . "\n";
+	}
 
 	my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf ) = run(
 		command => \@to_run,
@@ -1517,6 +1539,12 @@ sub exec {
 	);
 
 	my $output = join( '', @{$full_buf} );
+
+	if ( $opts{verbose} ) {
+		print STDERR 'exec: command '
+			. ( $success                ? 'succeeded'                 : 'failed' )
+			. ( defined($error_message) ? ' (' . $error_message . ')' : '' ) . "\n";
+	}
 
 	if ( !$opts{quiet} ) {
 		print $output;

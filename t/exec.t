@@ -85,6 +85,30 @@ is_deeply(
 );
 
 #
+# verbose mode reports what it is doing on STDERR without touching the output
+#
+my $stderr_buffer = '';
+{
+	$canned_success = 1;
+	open( my $save_stderr, '>&', \*STDERR ) || die("Unable to dup STDERR: $!");
+	close(STDERR);
+	open( STDERR, '>', \$stderr_buffer ) || die("Unable to redirect STDERR: $!");
+	my $verbose_results = $poetry_cape->exec( command => [ 'python3', 'utils/process.py' ], quiet => 1, verbose => 1 );
+	open( STDERR, '>&', $save_stderr ) || die("Unable to restore STDERR: $!");
+	close($save_stderr);
+
+	like( $stderr_buffer, qr/changing directory to/, 'verbose reports the chdir on STDERR' );
+	like( $stderr_buffer, qr/poetry enabled/,        'verbose reports the poetry wrapping on STDERR' );
+	like(
+		$stderr_buffer,
+		qr{running command:.*/etc/poetry/bin/poetry run python3 utils/process\.py},
+		'verbose reports the full command on STDERR'
+	);
+	like( $stderr_buffer, qr/command succeeded/, 'verbose reports the exit status on STDERR' );
+	is( $verbose_results->{output}, "hello\n", 'verbose does not pollute the returned output' );
+}
+
+#
 # a missing command dies
 #
 eval { $cape_util->exec( command => [], quiet => 1 ); };

@@ -12,6 +12,8 @@ Revision history for CAPE-Utils
 		 - eve now writes per-task JSONs under the incoming dir's eve/ subdir and reads incoming JSON via task_to_json; drop the dead incoming_json config setting
 		 - add a nergal results endpoint (GET /results/<task_id> and /results/<task_id>/<file>) for fetching detonation artifacts (reports/lite.json, reports/report.json, reports/report.html, reports/summary-report.html, shots/*.jpg), gated by a separate ACL (results_auth/results_apikey/results_subnets)
 		 - fix check_remote ACL logic: ip/apikey/both/either now behave correctly (previously a bare apikey bypassed the IP check and ip-only auth denied keyless requests)
+		 - add a cape_utils exec command for running an arbitrary command from the CAPE base dir via poetry, the same way submissions are executed
+		 - submit and exec now require being ran as the configured cape_runas user (default cape); when not, they prepend "sudo -u <cape_runas>" if enable_sudo is set (defaults to 1 when ran as root, otherwise 0) or die
 
 4.0.0   2025-07-21/15:00
 		 - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry

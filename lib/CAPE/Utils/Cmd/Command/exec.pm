@@ -11,7 +11,7 @@ sub abstract {
 }
 
 sub usage_desc {
-	return 'cape_utils exec [-i <config>] [--quiet] [--json] [--pretty] -- <command> [<arg>...]
+	return 'cape_utils exec [-i <config>] [--quiet] [--verbose] [--json] [--pretty] -- <command> [<arg>...]
 
 Run an arbitrary command from the CAPE base directory, wrapped in "poetry run"
 (when poetry is enabled in the config), the same way submissions are executed.
@@ -25,7 +25,11 @@ that flags meant for the command are not parsed by cape_utils, e.g.
 
 sub opt_spec {
 	my ($class) = @_;
-	return ( [ 'quiet', 'do not print the output from the command' ], $class->json_opts, $class->ini_opt, );
+	return (
+		[ 'quiet',   'do not print the output from the command' ],
+		[ 'verbose', 'print to STDERR what it is doing' ],
+		$class->json_opts, $class->ini_opt,
+	);
 }
 
 sub validate_args {
@@ -49,6 +53,7 @@ sub execute {
 	my $results = $self->cape_utils($opt)->exec(
 		command => $args,
 		quiet   => $quiet,
+		verbose => $opt->{verbose},
 	);
 
 	if ( $opt->{json} ) {
