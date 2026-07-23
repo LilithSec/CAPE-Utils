@@ -136,14 +136,15 @@ get '/results/:task_id' => sub ($c) {
 	return;
 };
 
-# ...and fetch a single one of them. '*path' captures the slashes in eg
-# 'reports/lite.json' or 'shots/0001.jpg'
-get '/results/:task_id/*path' => sub ($c) {
+# ...and fetch a single one of them. '*subpath' captures the slashes in eg
+# 'reports/lite.json' or 'shots/0001.jpg'. 'path' can't be used as the
+# placeholder name as it is a reserved Mojolicious stash value.
+get '/results/:task_id/*subpath' => sub ($c) {
 	my $result;
 	eval {
 		$result = $submitter->results_fetch(
 			task_id   => $c->stash('task_id'),
-			path      => $c->stash('path'),
+			path      => $c->stash('subpath'),
 			remote_ip => $c->tx->original_remote_address,
 			apikey    => $c->param('apikey'),
 		);
