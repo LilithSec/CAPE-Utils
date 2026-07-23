@@ -1428,6 +1428,76 @@ sub submit {
 
 =pod
 
+=head2 exec
+
+Run an arbitrary command from the CAPE base directory, the same way submissions
+are executed. When poetry is enabled in the config, the command is wrapped in
+"poetry run" so it runs inside CAPEv2's poetry environment (i.e. as the cape
+user would run it).
+
+The following options are supported.
+
+    - command :: An array ref of the command and its arguments to run. Required.
+
+    - quiet :: Do not print the output from the command.
+        - Default :: 0
+
+The returned value is a hash ref as below.
+
+    - command :: An array ref of the command actually run, including any poetry
+      wrapping.
+
+    - success :: 0/1 for if the command exited successfully.
+
+    - error :: The error message from IPC::Cmd::run, if any.
+
+    - output :: The combined stdout/stderr output from the command.
+
+    my $exec_results = $cape_util->exec( command => [ 'python3', 'utils/foo.py', '--bar' ], quiet => 1 );
+    use JSON;
+    print encode_json($exec_results) . "\n";
+
+=cut
+
+sub exec {
+	my ( $self, %opts ) = @_;
+
+	if ( ref( $opts{command} ) ne 'ARRAY' || !defined( $opts{command}[0] ) ) {
+		die 'No command to exec passed';
+	}
+
+	chdir( $self->{'config'}->{'_'}->{'base'} )
+		|| die( 'Unable to CD to "' . $self->{'config'}->{'_'}->{'base'} . '"' );
+
+	my @to_run = ();
+
+	if ( $self->{'config'}->{'_'}->{poetry} ) {
+		push( @to_run, $self->{'config'}->{'_'}->{poetry_path}, 'run' );
+	}
+
+	push( @to_run, @{ $opts{command} } );
+
+	my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf ) = run(
+		command => \@to_run,
+		verbose => 0
+	);
+
+	my $output = join( '', @{$full_buf} );
+
+	if ( !$opts{quiet} ) {
+		print $output;
+	}
+
+	return {
+		command => \@to_run,
+		success => ( $success ? 1 : 0 ),
+		error   => $error_message,
+		output  => $output,
+	};
+} ## end sub exec
+
+=pod
+
 =head2 timestamp
 
 Creates a timestamp to be used with utils/submit. localtime
