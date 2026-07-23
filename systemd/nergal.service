@@ -5,8 +5,10 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+User=cape
+Group=cape
 EnvironmentFile=/usr/local/etc/nergal.env
-ExecStart=/usr/bin/sudo -u $CAPE_USER /usr/local/bin/nergal daemon -m production -l $LISTEN_ON
+ExecStart=/usr/local/bin/nergal daemon -m production -l $LISTEN_ON
 TimeoutStartSec=300
 Restart=always
 RestartSec=3

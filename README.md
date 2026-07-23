@@ -149,9 +149,13 @@ Using the provided systemd service file, you will also need to create
 '/usr/local/etc/nergal.env' and configure it akin to below.
 
 ```
-CAPE_USER="cape"
 LISTEN_ON="http://192.168.14.15:8080"
 ```
+
+The service runs as the user and group 'cape' via the unit's 'User='
+and 'Group=' directives. If you need it to run as a different user, edit
+those in 'systemd/nergal.service' rather than setting an environment
+variable.
 
 ### cape_utils eve
 
