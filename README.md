@@ -123,23 +123,18 @@ auth_by_IP_only=1
 subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
 # incoming dir to use for mojo_cape_submit
 incoming=/malware/client-incoming
-# directory to store json data files for submissions recieved by mojo_cape_submit
-incoming_json=/malware/incoming-json
 ```
 
 ### mojo_cape_submit
 
 If cape_utils has been configured and is working, this just requires
-two more additional bits configured.
+the 'incoming' setting configured.
 
-The first is the setting 'incoming'. This setting is a directory in
-which incoming files are placed for submission. By default this is
-'/malware/client-incoming'.
-
-The second is 'incoming_json'. This is a directory the data files for
-submitted files are written to. The name of the file is the task ID
-with '.json' appended. So task ID '123' would become '123.json'. The
-default directory for this is '/malware/incoming-json'.
+The 'incoming' setting is a directory in which incoming files are placed
+for submission. By default this is '/malware/client-incoming'. The
+submission data JSON, checksum store, and task-to-JSON links are all kept
+in subdirectories beneath it. See L<CAPE::Utils::MojoSubmit/"INCOMING DIR
+STRUCTURE"> for the layout.
 
 By default this will auth of the remote IP via the setting 'subnets',
 which by default is

@@ -92,7 +92,6 @@ sub new {
 			'apikey'              => '',
 			'auth'                => 'ip',
 			'incoming'            => '/malware/client-incoming',
-			'incoming_json'       => '/malware/incoming-json',
 			'eve_look_back'       => 360,
 			'malscore'            => 0,
 			'poetry_path'         => '/etc/poetry/bin/poetry',
@@ -1597,7 +1596,7 @@ sub eve_process {
 	foreach my $row (@rows) {
 		my $report        = $self->{'config'}{'_'}{'base'} . '/storage/analyses/' . $row->{'id'} . '/reports/lite.json';
 		my $id_eve        = $self->{'config'}{'_'}{'incoming'} . '/eve/' . $row->{'id'} . '.json';
-		my $incoming_json = $self->{'config'}{'_'}{'incoming_json'} . '/' . $row->{'id'} . '.json';
+		my $incoming_json = $self->{'config'}{'_'}{'incoming'} . '/task_to_json/' . $row->{'id'};
 
 		# make sure we have the required files and they are accessible
 		# id_eve is being used as a lock file to make sure we don't reprocess it
@@ -1887,9 +1886,6 @@ default with CAPEv2 in the default config.
     subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
     # incoming dir to use for mojo_cape_submit
     incoming=/malware/client-incoming
-    # directory to store json data files for submissions recieved by mojo_cape_submit
-    # this directory is also used for storing run specific eves
-    incoming_json=/malware/incoming-json
     # Location to write the eve log to.
     eve=/opt/CAPEv2/log/eve.json
     # how far to go back for processing eve
@@ -1948,6 +1944,10 @@ has been created under the 'eve' directory beneath the 'incoming' directory. Thi
 format $task_id.'.json'. So for task ID 33 with the default 'incoming' of
 '/malware/client-incoming', this would be '/malware/client-incoming/eve/33.json'. If not, it
 will proceed.
+
+The incoming JSON for the task is located via the 'task_to_json' link under the 'incoming'
+directory, which points to the submission data JSON written by mojo_cape_submit. For task ID
+33 this is 'incoming'.'/task_to_json/33'.
 
 It reads the 'lite.json' report for task as well as the incoming JSON. It then copies the keys
 'signatures' and 'malscore' into the hash for the incoming JSON and writes it out to

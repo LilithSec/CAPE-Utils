@@ -29,15 +29,13 @@ Alternatively, this script can be invoked as a CGI script if it is ran as the us
 
 =head1 CONFIGURATION
 
-If cape_utils has been configured and is working, this just requires two more additional
-bits configured.
+If cape_utils has been configured and is working, this just requires the 'incoming' setting
+configured.
 
-The first is the setting 'incoming'. This setting is a directory in which incoming files are
-placed for submission. By default this is '/malware/client-incoming'.
-
-The second is 'incoming_json'. This is a directory the data files for submitted files are written to.
-The name of the file is the task ID with '.json' appended. So task ID '123' would become '123.json'. The
-default directory for this is '/malware/incoming-json'.
+The 'incoming' setting is a directory in which incoming files are placed for submission. By
+default this is '/malware/client-incoming'. The submission data JSON, checksum store, and
+task-to-JSON links are all kept in subdirectories beneath it. See
+L<CAPE::Utils::MojoSubmit/"INCOMING DIR STRUCTURE"> for the layout.
 
 =head1 SECURITY
 
