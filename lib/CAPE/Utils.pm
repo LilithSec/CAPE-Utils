@@ -1596,7 +1596,7 @@ sub eve_process {
 
 	foreach my $row (@rows) {
 		my $report        = $self->{'config'}{'_'}{'base'} . '/storage/analyses/' . $row->{'id'} . '/reports/lite.json';
-		my $id_eve        = $self->{'config'}{'_'}{'incoming_json'} . '/' . $row->{'id'} . '.eve.json';
+		my $id_eve        = $self->{'config'}{'_'}{'incoming'} . '/eve/' . $row->{'id'} . '.json';
 		my $incoming_json = $self->{'config'}{'_'}{'incoming_json'} . '/' . $row->{'id'} . '.json';
 
 		# make sure we have the required files and they are accessible
@@ -1659,7 +1659,10 @@ sub eve_process {
 			# from being one long line when appended to
 			my $raw_eve_json = encode_json($eve_json) . "\n";
 
-			eval { write_file( $id_eve, $raw_eve_json ); };
+			eval {
+				make_path( dirname($id_eve) );
+				write_file( $id_eve, $raw_eve_json );
+			};
 			if ($@) {
 				my $error_message = 'Failed to write out ID EVE for ' . $row->{'id'} . ' at ' . $id_eve . '  ... ' . $@;
 				$self->log_drek( 'cape_eve_process', 'err', $error_message );
@@ -1941,12 +1944,14 @@ Tasks are found by looking back X number of seconds in the tasks table for tasks
 The amount of time is determined by the config value 'eve_look_back'.
 
 It will check if a task has been processed already or not be seeing if a task specified EVE JSON
-has been created under the 'incoming_json' directory. This is in the format $task_id.'eve.json'.
-If not, it will proceed.
+has been created under the 'eve' directory beneath the 'incoming' directory. This is in the
+format $task_id.'.json'. So for task ID 33 with the default 'incoming' of
+'/malware/client-incoming', this would be '/malware/client-incoming/eve/33.json'. If not, it
+will proceed.
 
 It reads the 'lite.json' report for task as well as the incoming JSON. It then copies the keys
 'signatures' and 'malscore' into the hash for the incoming JSON and writes it out to
-$task_id.'eve.json' and appending it to the file specified via the config value 'eve'.
+'incoming'.'/eve/'.$task_id.'.json' and appending it to the file specified via the config value 'eve'.
 
 The are two possible values for 'event_type', 'potential_malware_detonation' and 'alert'.
 'potential_malware_detonation' is changed to alert when 'malscore' goves over the value
