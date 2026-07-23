@@ -1504,33 +1504,64 @@ sub exec {
 		die 'No command to exec passed';
 	}
 
+	my @command_tail;
+	if ( $self->{'config'}->{'_'}->{poetry} ) {
+		if ( $opts{verbose} ) {
+			print STDERR 'exec: poetry enabled, wrapping command in "'
+				. $self->{'config'}->{'_'}->{poetry_path} . ' run"' . "\n";
+		}
+		push( @command_tail, $self->{'config'}->{'_'}->{poetry_path}, 'run' );
+	}
+	push( @command_tail, @{ $opts{command} } );
+
+	return $self->_run_in_base(
+		label        => 'exec',
+		command_tail => \@command_tail,
+		quiet        => $opts{quiet},
+		verbose      => $opts{verbose},
+	);
+} ## end sub exec
+
+# Private helper shared by exec() and poetry().
+#
+# CDs to the CAPE base dir and runs the passed command tail as the configured
+# cape_runas user (via _cape_runas_prefix). Handles the verbose reporting of the
+# chdir, runas prefix, final command, and exit status, and prints the combined
+# output unless quiet is set.
+#
+# Options:
+#     - label        :: Prefix used for the verbose STDERR messages, e.g. 'exec'.
+#     - command_tail :: An array ref of the command and args to run, minus the
+#       cape_runas prefix. Required.
+#     - quiet        :: Do not print the output from the command.
+#     - verbose      :: Print to STDERR what it is doing.
+#
+# Returns the same hash ref shape documented for exec().
+sub _run_in_base {
+	my ( $self, %opts ) = @_;
+
+	my $label = defined( $opts{label} ) ? $opts{label} : 'exec';
+
 	my $base = $self->{'config'}->{'_'}->{'base'};
 	if ( $opts{verbose} ) {
-		print STDERR 'exec: changing directory to "' . $base . '"' . "\n";
+		print STDERR $label . ': changing directory to "' . $base . '"' . "\n";
 	}
 	chdir($base)
 		|| die( 'Unable to CD to "' . $base . '"' );
 
 	my @to_run = $self->_cape_runas_prefix;
 	if ( $opts{verbose} && @to_run ) {
-		print STDERR 'exec: running as user "'
+		print STDERR $label
+			. ': running as user "'
 			. $self->{'config'}->{'_'}->{'cape_runas'}
 			. '" via prefix: '
 			. join( ' ', @to_run ) . "\n";
 	}
 
-	if ( $self->{'config'}->{'_'}->{poetry} ) {
-		if ( $opts{verbose} ) {
-			print STDERR 'exec: poetry enabled, wrapping command in "'
-				. $self->{'config'}->{'_'}->{poetry_path} . ' run"' . "\n";
-		}
-		push( @to_run, $self->{'config'}->{'_'}->{poetry_path}, 'run' );
-	}
-
-	push( @to_run, @{ $opts{command} } );
+	push( @to_run, @{ $opts{command_tail} } );
 
 	if ( $opts{verbose} ) {
-		print STDERR 'exec: running command: ' . join( ' ', @to_run ) . "\n";
+		print STDERR $label . ': running command: ' . join( ' ', @to_run ) . "\n";
 	}
 
 	my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf ) = run(
@@ -1541,7 +1572,8 @@ sub exec {
 	my $output = join( '', @{$full_buf} );
 
 	if ( $opts{verbose} ) {
-		print STDERR 'exec: command '
+		print STDERR $label
+			. ': command '
 			. ( $success                ? 'succeeded'                 : 'failed' )
 			. ( defined($error_message) ? ' (' . $error_message . ')' : '' ) . "\n";
 	}
@@ -1556,7 +1588,60 @@ sub exec {
 		error   => $error_message,
 		output  => $output,
 	};
-} ## end sub exec
+} ## end sub _run_in_base
+
+=pod
+
+=head2 poetry
+
+Run an arbitrary poetry command from the CAPE base directory as the configured
+cape_runas user. This is like L</exec>, but instead of wrapping the command in
+"poetry run", the passed arguments are handed directly to poetry, so anything
+poetry accepts may be run, e.g. "install", "add foo", "lock", or "env info".
+
+This must be ran as the configured cape_runas user. If it is not and enable_sudo
+is set, the command is prefixed with "sudo -u <cape_runas>"; otherwise it dies.
+
+Poetry must be enabled in the config. If poetry is disabled (poetry=0) this dies,
+as there is nothing to run.
+
+The following options are supported.
+
+    - args :: An array ref of the arguments to pass to poetry. Required.
+
+    - quiet :: Do not print the output from the command.
+        - Default :: 0
+
+    - verbose :: Print to STDERR what it is doing, such as the directory it is
+      changing to and the full command being run.
+        - Default :: 0
+
+The returned value is the same hash ref shape as documented for L</exec>.
+
+    my $poetry_results = $cape_util->poetry( args => [ 'install' ], quiet => 1 );
+    use JSON;
+    print encode_json($poetry_results) . "\n";
+
+=cut
+
+sub poetry {
+	my ( $self, %opts ) = @_;
+
+	if ( ref( $opts{args} ) ne 'ARRAY' || !defined( $opts{args}[0] ) ) {
+		die 'No poetry arguments passed';
+	}
+
+	if ( !$self->{'config'}->{'_'}->{poetry} ) {
+		die 'poetry is disabled in the config (poetry=0)';
+	}
+
+	return $self->_run_in_base(
+		label        => 'poetry',
+		command_tail => [ $self->{'config'}->{'_'}->{'poetry_path'}, @{ $opts{args} } ],
+		quiet        => $opts{quiet},
+		verbose      => $opts{verbose},
+	);
+} ## end sub poetry
 
 =pod
 

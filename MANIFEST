@@ -7,6 +7,7 @@ lib/CAPE/Utils/Cmd/Command/exec.pm
 lib/CAPE/Utils/Cmd/Command/fail.pm
 lib/CAPE/Utils/Cmd/Command/munge.pm
 lib/CAPE/Utils/Cmd/Command/pending.pm
+lib/CAPE/Utils/Cmd/Command/poetry.pm
 lib/CAPE/Utils/Cmd/Command/post.pm
 lib/CAPE/Utils/Cmd/Command/resub.pm
 lib/CAPE/Utils/Cmd/Command/running.pm
@@ -30,6 +31,7 @@ t/munge.t
 t/new.t
 t/pod-coverage.t
 t/pod.t
+t/poetry.t
 t/resub.t
 t/shuffle.t
 t/submit.t
