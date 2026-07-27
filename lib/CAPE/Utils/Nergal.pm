@@ -9,8 +9,10 @@ use File::Slurp          qw( read_file );
 use Sys::Hostname        qw( hostname );
 use File::Temp           qw( tempfile );
 use File::Copy           qw( move );
-use File::Basename       qw( dirname );
+use File::Basename       qw( basename dirname );
 use Cwd                  qw( abs_path );
+use Socket               qw( inet_pton AF_INET AF_INET6 );
+use POSIX                qw( strftime );
 use Digest::SHA          ();
 use Digest::MD5          ();
 use CAPE::Utils::LogDrek qw( log_drek );
@@ -23,11 +25,11 @@ CAPE::Utils::Nergal - Transport agnostic backend for the nergal handler.
 
 =head1 VERSION
 
-Version 0.1.0
+Version 0.2.0
 
 =cut
 
-our $VERSION = '0.1.0';
+our $VERSION = '0.2.0';
 
 =head1 SYNOPSIS
 
@@ -172,6 +174,144 @@ sub checksums {
 	};
 } ## end sub checksums
 
+=head2 parse_name
+
+Parse the standard submission name format. This is the format
+L<suricata_extract_submit> builds its names in and which other tools submitting
+to nergal follow.
+
+    <src_ip>-<src_port>-<dest_ip>-<dest_port>-<proto>-<sha1>-<slug>-<epoch>-<mime>
+
+The mime has any '/' replaced with '_', so a name in this format never holds a
+'/'.
+
+    my $parsed = $submitter->parse_name($name);
+    # {
+    #     src_ip    => '192.168.14.42',
+    #     src_port  => 80,
+    #     dest_ip   => '192.168.14.2',
+    #     dest_port => 60729,
+    #     proto     => 'TCP',
+    #     sha1      => '335835d5cc1cde63a8',
+    #     slug      => 'vvelox',
+    #     time      => 1780421209,
+    #     timestamp => '2026-06-02T17:26:49Z',
+    #     mime      => 'application_x-msdownload',
+    # }
+
+The name is split on '-' with a limit of 9, so the mime, the only field that
+may hold a '-', keeps whatever it has. Every other field must be free of them,
+the slug included.
+
+Each field is then validated, and matching is all or nothing. Unless all nine
+are present and valid, undef is returned rather than a partially filled hash,
+so a name that is not in this format, such as one from a manual submission,
+parses to nothing. A slug holding a '-' shifts every field after it and fails
+validation, so it declines rather than mis-parsing.
+
+    0 src_ip    :: A valid IPv4 or IPv6 address.
+    1 src_port  :: An integer in the range 0 to 65535.
+    2 dest_ip   :: A valid IPv4 or IPv6 address.
+    3 dest_port :: An integer in the range 0 to 65535.
+    4 proto     :: 'TCP' or 'UDP', matched without regard to case and
+                   returned upper cased.
+    5 sha1      :: Hex only. Upper, lower, or mixed case all parse, and it is
+                   returned lower cased so it compares against the checksums
+                   L</checksums> generates.
+    6 slug      :: Defined, not empty, and not all digits.
+    7 time      :: A positive integer, taken as a UTC epoch.
+    8 mime      :: The mime type with the '/' replaced by a '_', so it must
+                   hold at least one '_'.
+
+The epoch is always UTC. suricata_extract_submit builds it by handing the EVE
+record's timestamp to C<< Time::Piece->strptime >> after stripping the
+fractional seconds and offset, which interprets it as UTC. C<timestamp> is that
+same instant rendered as an ISO 8601 UTC string for convenience.
+
+=cut
+
+# valid if the system can pack it as either family... inet_pton handles the full
+# range of IPv6 forms, which is not worth hand rolling a regex for
+sub _is_ip {
+	my ($address) = @_;
+
+	if ( !defined($address) || $address eq '' ) {
+		return 0;
+	}
+
+	if ( defined( inet_pton( AF_INET, $address ) ) || defined( inet_pton( AF_INET6, $address ) ) ) {
+		return 1;
+	}
+
+	return 0;
+} ## end sub _is_ip
+
+sub _is_port {
+	my ($port) = @_;
+
+	# \z rather than $, as $ would also match with a trailing newline on the end
+	if ( !defined($port) || $port !~ /\A[0-9]{1,5}\z/ || $port > 65535 ) {
+		return 0;
+	}
+
+	return 1;
+} ## end sub _is_port
+
+sub parse_name {
+	my ( $self, $name ) = @_;
+
+	if ( !defined($name) ) {
+		return undef;
+	}
+
+	# limit of 9 so the mime keeps any '-' it holds... every other field must be
+	# free of them, so anything past the ninth belongs to the mime
+	my @fields = split( /-/, $name, 9 );
+	if ( scalar(@fields) != 9 ) {
+		return undef;
+	}
+	my ( $src_ip, $src_port, $dest_ip, $dest_port, $proto, $sha1, $slug, $epoch, $mime ) = @fields;
+
+	if ( !_is_ip($src_ip) || !_is_ip($dest_ip) ) {
+		return undef;
+	}
+	if ( !_is_port($src_port) || !_is_port($dest_port) ) {
+		return undef;
+	}
+	# every one of these anchors with \z rather than $, as $ would also match with
+	# a trailing newline on the end of the field
+	if ( $proto !~ /\A(?:TCP|UDP)\z/i ) {
+		return undef;
+	}
+	if ( $sha1 !~ /\A[0-9a-fA-F]+\z/ ) {
+		return undef;
+	}
+	# an all digit slug is indistinguishable from a misplaced epoch
+	if ( !defined($slug) || $slug eq '' || $slug =~ /\A[0-9]+\z/ ) {
+		return undef;
+	}
+	if ( $epoch !~ /\A[0-9]+\z/ || $epoch <= 0 ) {
+		return undef;
+	}
+	# the mime is the type with its '/' swapped for a '_', so it must hold one
+	if ( $mime !~ /\A[A-Za-z0-9._+-]*_[A-Za-z0-9._+-]*\z/ ) {
+		return undef;
+	}
+
+	return {
+		src_ip    => $src_ip,
+		src_port  => $src_port + 0,
+		dest_ip   => $dest_ip,
+		dest_port => $dest_port + 0,
+		proto     => uc($proto),
+		sha1      => lc($sha1),
+		slug      => $slug,
+		time      => $epoch + 0,
+		timestamp => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime( $epoch + 0 ) ),
+		mime      => $mime,
+	};
+} ## end sub parse_name
+
 =head2 receive
 
 Runs the full submission pipeline for a single incoming request and returns a
@@ -196,6 +336,21 @@ Arguments are taken as a hash.
 
 All activity is logged via L<CAPE::Utils::LogDrek/log_drek>. The response body
 and status mirror the original script for each outcome.
+
+The C<json> body is optional. When the submitted name parses via L</parse_name>,
+the submission is treated as a standard suricata_extract_submit one and the
+fields recoverable from the name are filled in before the JSON is written out:
+C<< .src_ip >>, C<< .src_port >>, C<< .dest_ip >>, C<< .dest_port >>, and
+C<< .proto >> at the top level, plus C<< .suricata_extract_submit >>'s
+C<filename>, C<slug>, C<sha1>, C<time>, C<timestamp>, and C<mime>. Anything the
+submitter actually sent is never overwritten, and nothing is filled in at all
+unless the name parses in full.
+
+Only the file bit of the submitted name is used, via
+L<File::Basename/basename>, as the name comes straight from the multipart
+headers and may hold path separators. A name with nothing usable left after
+that is rejected with a 400. C<< .cape_submit.orig_name >> still records the
+name exactly as submitted.
 
 Should CAPE create multiple tasks for the submission, the body becomes
 C<Submitted as task IDs 1,2,3> style, C<< .cape_submit.task >> holds the IDs
@@ -265,7 +420,20 @@ sub receive {
 	my $name      = $file->filename;
 	my $size      = $file->size;
 	my $orig_name = $name;
-	$name =~ s/\///;
+
+	# The submitted name is whatever the client put in the multipart headers, so
+	# it may hold path separators. Only the file bit of it is ever used, as
+	# anything else would let a submitter walk out of the incoming dir and have
+	# the JSON write, the unlink, and the symlink below all land elsewhere. The
+	# name as submitted is still kept in full as .cape_submit.orig_name.
+	# basename returns '/' as is, and leaves '.' and '..' alone, none of which are
+	# a usable file name, so they are checked for rather than assumed away
+	$name = basename($name);
+	if ( $name eq '' || $name eq '.' || $name eq '..' || $name =~ m,/, ) {
+		_log_drek( 'err', 'Submitted filename, "' . $orig_name . '", has no usable file name in it', $tracking );
+		return { status => 400, body => "Invalid file name\n" };
+	}
+
 	my $json_filename = $incoming . '/json/' . $name;
 
 	# if size is 10, test if the contents are a test ping packet
@@ -285,6 +453,53 @@ sub receive {
 		_log_drek( 'err', 'json param decode error: ' . $@ );
 		$json = {};
 	}
+
+	# a JSON body is optional and some submitters send none... a top level that is
+	# not a hash would blow up everything below, so treat it as nothing submitted
+	if ( ref($json) ne 'HASH' ) {
+		_log_drek( 'err', 'json param did not decode to a hash... ignoring it', $tracking );
+		$json = {};
+	}
+
+	# Tools other than suricata_extract_submit submit using the same name format
+	# but without the JSON body that normally carries the flow info and the slug.
+	# When the name parses in full, treat it as a standard suricata_extract_submit
+	# submission and fill in what the name gives us. Anything actually submitted
+	# always wins, and a name that does not fully parse pads nothing at all.
+	my $from_name = $self->parse_name($name);
+	if ( defined($from_name) ) {
+		foreach my $field (qw( src_ip src_port dest_ip dest_port proto )) {
+			if ( !defined( $json->{$field} ) ) {
+				$json->{$field} = $from_name->{$field};
+			}
+		}
+
+		# the md5, sha256, host, to, and apikey the section normally holds are not
+		# recoverable from the name, so only what is actually in it gets filled in
+		my %from_name_section = (
+			filename  => $name,
+			slug      => $from_name->{slug},
+			sha1      => $from_name->{sha1},
+			time      => $from_name->{time},
+			timestamp => $from_name->{timestamp},
+			mime      => $from_name->{mime},
+		);
+		if ( !defined( $json->{suricata_extract_submit} ) ) {
+			$json->{suricata_extract_submit} = {};
+		}
+		# leave it be if the submitter put something other than a hash there
+		if ( ref( $json->{suricata_extract_submit} ) eq 'HASH' ) {
+			foreach my $field ( keys(%from_name_section) ) {
+				if ( !defined( $json->{suricata_extract_submit}{$field} ) ) {
+					$json->{suricata_extract_submit}{$field} = $from_name_section{$field};
+				}
+			}
+		}
+
+		_log_drek( 'info',
+			'Padded submission from name... slug="' . $from_name->{slug} . '" mime="' . $from_name->{mime} . '"',
+			$tracking );
+	} ## end if ( defined($from_name) )
 
 	# add initial relevant submission data
 	$json->{cape_submit} = {
@@ -332,22 +547,30 @@ sub receive {
 	# get some info for logging purposes
 	# done this way for the purpose of not having to constantly check if something is undef
 	my %additional_info;
-	$additional_info{src_ip}       = $json->{'src_ip'};
-	$additional_info{src_port}     = $json->{'src_port'};
-	$additional_info{dest_ip}      = $json->{'dest_ip'};
-	$additional_info{dest_port}    = $json->{'dest_port'};
-	$additional_info{proto}        = $json->{'proto'};
-	$additional_info{app_proto}    = $json->{'app_proto'};
-	$additional_info{flow_id}      = $json->{'flow_id'};
-	$additional_info{http_host}    = $json->{'http'}{'hostname'};
-	$additional_info{http_url}     = $json->{'http'}{'url'};
-	$additional_info{http_method}  = $json->{'http'}{'method'};
-	$additional_info{http_proto}   = $json->{'http'}{'protocol'};
-	$additional_info{http_status}  = $json->{'http'}{'status'};
-	$additional_info{http_ctype}   = $json->{'http'}{'http_content_type'};
-	$additional_info{http_ua}      = $json->{'http'}{'http_user_agent'};
-	$additional_info{det_sub_type} = $json->{'http'}{'http_method'};
-	$additional_info{src_host} = $json->{'suricata_extract_submit'}{'host'} // $json->{'lilith_cape_submit'}{'host'};
+	$additional_info{src_ip}    = $json->{'src_ip'};
+	$additional_info{src_port}  = $json->{'src_port'};
+	$additional_info{dest_ip}   = $json->{'dest_ip'};
+	$additional_info{dest_port} = $json->{'dest_port'};
+	$additional_info{proto}     = $json->{'proto'};
+	$additional_info{app_proto} = $json->{'app_proto'};
+	$additional_info{flow_id}   = $json->{'flow_id'};
+	# the sub sections are pulled via a hashref that is only taken when the section
+	# is actually there... dereferencing $json->{http} and friends directly would
+	# autovivify them, leaving an empty section in the JSON that gets written out
+	my $http = ref( $json->{'http'} ) eq 'HASH' ? $json->{'http'} : {};
+	$additional_info{http_host}    = $http->{'hostname'};
+	$additional_info{http_url}     = $http->{'url'};
+	$additional_info{http_method}  = $http->{'method'};
+	$additional_info{http_proto}   = $http->{'protocol'};
+	$additional_info{http_status}  = $http->{'status'};
+	$additional_info{http_ctype}   = $http->{'http_content_type'};
+	$additional_info{http_ua}      = $http->{'http_user_agent'};
+	$additional_info{det_sub_type} = $http->{'http_method'};
+
+	my $suricata_section
+		= ref( $json->{'suricata_extract_submit'} ) eq 'HASH' ? $json->{'suricata_extract_submit'} : {};
+	my $lilith_section = ref( $json->{'lilith_cape_submit'} ) eq 'HASH' ? $json->{'lilith_cape_submit'} : {};
+	$additional_info{src_host} = $suricata_section->{'host'} // $lilith_section->{'host'};
 
 	# set the value for anything not defined to undef for the purpose of logging
 	# this will avoid perl from throwing errors about undef used in cating
@@ -532,8 +755,12 @@ sub resub {
 	# locate the canonical incoming JSON path from whichever key was given
 	my $json_file;
 	if ( defined( $opts{name} ) ) {
-		my $name = $opts{name};
-		$name =~ s/\///;    # mojo stores names with a single leading slash stripped
+		# only the file bit is used, matching how receive stores it, so a name
+		# holding path separators cannot be used to read outside the json dir
+		my $name = basename( $opts{name} );
+		if ( $name eq '' || $name eq '.' || $name eq '..' || $name =~ m,/, ) {
+			die 'name "' . $opts{name} . '" has no usable file name in it';
+		}
 		$json_file = $incoming . '/json/' . $name;
 		if ( !-f $json_file ) {
 			die 'no incoming JSON for name "' . $name . '" at "' . $json_file . '"';

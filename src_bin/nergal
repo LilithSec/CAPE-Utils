@@ -62,6 +62,55 @@ but helps to set them to something sane and relevant.
     - type :: The type of submission. Generally going
               to be 'manual' or 'suricata_extract'.
 
+    - json :: Metadata for the submission. For a submission
+              coming from Suricata this is the EVE fileinfo
+              record with a 'suricata_extract_submit' section
+              added to it.
+
+=head2 Submission Name Format
+
+The 'json' param is optional. Where it is not sent, or does not carry the flow
+info and slug, nergal will recover them from the submitted filename provided it
+is in the standard format below, which is what suricata_extract_submit builds
+its names in.
+
+    <src_ip>-<src_port>-<dest_ip>-<dest_port>-<proto>-<sha1>-<slug>-<epoch>-<mime>
+
+    - src_ip / dest_ip :: A valid IPv4 or IPv6 address.
+
+    - src_port / dest_port :: An integer from 0 to 65535.
+
+    - proto :: 'TCP' or 'UDP'. Case does not matter.
+
+    - sha1 :: Hex sha1 of the file as of prior to sending, in upper, lower, or
+              mixed case. This is what the received file is checked against to
+              detect a file changing in transit.
+
+    - slug :: The group/client/whathaveya the submitter belongs to. Must not be
+              all digits. Stats are broken out per slug by nergal_extend.
+
+    - epoch :: UTC unix time the file was extracted at, as a positive integer.
+
+    - mime :: The mime type with any '/' replaced by '_', eg
+              'application_x-dosexec'. Must therefore contain a '_'.
+
+The mime is the only field that may contain a '-'. Nothing else in the name
+may, the slug included, as the name is split on '-' with a limit of 9 and
+everything past the ninth field is taken as part of the mime.
+
+Matching is all or nothing. Unless all nine fields are present and valid the
+name is left alone and nothing is filled in, so a manually submitted file keeps
+its own name and simply has no flow info or slug. A slug containing a '-'
+shifts every field after it and fails validation, so it is declined rather than
+mis-parsed. Anything actually sent in 'json' always wins over what the name
+says.
+
+Only the file bit of the submitted name is ever used. A name containing path
+separators is reduced to its last component, and one with nothing usable left
+after that is rejected.
+
+See L<CAPE::Utils::Nergal/parse_name>.
+
 =head1 RESULTS FETCHING
 
 Detonation results written by CAPEv2 under C<< <base>/storage/analyses/<task_id>/ >>

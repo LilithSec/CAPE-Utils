@@ -39,6 +39,7 @@ my %WriteMakefileArgs = (
 		'File::Basename'        => '0',
 		'File::Path'            => '0',
 		'POSIX'                 => '0',
+		'Socket'                => '0',
 		'Sys::Syslog'           => '0',
 		'Digest::SHA'           => '0',
 		'Digest::MD5'           => '0',

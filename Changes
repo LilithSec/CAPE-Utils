@@ -14,6 +14,12 @@ Revision history for CAPE-Utils
 		 - fix check_remote ACL logic: ip/apikey/both/either now behave correctly (previously a bare apikey bypassed the IP check and ip-only auth denied keyless requests)
 		 - add a cape_utils exec command for running an arbitrary command from the CAPE base dir via poetry, the same way submissions are executed
 		 - submit and exec now require being ran as the configured cape_runas user (default cape); when not, they prepend "sudo -u <cape_runas>" if enable_sudo is set (defaults to 1 when ran as root, otherwise 0) or die
+		 - nergal now recovers the flow info, slug, pre send sha1, extraction time, and mime from the submitted filename when it is in the standard <src_ip>-<src_port>-<dest_ip>-<dest_port>-<proto>-<sha1>-<slug>-<epoch>-<mime> format, for the sake of tools submitting in that format without the JSON body suricata_extract_submit sends; every field is validated, matching is all or nothing, the epoch is taken as UTC, and anything actually submitted always wins
+		 - nergal now uses only the file bit of the submitted filename, which previously had just its first '/' stripped, letting a submitter walk out of the incoming dir and have the JSON write, the unlink, and the symlink all land on an arbitrary path; the name as submitted is still recorded as .cape_submit.orig_name and resub got the same treatment
+		 - nergal no longer autovivifies empty http, suricata_extract_submit, and lilith_cape_submit sections into every incoming JSON it writes out
+		 - nergal now ignores a json param that does not decode to a hash instead of failing the submission with a 400
+		 - nergal_extend now buckets submissions with no slug under 'unknown' rather than an empty string, which also silences the uninitialized value warnings it emitted for them
+		 - nergal_extend now detects a changed hash via the sha1 when the submitter sent no sha256, so submissions without a suricata_extract_submit section are no longer all counted as changed
 
 4.0.0   2025-07-21/15:00
 		 - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry

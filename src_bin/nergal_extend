@@ -18,12 +18,12 @@ nergal_extend - Compute stats for nergal based on incoming JSONs
 
 =head1 VERSION
 
-0.1.1
+0.1.2
 
 =cut
 
 sub version {
-	print "nergal_extend v. 0.1.1\n";
+	print "nergal_extend v. 0.1.2\n";
 	exit 255;
 }
 
@@ -89,6 +89,10 @@ Slugs hash...
     - .slugs.$slug :: A per slug hash that is the same as the totals hash,
         but only for the that specific slug. This only includes slug seen
         during the current time slot.
+
+Submissions with no slug, meaning ones that neither sent one in the JSON body
+nor used the standard name format nergal recovers it from, are bucketed under
+the slug 'unknown'.
 
 =cut
 
@@ -160,7 +164,10 @@ foreach my $file (@files) {
 
 		push( @all_sizes, $json->{cape_submit}{size} );
 
-		$slug = $json->{suricata_extract_submit}{slug};
+		# submissions that did not follow the standard name format and did not send
+		# a slug of their own, such as manual ones, get bucketed under 'unknown'
+		# rather than becoming an empty string key
+		$slug = $json->{suricata_extract_submit}{slug} // 'unknown';
 		if ( !defined( $data->{slugs}{$slug} ) ) {
 			$data->{slugs}{$slug} = {
 				hash_changed => 0,
@@ -180,8 +187,17 @@ foreach my $file (@files) {
 
 		push( @{ $slug_sizes->{$slug} }, $json->{cape_submit}{size} );
 
-		if ( $json->{cape_submit}{sha256} ne $json->{suricata_extract_submit}{sha256} ) {
-			$hash_changed = 1;
+		# compare what the submitter hashed prior to sending against what was hashed
+		# on receipt... the sha256 if the JSON body carried one, otherwise the sha1,
+		# which is recoverable from the standard name format. Submissions providing
+		# neither have nothing to compare against and are not counted as changed.
+		my $sent = $json->{suricata_extract_submit};
+		if ( defined( $sent->{sha256} ) && defined( $json->{cape_submit}{sha256} ) ) {
+			$hash_changed = ( $json->{cape_submit}{sha256} ne $sent->{sha256} ) ? 1 : 0;
+		} elsif ( defined( $sent->{sha1} ) && defined( $json->{cape_submit}{sha1} ) ) {
+			$hash_changed = ( $json->{cape_submit}{sha1} ne $sent->{sha1} ) ? 1 : 0;
+		}
+		if ($hash_changed) {
 			push( @{ $data->{changed_hashes} }, $short_file );
 		}
 		if ( defined( $data->{slugs}{$slug} ) ) {
