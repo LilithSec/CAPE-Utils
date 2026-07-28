@@ -188,15 +188,26 @@ foreach my $file (@files) {
 		push( @{ $slug_sizes->{$slug} }, $json->{cape_submit}{size} );
 
 		# compare what the submitter hashed prior to sending against what was hashed
-		# on receipt... the sha256 if the JSON body carried one, otherwise the sha1,
-		# which is recoverable from the standard name format. Submissions providing
-		# neither have nothing to compare against and are not counted as changed.
+		# on receipt... the sha256 if the JSON body carried one, otherwise the digest
+		# recoverable from the standard name format. Submissions providing neither
+		# have nothing to compare against and are not counted as changed.
 		my $sent = $json->{suricata_extract_submit};
 		if ( defined( $sent->{sha256} ) && defined( $json->{cape_submit}{sha256} ) ) {
 			$hash_changed = ( $json->{cape_submit}{sha256} ne $sent->{sha256} ) ? 1 : 0;
-		} elsif ( defined( $sent->{sha1} ) && defined( $json->{cape_submit}{sha1} ) ) {
-			$hash_changed = ( $json->{cape_submit}{sha1} ne $sent->{sha1} ) ? 1 : 0;
-		}
+		} elsif ( defined( $sent->{sha1} ) && $sent->{sha1} ne '' ) {
+			# Current submitters put a full sha1 in the name, but older ones put the
+			# first 18 characters of the md5 there instead, and nothing in the name
+			# marks which it is. So compare it as a prefix against both of the digests
+			# taken on receipt and only call it changed if it matches neither.
+			my $sent_digest   = lc( $sent->{sha1} );
+			my $digest_length = length($sent_digest);
+			$hash_changed = 1;
+			foreach my $received ( $json->{cape_submit}{sha1}, $json->{cape_submit}{md5} ) {
+				if ( defined($received) && lc( substr( $received, 0, $digest_length ) ) eq $sent_digest ) {
+					$hash_changed = 0;
+				}
+			}
+		} ## end elsif ( defined( $sent->{sha1} ) && $sent->{sha1...})
 		if ($hash_changed) {
 			push( @{ $data->{changed_hashes} }, $short_file );
 		}

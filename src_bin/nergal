@@ -82,9 +82,13 @@ its names in.
 
     - proto :: 'TCP' or 'UDP'. Case does not matter.
 
-    - sha1 :: Hex sha1 of the file as of prior to sending, in upper, lower, or
-              mixed case. This is what the received file is checked against to
-              detect a file changing in transit.
+    - sha1 :: Hex digest of the file as of prior to sending, in upper, lower,
+              or mixed case, and of any length. This is what the received file
+              is checked against to detect a file changing in transit. Current
+              submitters put a full sha1 here, but older ones put the first 18
+              characters of the md5 instead and nothing in the name marks which
+              it is, so nergal_extend compares it as a prefix against both the
+              sha1 and the md5 taken on receipt.
 
     - slug :: The group/client/whathaveya the submitter belongs to. Must not be
               all digits. Stats are broken out per slug by nergal_extend.

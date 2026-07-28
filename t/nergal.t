@@ -50,6 +50,9 @@ is( $sums->{md5},    '900150983cd24fb0d6963f7d28e17f72',                        
 my $good_sha1 = 'a9993e364706816aba3e25717850c26c9cd0d89d';
 my $extracted = 1753599990;
 
+# the digest field is a full sha1 from current submitters but the first 18
+# characters of the md5 from older ones, so no particular length is required
+
 my $parsed
 	= $submitter->parse_name(
 		'192.168.14.42-80-192.168.14.2-60729-TCP-335835d5cc1cde63a8-vvelox-1780421209-application_x-msdownload');

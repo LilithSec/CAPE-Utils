@@ -215,9 +215,13 @@ validation, so it declines rather than mis-parsing.
     3 dest_port :: An integer in the range 0 to 65535.
     4 proto     :: 'TCP' or 'UDP', matched without regard to case and
                    returned upper cased.
-    5 sha1      :: Hex only. Upper, lower, or mixed case all parse, and it is
-                   returned lower cased so it compares against the checksums
-                   L</checksums> generates.
+    5 sha1      :: Hex only, of any length. Upper, lower, or mixed case all
+                   parse, and it is returned lower cased so it compares against
+                   the checksums L</checksums> generates. Current submitters
+                   put a full sha1 here, but older ones put the first 18
+                   characters of the md5 instead and nothing marks which it is,
+                   so no particular length is required and consumers should
+                   compare it as a prefix against both digests.
     6 slug      :: Defined, not empty, and not all digits.
     7 time      :: A positive integer, taken as a UTC epoch.
     8 mime      :: The mime type with the '/' replaced by a '_', so it must
