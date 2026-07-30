@@ -139,4 +139,32 @@ SKIP: {
 eval { $cape_util->mime_detect() };
 ok( $@, 'mime_detect dies when passed no file' );
 
+#
+# the settings as used by the mime_to_packages command
+#
+my $settings = $cape_util->mime_packages;
+is( $settings->{mime_to_package},                0,     'mime_packages reports mime_to_package' );
+is( $settings->{mime_to_package_default},        'exe', 'mime_packages reports mime_to_package_default' );
+is( $settings->{dll_check},                      1,     'mime_packages reports dll_check' );
+is( $settings->{mime_packages}{'application/pdf'}, 'pdf', 'mime_packages reports the mappings' );
+
+$settings->{mime_packages}{'application/pdf'} = 'nope';
+is( $cape_util->mime_packages->{mime_packages}{'application/pdf'},
+	'pdf', 'the mappings are copied out, so a caller can not reach back into the config' );
+
+my $table = $cape_util->mime_packages_table;
+like( $table, qr/^mime_to_package=0$/m,           'the table includes the mime_to_package setting' );
+like( $table, qr/^mime_to_package_default=exe$/m, 'the table includes the mime_to_package_default setting' );
+like( $table, qr/^dll_check=1$/m,                 'the table includes the dll_check setting' );
+like( $table, qr/application\/pdf\s+pdf/,         'the table includes a mapped mime type' );
+like( $table, qr/application\/x-ole-storage\s+auto/, 'a mime type mapped to auto shows as auto in the table' );
+
+#
+# a emptied mapping shows as what it resolves to and not as a empty value
+#
+my $emptied_ini = $dir . '/emptied.ini';
+write_file( $emptied_ini, "base=$dir\npoetry=0\n[mime_packages]\napplication/pdf=\n" );
+$table = CAPE::Utils->new($emptied_ini)->mime_packages_table;
+like( $table, qr/application\/pdf\s+exe/, 'a emptied mapping shows as the mime_to_package_default in the table' );
+
 done_testing;

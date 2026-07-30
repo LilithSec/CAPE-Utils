@@ -156,6 +156,8 @@ with no package at all.
 `cape_utils submit --dry-run` prints the mime type and package worked out for
 each item without submitting anything, and may be ran as any user.
 
+`cape_utils mime_to_packages` prints the current settings and mappings.
+
 ### nergal
 
 If cape_utils has been configured and is working, this just requires

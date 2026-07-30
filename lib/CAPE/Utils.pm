@@ -1452,6 +1452,110 @@ sub mime_to_package {
 
 =pod
 
+=head2 mime_packages
+
+Returns a hash ref of the current mime type to package settings, as below.
+
+    - mime_to_package :: 0/1 for if submit should work the package out per
+      item from its mime type.
+
+    - mime_to_package_default :: The package used for mime types with no
+      mapping.
+
+    - dll_check :: 0/1 for if items resolving to the exe package should be
+      checked for being a DLL.
+
+    - mime_packages :: A hash ref of mime types and the package each maps to.
+
+    my $settings = $cape_util->mime_packages;
+    use JSON;
+    print encode_json($settings) . "\n";
+
+=cut
+
+sub mime_packages {
+	my ($self) = @_;
+
+	my $settings = {
+		mime_to_package         => $self->{'config'}->{'_'}->{'mime_to_package'},
+		mime_to_package_default => $self->{'config'}->{'_'}->{'mime_to_package_default'},
+		dll_check               => $self->{'config'}->{'_'}->{'dll_check'},
+		mime_packages           => {},
+	};
+
+	# copied out so a caller can't reach back into the config via the returned ref
+	foreach my $mime ( keys( %{ $self->{'config'}->{'mime_packages'} } ) ) {
+		$settings->{mime_packages}->{$mime} = $self->{'config'}->{'mime_packages'}->{$mime};
+	}
+
+	return $settings;
+} ## end sub mime_packages
+
+=pod
+
+=head2 mime_packages_table
+
+Returns a printable table of the current mime type to package settings.
+
+    - table_border :: The border to use.
+      - Default :: the table_border config setting
+
+    - table_color :: The color to use.
+      - Default :: the table_color config setting
+
+The package column is what mime_to_package would return for that mime type
+and not the raw config value, so a mime type mapped to 'auto' or to a empty
+value shows as 'auto' or as the mime_to_package_default.
+
+    print $cape_util->mime_packages_table;
+
+=cut
+
+sub mime_packages_table {
+	my ( $self, %opts ) = @_;
+
+	my @overrides = ( 'table_border', 'table_color' );
+	foreach my $override (@overrides) {
+		if ( !defined( $opts{$override} ) ) {
+			$opts{$override} = $self->{'config'}->{'_'}->{$override};
+		}
+	}
+
+	my $settings = $self->mime_packages;
+
+	my $tb = Text::ANSITable->new;
+	$tb->border_style( $opts{'table_border'} );
+	$tb->color_theme( $opts{'table_color'} );
+	$tb->columns( [ 'mime', 'package' ] );
+	$tb->set_column_style( 0, pad => 0 );
+	$tb->set_column_style( 1, pad => 1 );
+
+	my @td;
+	foreach my $mime ( sort( keys( %{ $settings->{mime_packages} } ) ) ) {
+		my $package = $self->mime_to_package( mime => $mime );
+		if ( !defined($package) ) {
+			$package = 'auto';
+		}
+		push( @td, [ $mime, $package ] );
+	}
+	$tb->add_rows( \@td );
+
+	my $default = $settings->{mime_to_package_default};
+	if ( !defined($default) ) {
+		$default = '';
+	}
+
+	return
+		  'mime_to_package=' . $settings->{mime_to_package} . "\n"
+		. 'mime_to_package_default='
+		. $default . "\n"
+		. 'dll_check='
+		. $settings->{dll_check} . "\n\n"
+		. $tb->draw;
+} ## end sub mime_packages_table
+
+=pod
+
 =head2 submit
 
 Submits files to CAPE.

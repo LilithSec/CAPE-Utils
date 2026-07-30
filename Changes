@@ -48,6 +48,7 @@ Revision history for CAPE-Utils
         - add mime based package selection for submit via mime_to_package, off by default
         - add the mime_packages config section, mapping mime types to CAPE packages
         - add cape_utils submit --mime-package and --dry-run
+        - add cape_utils mime_to_packages for printing the mime to package settings
 
 4.0.0   2025-07-21/15:00
         - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry
