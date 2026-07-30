@@ -192,14 +192,23 @@ foreach my $file (@files) {
 		# recoverable from the standard name format. Submissions providing neither
 		# have nothing to compare against and are not counted as changed.
 		my $sent = $json->{suricata_extract_submit};
+
+		# nergal records the digest out of the name as the md5, but older JSONs have
+		# it in as the sha1, so both are looked at, md5 first
+		my $sent_digest = $sent->{md5};
+		if ( !defined($sent_digest) || $sent_digest eq '' ) {
+			$sent_digest = $sent->{sha1};
+		}
+
 		if ( defined( $sent->{sha256} ) && defined( $json->{cape_submit}{sha256} ) ) {
 			$hash_changed = ( $json->{cape_submit}{sha256} ne $sent->{sha256} ) ? 1 : 0;
-		} elsif ( defined( $sent->{sha1} ) && $sent->{sha1} ne '' ) {
-			# Current submitters put a full sha1 in the name, but older ones put the
-			# first 18 characters of the md5 there instead, and nothing in the name
-			# marks which it is. So compare it as a prefix against both of the digests
-			# taken on receipt and only call it changed if it matches neither.
-			my $sent_digest   = lc( $sent->{sha1} );
+		} elsif ( defined($sent_digest) && $sent_digest ne '' ) {
+			# What the digest recovered from the name is varies, as older submitters
+			# put the first 18 characters of the md5 there while current ones put a
+			# full sha1, and nothing in the name marks which it is. So compare it as a
+			# prefix against both of the digests taken on receipt and only call it
+			# changed if it matches neither.
+			$sent_digest = lc($sent_digest);
 			my $digest_length = length($sent_digest);
 			$hash_changed = 1;
 			foreach my $received ( $json->{cape_submit}{sha1}, $json->{cape_submit}{md5} ) {
@@ -207,7 +216,7 @@ foreach my $file (@files) {
 					$hash_changed = 0;
 				}
 			}
-		} ## end elsif ( defined( $sent->{sha1} ) && $sent->{sha1...})
+		} ## end elsif ( defined($sent_digest) && $sent_digest...)
 		if ($hash_changed) {
 			push( @{ $data->{changed_hashes} }, $short_file );
 		}

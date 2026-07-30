@@ -182,7 +182,8 @@ local *CAPE::Utils::submit       = sub {
 };
 local *CAPE::Utils::LogDrek::openlog  = sub { };
 local *CAPE::Utils::LogDrek::closelog = sub { };
-local *CAPE::Utils::LogDrek::syslog   = sub { };
+my @logged;
+local *CAPE::Utils::LogDrek::syslog = sub { push( @logged, $_[2] ); };
 use warnings qw( redefine once );
 
 my $receiver = CAPE::Utils::Nergal->new( ini => $ini );
@@ -226,6 +227,7 @@ is( $multi_json->{cape_submit}{task}, '307616,307617,307618', '.cape_submit.task
 $submit_returns = 1;
 my $std_name
 	= '192.168.1.5-49152-93.184.216.34-80-TCP-' . $good_sha1 . '-acme-' . $extracted . '-application_x-dosexec';
+@logged = ();
 $receiver->receive(
 	remote_ip => '192.0.2.1',
 	apikey    => undef,
@@ -240,7 +242,7 @@ is( $padded->{dest_ip},                       '93.184.216.34',         'padded .
 is( $padded->{dest_port},                     80,                      'padded .dest_port' );
 is( $padded->{proto},                         'TCP',                   'padded .proto' );
 is( $padded->{suricata_extract_submit}{slug}, 'acme',                  'padded the slug out of the name' );
-is( $padded->{suricata_extract_submit}{sha1}, $good_sha1,              'padded the pre send sha1 out of the name' );
+is( $padded->{suricata_extract_submit}{md5},  $good_sha1,              'padded the pre send digest in as the md5' );
 is( $padded->{suricata_extract_submit}{time}, $extracted,              'padded the extraction time out of the name' );
 is( $padded->{suricata_extract_submit}{mime}, 'application_x-dosexec', 'padded the mime out of the name' );
 is( $padded->{suricata_extract_submit}{filename}, $std_name,           'padded the filename' );
@@ -250,8 +252,26 @@ ok(
 	!exists( $padded->{suricata_extract_submit}{sha256} ),
 	'no sha256 is invented, as the name does not carry the pre send one'
 );
+ok( !exists( $padded->{suricata_extract_submit}{sha1} ), 'the name digest is not also recorded as the sha1' );
 
-# anything actually submitted wins over what the name says
+# the padding is logged with the name it came out of and every value it set, so
+# what a submission was taken as does not have to be inferred from the log
+my ($padding_logged) = grep { $_ =~ /Padded submission/ } @logged;
+ok( defined($padding_logged), 'padding from the name is logged' );
+like( $padding_logged, qr/\Qfrom name "$std_name"\E/, 'the padding log names the file it was read out of' );
+foreach my $field (qw( src_ip src_port dest_ip dest_port proto )) {
+	like( $padding_logged, qr/\Q .$field="$padded->{$field}"\E/, 'the padding log holds .' . $field );
+}
+foreach my $field ( sort( keys( %{ $padded->{suricata_extract_submit} } ) ) ) {
+	like(
+		$padding_logged,
+		qr/\Q .suricata_extract_submit.$field="$padded->{suricata_extract_submit}{$field}"\E/,
+		'the padding log holds .suricata_extract_submit.' . $field
+	);
+}
+
+# a submitted body means the name is not fallen back on at all, even for the
+# fields the body left out
 $submit_returns = 2;
 $receiver->receive(
 	remote_ip => '192.0.2.1',
@@ -264,8 +284,21 @@ $padded = decode_json( read_file( $incoming . '/json/' . $std_name ) );
 is( $padded->{src_ip},                          '10.9.9.9', 'a submitted .src_ip is not overwritten by the name' );
 is( $padded->{suricata_extract_submit}{slug},   'real',     'a submitted slug is not overwritten by the name' );
 is( $padded->{suricata_extract_submit}{sha256}, 'deadbeef', 'a submitted sha256 is left alone' );
-is( $padded->{dest_ip}, '93.184.216.34',                    'fields the body left out are still padded from the name' );
-is( $padded->{suricata_extract_submit}{sha1}, $good_sha1,   'the sha1 the body left out is still padded' );
+ok( !exists( $padded->{dest_ip} ),                      'fields the body left out are not padded from the name' );
+ok( !exists( $padded->{suricata_extract_submit}{md5} ), 'the digest the body left out is not padded either' );
+
+# a body that is not usable is the same as none being sent at all
+$submit_returns = 4;
+$receiver->receive(
+	remote_ip => '192.0.2.1',
+	apikey    => undef,
+	raw_json  => 'not json in the slightest',
+	upload    => MockUpload->new( filename => $std_name, content => 'a busted json body' ),
+	oversized => 0,
+);
+$padded = decode_json( read_file( $incoming . '/json/' . $std_name ) );
+is( $padded->{src_ip},                        '192.168.1.5', 'a body that does not decode still pads from the name' );
+is( $padded->{suricata_extract_submit}{slug}, 'acme',        'a body that does not decode still pads the slug' );
 
 # a name not in the standard format pads nothing at all
 $submit_returns = 3;

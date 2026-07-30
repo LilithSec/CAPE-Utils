@@ -1706,10 +1706,12 @@ sub shuffle {
 Checks the remote connection against the submission ACL config, returning 1 if
 allowed and 0 otherwise. Takes the API key and IP as a hash.
 
-The C<auth> config value selects the mode:
+The C<auth> config value selects the mode, with anything other than the below
+treated as C<ip>:
 
     ip     -- allowed iff the remote IP is in an allowed subnet; apikey ignored
     apikey -- allowed iff a non empty apikey is configured and the submitted one matches
+    both   -- allowed if the IP matches and the API key matches
     either -- allowed if the IP matches or the API key matches
 
     $results=$cape_utils->check_remote(apikey=>$apikey, ip=>$remote_ip);
