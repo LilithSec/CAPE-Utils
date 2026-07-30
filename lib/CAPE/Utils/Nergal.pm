@@ -130,6 +130,9 @@ is missing from one that is genuinely blank.
 
     NERGAL_FILE      -- Path to the submitted file, which is still in tmp.
 
+    NERGAL_FILENAME  -- The submitted file name, with any directory bits stripped
+                        off of it, as it will be saved under in incoming.
+
     NERGAL_JSON      -- Path to the JSON as submitted. Only set where a body was
                         submitted and it decoded to a hash. Removed once the gate
                         has ran.
@@ -649,6 +652,7 @@ sub receive {
 				submitted_json => $submitted_json,
 				env            => {
 					NERGAL_FILE      => $temp_filename,
+					NERGAL_FILENAME  => $name,
 					NERGAL_SLUG      => $suricata_section->{'slug'},
 					NERGAL_MIME      => $suricata_section->{'mime'},
 					NERGAL_SHA256    => $checksums->{sha256},

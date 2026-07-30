@@ -513,6 +513,7 @@ ok( !-e $incoming . '/json/gateslow.bin', 'a gate that times out keeps nothing' 
 # what the gate is told, for a submission padded from its name and holding no body
 $result = run_gated( gate_script(0), $std_name );
 my $env = gate_env();
+is( $env->{NERGAL_FILENAME},  $std_name,               'the gate is told the file name' );
 is( $env->{NERGAL_SLUG},      'acme',                  'the gate is told the slug' );
 is( $env->{NERGAL_MIME},      'application_x-dosexec', 'the gate is told the mime' );
 is( $env->{NERGAL_SRC_IP},    '192.168.1.5',           'the gate is told the source IP' );
@@ -539,6 +540,11 @@ is( $env->{NERGAL_APP_PROTO},   'http',     'the gate is told the app proto' );
 is( $env->{NERGAL_SRC_IP},      '10.0.0.1', 'the gate is told the submitted source IP' );
 is( read_file($gate_json_copy), '{"app_proto":"http","src_ip":"10.0.0.1"}', 'NERGAL_JSON holds the body as submitted' );
 ok( !-e $env->{NERGAL_JSON}, 'the JSON handed to the gate is cleaned up after' );
+
+# the name the gate is told is the one it will be saved under, not as submitted
+$result = run_gated( gate_script(0), '/foo/bar/gatepath.bin', raw_json => '{}' );
+$env    = gate_env();
+is( $env->{NERGAL_FILENAME}, 'gatepath.bin', 'the gate is told the file name with any directory bits stripped off' );
 
 # neither the samples nor the JSONs handed to the gate are left behind in tmp by
 # any of the above, denied or otherwise
