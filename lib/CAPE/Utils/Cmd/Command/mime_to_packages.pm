@@ -20,7 +20,7 @@ what would actually be used, so a mime type mapped to auto shows as auto
 and a mime type mapped to a empty value shows as the
 mime_to_package_default.
 ';
-}
+} ## end sub usage_desc
 
 sub opt_spec {
 	my ($class) = @_;

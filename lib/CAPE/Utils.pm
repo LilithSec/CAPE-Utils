@@ -1345,7 +1345,9 @@ sub mime_detect {
 			die( 'File::LibMagic could not be loaded, which is required for mime type detection ... ' . $@ );
 		}
 
-		$self->{'libmagic'} = File::LibMagic->new;
+		# without follow_symlinks, libmagic reports a symlink as 'inode/symlink'
+		# instead of the type of what it points at
+		$self->{'libmagic'} = File::LibMagic->new( follow_symlinks => 1 );
 	}
 
 	my $info = $self->{'libmagic'}->info_from_filename( $opts{file} );

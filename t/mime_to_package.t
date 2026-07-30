@@ -121,7 +121,7 @@ my $has_libmagic = eval {
 };
 
 SKIP: {
-	skip( 'File::LibMagic is not usable', 4 ) if !$has_libmagic;
+	skip( 'File::LibMagic is not usable', 6 ) if !$has_libmagic;
 
 	my $pdf = $dir . '/sample.pdf';
 	write_file( $pdf, "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n" );
@@ -131,6 +131,14 @@ SKIP: {
 	ok( defined( $detected->{description} ), 'mime_detect returns a description as well' );
 
 	is( $cape_util->mime_to_package( file => $pdf ), 'pdf', 'mime_to_package detects the mime when given a file' );
+
+	# items are commonly handed in via a symlink pointing at the real file, and
+	# without libmagic set to follow those they detect as 'inode/symlink', which
+	# then falls through to the mime_to_package_default
+	my $pdf_link = $dir . '/sample-link.pdf';
+	symlink( $pdf, $pdf_link );
+	is( $cape_util->mime_detect( file => $pdf_link )->{mime}, 'application/pdf', 'mime_detect follows a symlink' );
+	is( $cape_util->mime_to_package( file => $pdf_link ), 'pdf', 'mime_to_package follows a symlink' );
 
 	eval { $cape_util->mime_detect( file => $dir . '/does-not-exist' ) };
 	ok( $@, 'mime_detect dies on a file that does not exist' );
