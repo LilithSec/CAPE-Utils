@@ -29,13 +29,53 @@ Alternatively, this script can be invoked as a CGI script if it is ran as the us
 
 =head1 CONFIGURATION
 
-If cape_utils has been configured and is working, this just requires the 'incoming' setting
-configured.
+Everything is read from the cape_utils INI, '/usr/local/etc/cape_utils.ini' by
+default, out of its root section. So if cape_utils has been configured and is
+working, this just needs 'incoming' pointed somewhere usable.
 
-The 'incoming' setting is a directory in which incoming files are placed for submission. By
-default this is '/malware/client-incoming'. The submission data JSON, checksum store, and
-task-to-JSON links are all kept in subdirectories beneath it. See
-L<CAPE::Utils::Nergal/"INCOMING DIR STRUCTURE"> for the layout.
+The keys below are the ones specific to nergal. The rest of the INI is what it
+always is, with how a submission is actually detonated coming from the usual
+cape_utils settings, 'base', 'cape_runas', 'timeout', and the like.
+
+    - incoming :: Directory incoming files are placed in for submission. The
+      submission JSON, the checksum store, the name and task links, and the tmp
+      dir a submission is staged in are all subdirectories beneath it. Must be
+      writable by the user nergal runs as. See "INCOMING DIR STRUCTURE" below
+      for the layout.
+      - Default :: /malware/client-incoming
+
+    - auth :: How a submitter is authed. 'ip' is by subnet only, 'apikey' by key
+      only, 'both' requires the two of them, and 'either' takes one or the other.
+      See "SECURITY" below.
+      - Default :: ip
+
+    - subnets :: Comma seperated list of subnets, v4 or v6, submissions are
+      accepted from. Only used where 'auth' is 'ip', 'both', or 'either'.
+      - Default :: 192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
+
+    - apikey :: The key a submitter must send as the 'apikey' param. An empty
+      value never matches, so key based auth is off until it is set.
+      - Default :: ''
+
+    - results_auth :: As 'auth', but for results fetching, GET /results/*, so
+      that may be handed out seperately from the ability to submit. See
+      "RESULTS FETCHING" below.
+      - Default :: ip
+
+    - results_subnets :: As 'subnets', but for results fetching.
+      - Default :: 192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
+
+    - results_apikey :: As 'apikey', but for results fetching.
+      - Default :: ''
+
+    - submission_gate :: Command ran per submission to decide what becomes of it,
+      with the verdict taken from how it exits. Empty disables it. See
+      "SUBMISSION GATE" below.
+      - Default :: ''
+
+    - submission_gate_timeout :: How many seconds the gate is given to run before
+      it is killed and the submission dropped as an error.
+      - Default :: 30
 
 =head1 SECURITY
 
@@ -102,10 +142,9 @@ but helps to set them to something sane and relevant.
 
 =head2 Submission Name Format
 
-The 'json' param is optional. Where it is not sent, or does not carry the flow
-info and slug, nergal will recover them from the submitted filename provided it
-is in the standard format below, which is what suricata_extract_submit builds
-its names in.
+The 'json' param is optional. Where it is not sent, nergal will recover the flow
+info and slug from the submitted filename provided it is in the standard format
+below, which is what suricata_extract_submit builds its names in.
 
     <src_ip>-<src_port>-<dest_ip>-<dest_port>-<proto>-<sha1>-<slug>-<epoch>-<mime>
 
@@ -120,8 +159,9 @@ its names in.
               is checked against to detect a file changing in transit. Current
               submitters put a full sha1 here, but older ones put the first 18
               characters of the md5 instead and nothing in the name marks which
-              it is, so nergal_extend compares it as a prefix against both the
-              sha1 and the md5 taken on receipt.
+              it is, so it is recorded as '.suricata_extract_submit.md5' and
+              nergal_extend compares it as a prefix against both the sha1 and
+              the md5 taken on receipt.
 
     - slug :: The group/client/whathaveya the submitter belongs to. Must not be
               all digits. Stats are broken out per slug by nergal_extend.
@@ -139,8 +179,13 @@ Matching is all or nothing. Unless all nine fields are present and valid the
 name is left alone and nothing is filled in, so a manually submitted file keeps
 its own name and simply has no flow info or slug. A slug containing a '-'
 shifts every field after it and fails validation, so it is declined rather than
-mis-parsed. Anything actually sent in 'json' always wins over what the name
-says.
+mis-parsed.
+
+The name is only ever fallen back on where no usable 'json' was sent. A
+submitter that sent a body is taken at its word about what the submission is and
+has nothing filled in from the name, even the fields it left out. A body that
+does not decode, or that decodes to something other than a hash, counts as none
+being sent.
 
 Only the file bit of the submitted name is ever used. A name containing path
 separators is reduced to its last component, and one with nothing usable left

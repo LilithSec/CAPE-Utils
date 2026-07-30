@@ -438,14 +438,24 @@ Arguments are taken as a hash.
 All activity is logged via L<CAPE::Utils::LogDrek/log_drek>. The response body
 and status mirror the original script for each outcome.
 
-The C<json> body is optional. When the submitted name parses via L</parse_name>,
-the submission is treated as a standard suricata_extract_submit one and the
-fields recoverable from the name are filled in before the JSON is written out:
-C<< .src_ip >>, C<< .src_port >>, C<< .dest_ip >>, C<< .dest_port >>, and
-C<< .proto >> at the top level, plus C<< .suricata_extract_submit >>'s
-C<filename>, C<slug>, C<sha1>, C<time>, C<timestamp>, and C<mime>. Anything the
-submitter actually sent is never overwritten, and nothing is filled in at all
-unless the name parses in full.
+The C<json> body is optional. Where none was submitted, or what was submitted
+did not decode to a hash, the submitted name is fallen back on. When it parses
+via L</parse_name>, the submission is treated as a standard
+suricata_extract_submit one and the fields recoverable from the name are filled
+in before the JSON is written out: C<< .src_ip >>, C<< .src_port >>,
+C<< .dest_ip >>, C<< .dest_port >>, and C<< .proto >> at the top level, plus
+C<< .suricata_extract_submit >>'s C<filename>, C<slug>, C<md5>, C<time>,
+C<timestamp>, and C<mime>. Nothing is filled in unless the name parses in full.
+
+The digest in the name is recorded as the C<md5>, as the tools submitting
+without a body put the first 18 characters of the md5 there. L</parse_name>
+returns it as the C<sha1>, that being what current suricata_extract_submit puts
+in the name, and nothing in the name marks which of the two it is.
+
+A submitter that sent a usable body is taken at its word and nothing is padded
+from the name, even where the body left fields out. So a submitter wanting the
+name fallen back on for the bits it does not have should send no body at all
+rather than a partial one.
 
 Only the file bit of the submitted name is used, via
 L<File::Basename/basename>, as the name comes straight from the multipart
@@ -569,43 +579,51 @@ sub receive {
 
 	# Tools other than suricata_extract_submit submit using the same name format
 	# but without the JSON body that normally carries the flow info and the slug.
+	# Only where nothing usable was submitted is the name fallen back on, as a
+	# submitter that sent a body is taken at its word about what the submission is.
 	# When the name parses in full, treat it as a standard suricata_extract_submit
-	# submission and fill in what the name gives us. Anything actually submitted
-	# always wins, and a name that does not fully parse pads nothing at all.
-	my $from_name = $self->parse_name($name);
-	if ( defined($from_name) ) {
-		foreach my $field (qw( src_ip src_port dest_ip dest_port proto )) {
-			if ( !defined( $json->{$field} ) ) {
+	# submission and fill in what the name gives us. A name that does not fully
+	# parse pads nothing at all. $json is an empty hash at this point, given
+	# nothing was submitted, so there is nothing here to be written over.
+	if ( !defined($submitted_json) ) {
+		my $from_name = $self->parse_name($name);
+		if ( defined($from_name) ) {
+			foreach my $field (qw( src_ip src_port dest_ip dest_port proto )) {
 				$json->{$field} = $from_name->{$field};
 			}
-		}
 
-		# the md5, sha256, host, to, and apikey the section normally holds are not
-		# recoverable from the name, so only what is actually in it gets filled in
-		my %from_name_section = (
-			filename  => $name,
-			slug      => $from_name->{slug},
-			sha1      => $from_name->{sha1},
-			time      => $from_name->{time},
-			timestamp => $from_name->{timestamp},
-			mime      => $from_name->{mime},
-		);
-		if ( !defined( $json->{suricata_extract_submit} ) ) {
-			$json->{suricata_extract_submit} = {};
-		}
-		# leave it be if the submitter put something other than a hash there
-		if ( ref( $json->{suricata_extract_submit} ) eq 'HASH' ) {
-			foreach my $field ( keys(%from_name_section) ) {
-				if ( !defined( $json->{suricata_extract_submit}{$field} ) ) {
-					$json->{suricata_extract_submit}{$field} = $from_name_section{$field};
-				}
+			# The sha256, host, to, and apikey the section normally holds are not
+			# recoverable from the name, so only what is in it is filled in. The
+			# digest goes in as the md5, as that is what the tools submitting
+			# without a body put in the name, the first 18 characters of it. It is
+			# L</parse_name>'s sha1 as that is what current suricata_extract_submit
+			# puts there instead, with nothing in the name marking which it is.
+			my $from_name_section = {
+				filename  => $name,
+				slug      => $from_name->{slug},
+				md5       => $from_name->{sha1},
+				time      => $from_name->{time},
+				timestamp => $from_name->{timestamp},
+				mime      => $from_name->{mime},
+			};
+			$json->{suricata_extract_submit} = $from_name_section;
+
+			# log the name it was all read out of along with every value set from
+			# it, so what a submission was taken as is recoverable from the log
+			my $padded_message = 'Padded submission from name "' . $name . '"...';
+			foreach my $field (qw( src_ip src_port dest_ip dest_port proto )) {
+				$padded_message = $padded_message . ' .' . $field . '="' . $json->{$field} . '"';
 			}
-		}
-
-		_log_drek( 'info',
-			'Padded submission from name... slug="' . $from_name->{slug} . '" mime="' . $from_name->{mime} . '"',
-			$tracking );
-	} ## end if ( defined($from_name) )
+			foreach my $field ( sort( keys( %{$from_name_section} ) ) ) {
+				$padded_message
+					= $padded_message
+					. ' .suricata_extract_submit.'
+					. $field . '="'
+					. $from_name_section->{$field} . '"';
+			}
+			_log_drek( 'info', $padded_message, $tracking );
+		} ## end if ( defined($from_name) )
+	} ## end if ( !defined($submitted_json) )
 
 	# add initial relevant submission data
 	$json->{cape_submit} = {
