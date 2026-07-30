@@ -138,7 +138,7 @@ SKIP: {
 	my $pdf_link = $dir . '/sample-link.pdf';
 	symlink( $pdf, $pdf_link );
 	is( $cape_util->mime_detect( file => $pdf_link )->{mime}, 'application/pdf', 'mime_detect follows a symlink' );
-	is( $cape_util->mime_to_package( file => $pdf_link ), 'pdf', 'mime_to_package follows a symlink' );
+	is( $cape_util->mime_to_package( file => $pdf_link ),     'pdf',             'mime_to_package follows a symlink' );
 
 	eval { $cape_util->mime_detect( file => $dir . '/does-not-exist' ) };
 	ok( $@, 'mime_detect dies on a file that does not exist' );
@@ -151,9 +151,9 @@ ok( $@, 'mime_detect dies when passed no file' );
 # the settings as used by the mime_to_packages command
 #
 my $settings = $cape_util->mime_packages;
-is( $settings->{mime_to_package},                0,     'mime_packages reports mime_to_package' );
-is( $settings->{mime_to_package_default},        'exe', 'mime_packages reports mime_to_package_default' );
-is( $settings->{dll_check},                      1,     'mime_packages reports dll_check' );
+is( $settings->{mime_to_package},                  0,     'mime_packages reports mime_to_package' );
+is( $settings->{mime_to_package_default},          'exe', 'mime_packages reports mime_to_package_default' );
+is( $settings->{dll_check},                        1,     'mime_packages reports dll_check' );
 is( $settings->{mime_packages}{'application/pdf'}, 'pdf', 'mime_packages reports the mappings' );
 
 $settings->{mime_packages}{'application/pdf'} = 'nope';
@@ -161,10 +161,10 @@ is( $cape_util->mime_packages->{mime_packages}{'application/pdf'},
 	'pdf', 'the mappings are copied out, so a caller can not reach back into the config' );
 
 my $table = $cape_util->mime_packages_table;
-like( $table, qr/^mime_to_package=0$/m,           'the table includes the mime_to_package setting' );
-like( $table, qr/^mime_to_package_default=exe$/m, 'the table includes the mime_to_package_default setting' );
-like( $table, qr/^dll_check=1$/m,                 'the table includes the dll_check setting' );
-like( $table, qr/application\/pdf\s+pdf/,         'the table includes a mapped mime type' );
+like( $table, qr/^mime_to_package=0$/m,              'the table includes the mime_to_package setting' );
+like( $table, qr/^mime_to_package_default=exe$/m,    'the table includes the mime_to_package_default setting' );
+like( $table, qr/^dll_check=1$/m,                    'the table includes the dll_check setting' );
+like( $table, qr/application\/pdf\s+pdf/,            'the table includes a mapped mime type' );
 like( $table, qr/application\/x-ole-storage\s+auto/, 'a mime type mapped to auto shows as auto in the table' );
 
 #
@@ -174,5 +174,57 @@ my $emptied_ini = $dir . '/emptied.ini';
 write_file( $emptied_ini, "base=$dir\npoetry=0\n[mime_packages]\napplication/pdf=\n" );
 $table = CAPE::Utils->new($emptied_ini)->mime_packages_table;
 like( $table, qr/application\/pdf\s+exe/, 'a emptied mapping shows as the mime_to_package_default in the table' );
+
+#
+# INI output, which unlike the table uses the raw config values
+#
+my $ini = $cape_util->mime_packages_ini;
+like( $ini, qr/^mime_to_package=0$/m,               'the INI includes the settings' );
+like( $ini, qr/^\[mime_packages\]$/m,               'the INI includes the mime_packages section header' );
+like( $ini, qr/^application\/pdf=pdf$/m,            'the INI includes a mapped mime type' );
+like( $ini, qr/^application\/x-ole-storage=auto$/m, 'the INI writes a auto mapping back out as auto' );
+
+$ini = CAPE::Utils->new($emptied_ini)->mime_packages_ini;
+like( $ini, qr/^application\/pdf=$/m, 'the INI writes a emptied mapping back out empty rather than resolved' );
+
+#
+# diff, which limits the above to what differs from the shipped defaults
+#
+$settings = $cape_util->mime_packages( diff => 1 );
+is_deeply( $settings, { mime_packages => {} }, 'a unmodified config has no differences from the defaults' );
+is( $cape_util->mime_packages_ini( diff => 1 ), '', 'the diff INI of a unmodified config is empty' );
+
+my $diff_ini_file = $dir . '/diff.ini';
+write_file( $diff_ini_file,
+	"base=$dir\npoetry=0\ndll_check=0\n[mime_packages]\napplication/pdf=doc\napplication/x-fake=exe\n" );
+my $diff_cape = CAPE::Utils->new($diff_ini_file);
+
+$settings = $diff_cape->mime_packages( diff => 1 );
+is_deeply(
+	$settings,
+	{
+		dll_check     => 0,
+		mime_packages => {
+			'application/pdf'    => 'doc',
+			'application/x-fake' => 'exe',
+		},
+	},
+	'diff reports only the changed setting, the changed mapping, and the added mapping'
+);
+
+ok( !exists( $settings->{mime_to_package} ), 'a setting matching its default is left out of a diff' );
+
+$ini = $diff_cape->mime_packages_ini( diff => 1 );
+is(
+	$ini,
+	"dll_check=0\n\n[mime_packages]\napplication/pdf=doc\napplication/x-fake=exe\n",
+	'the diff INI is a minimal config fragment'
+);
+
+$table = $diff_cape->mime_packages_table( diff => 1 );
+like( $table, qr/^dll_check=0$/m, 'the diff table includes the changed setting' );
+unlike( $table, qr/^mime_to_package=/m, 'the diff table leaves out unchanged settings' );
+like( $table, qr/application\/pdf\s+doc/, 'the diff table includes the changed mapping' );
+unlike( $table, qr/application\/x-msi/, 'the diff table leaves out unchanged mappings' );
 
 done_testing;

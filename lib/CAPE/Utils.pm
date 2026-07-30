@@ -48,24 +48,14 @@ Perhaps a little code snippet.
 
 =head1 METHODS
 
-=head2 new
-
-Initiates the object. One argument is taken and that is the
-path to the INI config file. The default is '/usr/local/etc/cape_utils.ini'
-and if not found, the defaults will be used.
-
-    my $cape_util=CAPE::Utils->new('/path/to/some/config.ini');
-
 =cut
 
-sub new {
-	my $ini = $_[1];
-
-	if ( !defined($ini) ) {
-		$ini = '/usr/local/etc/cape_utils.ini';
-	}
-
-	my $base_config = {
+# Returns a fresh hash ref of the shipped defaults.
+#
+# Rebuilt per call rather than kept as a constant so that nothing handed a copy
+# can reach back and change what the next call sees.
+sub _default_config {
+	return {
 		'_' => {
 			'dsn'                 => 'dbi:Pg:dbname=cape',
 			'user'                => 'cape',
@@ -164,6 +154,28 @@ sub new {
 			'application/x-empty'       => 'auto',
 		},
 	};
+} ## end sub _default_config
+
+=pod
+
+=head2 new
+
+Initiates the object. One argument is taken and that is the
+path to the INI config file. The default is '/usr/local/etc/cape_utils.ini'
+and if not found, the defaults will be used.
+
+    my $cape_util=CAPE::Utils->new('/path/to/some/config.ini');
+
+=cut
+
+sub new {
+	my $ini = $_[1];
+
+	if ( !defined($ini) ) {
+		$ini = '/usr/local/etc/cape_utils.ini';
+	}
+
+	my $base_config = _default_config();
 
 	my $config = Config::Tiny->read( $ini, 'utf8' );
 	if ( !defined($config) ) {
@@ -1348,7 +1360,7 @@ sub mime_detect {
 		# without follow_symlinks, libmagic reports a symlink as 'inode/symlink'
 		# instead of the type of what it points at
 		$self->{'libmagic'} = File::LibMagic->new( follow_symlinks => 1 );
-	}
+	} ## end if ( !defined( $self->{'libmagic'} ) )
 
 	my $info = $self->{'libmagic'}->info_from_filename( $opts{file} );
 
@@ -1469,29 +1481,129 @@ Returns a hash ref of the current mime type to package settings, as below.
 
     - mime_packages :: A hash ref of mime types and the package each maps to.
 
+The values are the raw config values and not what they resolve to.
+
+    - diff :: Only include settings and mappings differing from the shipped
+      defaults. Any of the first three keys matching its default is left out
+      entirely, so check with exists.
+      - Default :: 0
+
     my $settings = $cape_util->mime_packages;
     use JSON;
     print encode_json($settings) . "\n";
 
 =cut
 
-sub mime_packages {
-	my ($self) = @_;
+# true if both are undef or both are defined and equal as strings
+sub _same_value {
+	my ( $value, $default_value ) = @_;
 
-	my $settings = {
-		mime_to_package         => $self->{'config'}->{'_'}->{'mime_to_package'},
-		mime_to_package_default => $self->{'config'}->{'_'}->{'mime_to_package_default'},
-		dll_check               => $self->{'config'}->{'_'}->{'dll_check'},
-		mime_packages           => {},
-	};
+	if ( !defined($value) && !defined($default_value) ) {
+		return 1;
+	}
+
+	if ( !defined($value) || !defined($default_value) ) {
+		return 0;
+	}
+
+	return $value eq $default_value;
+} ## end sub _same_value
+
+# the settings that live in the main section, in the order they are printed in
+sub _mime_packages_settings {
+	return ( 'mime_to_package', 'mime_to_package_default', 'dll_check' );
+}
+
+sub mime_packages {
+	my ( $self, %opts ) = @_;
+
+	my $defaults;
+	if ( $opts{diff} ) {
+		$defaults = _default_config();
+	}
+
+	my $settings = { mime_packages => {} };
+
+	foreach my $item ( _mime_packages_settings() ) {
+		my $value = $self->{'config'}->{'_'}->{$item};
+
+		if ( $opts{diff} && _same_value( $value, $defaults->{'_'}->{$item} ) ) {
+			next;
+		}
+
+		$settings->{$item} = $value;
+	}
 
 	# copied out so a caller can't reach back into the config via the returned ref
 	foreach my $mime ( keys( %{ $self->{'config'}->{'mime_packages'} } ) ) {
-		$settings->{mime_packages}->{$mime} = $self->{'config'}->{'mime_packages'}->{$mime};
+		my $value = $self->{'config'}->{'mime_packages'}->{$mime};
+
+		if ( $opts{diff} && _same_value( $value, $defaults->{'mime_packages'}->{$mime} ) ) {
+			next;
+		}
+
+		$settings->{mime_packages}->{$mime} = $value;
 	}
 
 	return $settings;
 } ## end sub mime_packages
+
+=pod
+
+=head2 mime_packages_ini
+
+Returns the current mime type to package settings as INI, suitable for pasting
+into the config file.
+
+    - diff :: Only include settings and mappings differing from the shipped
+      defaults, making it a minimal config fragment.
+      - Default :: 0
+
+Unlike mime_packages_table, the values are the raw config values, so a mapping
+emptied to unset a shipped default is written back out as a empty value and
+not as what it resolves to.
+
+    print $cape_util->mime_packages_ini( diff => 1 );
+
+=cut
+
+# the "foo=bar" lines for the settings in the main section of a mime_packages
+# hash ref, skipping any that are not in it, as happens with diff
+sub _mime_packages_settings_lines {
+	my ($settings) = @_;
+
+	my $lines = '';
+	foreach my $item ( _mime_packages_settings() ) {
+		if ( exists( $settings->{$item} ) ) {
+			$lines .= $item . '=' . ( defined( $settings->{$item} ) ? $settings->{$item} : '' ) . "\n";
+		}
+	}
+
+	return $lines;
+} ## end sub _mime_packages_settings_lines
+
+sub mime_packages_ini {
+	my ( $self, %opts ) = @_;
+
+	my $settings = $self->mime_packages( diff => $opts{diff} );
+
+	my $ini = _mime_packages_settings_lines($settings);
+
+	my @mimes = sort( keys( %{ $settings->{mime_packages} } ) );
+	if (@mimes) {
+		if ( $ini ne '' ) {
+			$ini = $ini . "\n";
+		}
+
+		$ini = $ini . "[mime_packages]\n";
+		foreach my $mime (@mimes) {
+			my $value = $settings->{mime_packages}->{$mime};
+			$ini = $ini . $mime . '=' . ( defined($value) ? $value : '' ) . "\n";
+		}
+	} ## end if (@mimes)
+
+	return $ini;
+} ## end sub mime_packages_ini
 
 =pod
 
@@ -1504,6 +1616,10 @@ Returns a printable table of the current mime type to package settings.
 
     - table_color :: The color to use.
       - Default :: the table_color config setting
+
+    - diff :: Only include settings and mappings differing from the shipped
+      defaults.
+      - Default :: 0
 
 The package column is what mime_to_package would return for that mime type
 and not the raw config value, so a mime type mapped to 'auto' or to a empty
@@ -1523,7 +1639,7 @@ sub mime_packages_table {
 		}
 	}
 
-	my $settings = $self->mime_packages;
+	my $settings = $self->mime_packages( diff => $opts{diff} );
 
 	my $tb = Text::ANSITable->new;
 	$tb->border_style( $opts{'table_border'} );
@@ -1542,18 +1658,12 @@ sub mime_packages_table {
 	}
 	$tb->add_rows( \@td );
 
-	my $default = $settings->{mime_to_package_default};
-	if ( !defined($default) ) {
-		$default = '';
+	my $header = _mime_packages_settings_lines($settings);
+	if ( $header ne '' ) {
+		$header = $header . "\n";
 	}
 
-	return
-		  'mime_to_package=' . $settings->{mime_to_package} . "\n"
-		. 'mime_to_package_default='
-		. $default . "\n"
-		. 'dll_check='
-		. $settings->{dll_check} . "\n\n"
-		. $tb->draw;
+	return $header . $tb->draw;
 } ## end sub mime_packages_table
 
 =pod

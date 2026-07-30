@@ -157,6 +157,8 @@ with no package at all.
 each item without submitting anything, and may be ran as any user.
 
 `cape_utils mime_to_packages` prints the current settings and mappings.
+`--as-ini` prints them as INI and `--diff` limits it to what differs from the
+shipped defaults, so `--as-ini --diff` is a minimal config fragment.
 
 ### nergal
 
