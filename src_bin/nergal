@@ -46,6 +46,39 @@ string of subnets to accept submissions from.
 To enable the use of a API key, set the value of 'apikey' and set 'auth' to 'apikey'
 (key only), 'both' (key and IP), or 'either' (key or IP).
 
+=head1 SUBMISSION GATE
+
+The 'submission_gate' setting is a command ran per submission to decide what
+becomes of it. It is empty by default, which disables it. What is done with the
+submission is taken from how it exits.
+
+    0 -- Accept it. Saved and submitted as normal.
+
+    1 -- Accept and save it, but do not submit it.
+
+    2 -- Accept it, but neither save nor submit it. Nothing is kept.
+
+    3 -- Deny it, temporarily. Replied to with a 444.
+
+    4 -- Deny it, permanently. Replied to with a 445.
+
+    5 -- Deny it, generically, for anything else. Replied to with a 403.
+
+Anything else is a gate that is broken rather than one making a call, and is
+handled like any other error, meaning the submission is dropped and replied to
+with a 400. A gate that could not be ran, timed out, or was killed is treated the
+same. So a broken gate never quietly accepts or denies anything, but a bad
+'submission_gate' does stop submissions until it is fixed.
+
+The gate is described the submission via 'NERGAL_' prefixed enviromental
+variables, which include the file itself, the submitted JSON, the slug, the
+checksums, the mime, and the flow info. Its stdout, stderr, and exit are all
+written to syslog, and where the submission is saved they are recorded in the
+incoming JSON as well. How long it is given to run is set via
+'submission_gate_timeout', which defaults to 30 seconds.
+
+See L<CAPE::Utils::Nergal/"SUBMISSION GATE"> for the full details.
+
 =head1 SUBMISSION
 
 Submissions must be made using the post method.

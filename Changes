@@ -1,100 +1,122 @@
 Revision history for CAPE-Utils
 
 5.0.?   ?/?
-		 - pod cleanup
-		 - no longer uses shortened md5 in suricata_extract_submit but full sha1
-		 - add $ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} for controlling max request size for mojo_cape_submit
-		 - fix handling of MOJO_CAPE_SUBMIT_MAX_REQ_SIZE
-		 - fix handling of printing received info in the log for mojo_cape_submit
-		 - add a incrementing int to mojo_cape_submit logging so log entries can more easily be corolated
-		 - rename mojo_cape_submit to nergal, mojo_cape_submit_extend to nergal_extend, and CAPE::Utils::MojoSubmit to CAPE::Utils::Nergal; the syslog ident, systemd service, env file, and MOJO_CAPE_SUBMIT_MAX_REQ_SIZE env var (now NERGAL_MAX_REQ_SIZE) follow suit
-		 - add a systemd timer for running cape_utils eve every two minutes
-		 - eve now writes per-task JSONs under the incoming dir's eve/ subdir and reads incoming JSON via task_to_json; drop the dead incoming_json config setting
-		 - add a nergal results endpoint (GET /results/<task_id> and /results/<task_id>/<file>) for fetching detonation artifacts (reports/lite.json, reports/report.json, reports/report.html, reports/summary-report.html, shots/*.jpg), gated by a separate ACL (results_auth/results_apikey/results_subnets)
-		 - fix check_remote ACL logic: ip/apikey/both/either now behave correctly (previously a bare apikey bypassed the IP check and ip-only auth denied keyless requests)
-		 - add a cape_utils exec command for running an arbitrary command from the CAPE base dir via poetry, the same way submissions are executed
-		 - submit and exec now require being ran as the configured cape_runas user (default cape); when not, they prepend "sudo -u <cape_runas>" if enable_sudo is set (defaults to 1 when ran as root, otherwise 0) or die
-		 - nergal now recovers the flow info, slug, pre send sha1, extraction time, and mime from the submitted filename when it is in the standard <src_ip>-<src_port>-<dest_ip>-<dest_port>-<proto>-<sha1>-<slug>-<epoch>-<mime> format, for the sake of tools submitting in that format without the JSON body suricata_extract_submit sends; every field is validated, matching is all or nothing, the epoch is taken as UTC, and anything actually submitted always wins
-		 - nergal now uses only the file bit of the submitted filename, which previously had just its first '/' stripped, letting a submitter walk out of the incoming dir and have the JSON write, the unlink, and the symlink all land on an arbitrary path; the name as submitted is still recorded as .cape_submit.orig_name and resub got the same treatment
-		 - nergal no longer autovivifies empty http, suricata_extract_submit, and lilith_cape_submit sections into every incoming JSON it writes out
-		 - nergal now ignores a json param that does not decode to a hash instead of failing the submission with a 400
-		 - nergal_extend now buckets submissions with no slug under 'unknown' rather than an empty string, which also silences the uninitialized value warnings it emitted for them
-		 - add a mojo_cape_submit wrapper that maps MOJO_CAPE_SUBMIT_MAX_REQ_SIZE to NERGAL_MAX_REQ_SIZE and execs nergal, for anything still calling it by the old name
-		 - nergal_extend now detects a changed hash via the digest in the name when the submitter sent no sha256, so submissions without a suricata_extract_submit section are no longer all counted as changed; that digest is a full sha1 from current submitters but the first 18 characters of the md5 from older ones, so it is compared as a prefix against both the sha1 and the md5 taken on receipt
+        - pod cleanup
+        - no longer uses shortened md5 in suricata_extract_submit but full sha1
+        - add $ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} for controlling max request size for mojo_cape_submit
+        - fix handling of MOJO_CAPE_SUBMIT_MAX_REQ_SIZE
+        - fix handling of printing received info in the log for mojo_cape_submit
+        - add a incrementing int to mojo_cape_submit logging so log entries can more easily be corolated
+        - mojo_cape_submit renamed to nergal and broken out into CAPE::Utils::Nergal
+        - add a mojo_cape_submit wrapper that maps MOJO_CAPE_SUBMIT_MAX_REQ_SIZE to NERGAL_MAX_REQ_SIZE
+          and execs nergal, for anything still calling it by the old name
+        - add a nergal results endpoint (GET /results/<task_id> and /results/<task_id>/<file>) for
+          fetching detonation artifacts
+        - add a systemd timer for running cape_utils eve every two minutes
+        - eve now writes per-task JSONs under the incoming dir's eve/ subdir and reads incoming JSON via
+          task_to_json; drop the dead incoming_json config setting
+        - fix check_remote ACL logic: ip/apikey/both/either now behave correctly (previously a bare apikey
+          bypassed the IP check and ip-only auth denied keyless requests)
+        - add a cape_utils exec command for running an arbitrary command from the CAPE base dir via
+          poetry, the same way submissions are executed
+        - submit and exec now require being ran as the configured cape_runas user (default cape); when not,
+          they prepend "sudo -u <cape_runas>" if enable_sudo is set (defaults to 1 when ran as root,
+          otherwise 0) or die
+        - nergal now recovers the flow info, slug, pre send sha1, extraction time, and mime from the submitted
+          filename when it is in the standard <src_ip>-<src_port>-<dest_ip>-<dest_port>-<proto>-<sha1>-<slug>-<epoch>-<mime>
+          format, for the sake of tools submitting in that format without the JSON body suricata_extract_submit sends;
+          every field is validated, matching is all or nothing, the epoch is taken as UTC, and anything actually
+          submitted always wins
+        - nergal now uses only the file bit of the submitted filename, which previously had just its first '/' stripped,
+          letting a submitter walk out of the incoming dir and have the JSON write, the unlink, and the symlink all land
+          on an arbitrary path; the name as submitted is still recorded as .cape_submit.orig_name and resub got the same
+          treatment
+        - nergal no longer autovivifies empty http, suricata_extract_submit, and lilith_cape_submit sections into every
+          incoming JSON it writes out
+        - nergal now ignores a json param that does not decode to a hash instead of failing the submission with a 400
+        - nergal_extend now buckets submissions with no slug under 'unknown' rather than an
+          empty string, which also silences the uninitialized value warnings it emitted for them
+        - add a submission_gate config value for nergal, a command ran per submission that decides what becomes of it
+          via how it exits; 0 accepts, 1 accepts and saves without submitting, 2 accepts and keeps nothing, 3/4/5 deny
+          with a 444/445/403, and anything else, a gate that cannot be ran, or one that runs past submission_gate_timeout
+          is an error and drops the submission. The submission is described to it via NERGAL_ prefixed env vars and its
+          stdout, stderr, and exit are logged and recorded as .cape_submit.gate_results
+        - nergal_extend now detects a changed hash via the digest in the name when the submitter sent no sha256,
+          so submissions without a suricata_extract_submit section are no longer all counted as changed; that digest
+          is a full sha1 from current submitters but the first 18 characters of the md5 from older ones, so it is
+          compared as a prefix against both the sha1 and the md5 taken on receipt
 
 4.0.0   2025-07-21/15:00
-		 - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry
+        - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry
 
 3.0.0   2024-09-24/16:30
-		 - Add ignoreMaxSize with a default value of 52428800 for skipping large extracts.
+        - Add ignoreMaxSize with a default value of 52428800 for skipping large extracts.
 
 2.9.0   2024-08-01/16:20
-		 - Remove unused depend on YAML. Thanks @perlpunk in issues/2.
-		 - Add support for ignoring stuff using Web::ACL.
-		 - Add ignore support for paths and UAs via a file of regexs
+        - Remove unused depend on YAML. Thanks @perlpunk in issues/2.
+        - Add support for ignoring stuff using Web::ACL.
+        - Add ignore support for paths and UAs via a file of regexs
 
 2.8.0   2023-11-27/11:00
-		- convert to Pod::Usage
-		- replace CryptX with cli utils
+        - convert to Pod::Usage
+        - replace CryptX with cli utils
 
 2.7.1   2023-11-15/10:00
-		- fix tempdir cleanup
+        - fix tempdir cleanup
 
 2.7.0   2023-06-18/19:30
-		- doc cleanup for suricata_extract_submit_extend
-		- mojo_cape_submit_extend doc update and now update app protos and max size
+        - doc cleanup for suricata_extract_submit_extend
+        - mojo_cape_submit_extend doc update and now update app protos and max size
 
 2.6.0   2023-06-14/21:15
-		- add mojo_cape_submit_extend
-		- Fix sub_size for suricata_extract_submit
-
+        - add mojo_cape_submit_extend
+        - Fix sub_size for suricata_extract_submit
 
 2.5.0   2023-06-12/14:00
-		- suricata_extract_submit and extend now tracks submitted byte size
-		- suricata_extract_submit now uses Proc::PID::File to make sure only one instance is running
+       - suricata_extract_submit and extend now tracks submitted byte size
+       - suricata_extract_submit now uses Proc::PID::File to make sure only one instance is running
 
 2.4.0   2023-06-03/15:15
-		- Add report munging support.
+        - Add report munging support.
 
 2.3.0   2023-05-18/18:00
-		- suricata_extract_submit can now use env specified proxies optionally
-		- suricata_extract_submit_extend now recomputes deltas
+        - suricata_extract_submit can now use env specified proxies optionally
+        - suricata_extract_submit_extend now recomputes deltas
 
 2.2.2   2023-05-18/10:00
-		- Fix pod error in Utils.pm, reneeb PR#1
-		- Set extend version to 1 in returned JSON.
+        - Fix pod error in Utils.pm, reneeb PR#1
+        - Set extend version to 1 in returned JSON.
 
 2.2.1   2023-05-17/15:00
-		- Actually reset last_errors post loading the old stats JSON
+        - Actually reset last_errors post loading the old stats JSON
 
 2.2.0   2023-05-17/12:00
-		- cpanratings.perl.org no longer exists(147814)
-		- src_bin/suricata_extract_submit now properly adds slug to the submission section
-		- src_bin/suricata_extract_submit now tracks truncated files count
+        - cpanratings.perl.org no longer exists(147814)
+        - src_bin/suricata_extract_submit now properly adds slug to the submission section
+        - src_bin/suricata_extract_submit now tracks truncated files count
 
 2.1.0   2023-05-17/09:45
-		- Update logging for ignored items to be more verbose.
+        - Update logging for ignored items to be more verbose.
 
 2.0.0   2023-05-16/16:00
-		- Add CAPE::Utils->eve_process and matching eve command to cape_utils.
-		- suricata_extract_submit now creates a stats file at '/var/cache/suricata_extract_submit_stats.json'.
-		- suricata_extract_submit also sends stats to syslog
-		- suricata_extract_submit sends the full extract JSON and mojo_cape_submit saves it.
-		- Add src_bin/suricata_extract_submit_extend.
+        - Add CAPE::Utils->eve_process and matching eve command to cape_utils.
+        - suricata_extract_submit now creates a stats file at '/var/cache/suricata_extract_submit_stats.json'.
+        - suricata_extract_submit also sends stats to syslog
+        - suricata_extract_submit sends the full extract JSON and mojo_cape_submit saves it.
+        - Add src_bin/suricata_extract_submit_extend.
 
 1.0.1   2023-03-30/20:00
-		- Fix a typo in regards to regex loading for ignore hosts regex file
+        - Fix a typo in regards to regex loading for ignore hosts regex file
 
 1.0.0   2023-03-30/16:15
-		- Rework the auth system. Not backwards compatabile.
-		- Add ignoreHosts options for ignoring hosts via regexp for suricata_extract_submit
+        - Rework the auth system. Not backwards compatabile.
+        - Add ignoreHosts options for ignoring hosts via regexp for suricata_extract_submit
 
 0.1.0   2023-03-23/18:15
-		- Add json output to -a submit
-		- submit now returns a hash of submitted files and task IDs
-		- add src_bin/mojo_cape_submit
-		- add src_bin/suricata_extract_submit
+        - Add json output to -a submit
+        - submit now returns a hash of submitted files and task IDs
+        - add src_bin/mojo_cape_submit
+        - add src_bin/suricata_extract_submit
 
 0.0.1   2023-03-11/11:00
         - Initial version.
-

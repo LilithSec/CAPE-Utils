@@ -172,9 +172,14 @@ my $ini = $incoming . '/cape_utils.ini';
 write_file( $ini, "incoming=$incoming\n" );
 
 my $submit_returns;
+my @submit_calls;
 no warnings qw( redefine once );
-local *CAPE::Utils::check_remote      = sub { return 1; };
-local *CAPE::Utils::submit            = sub { my ( $self, %o ) = @_; return { $o{items}[0] => $submit_returns }; };
+local *CAPE::Utils::check_remote = sub { return 1; };
+local *CAPE::Utils::submit       = sub {
+	my ( $self, %o ) = @_;
+	push( @submit_calls, $o{items}[0] );
+	return { $o{items}[0] => $submit_returns };
+};
 local *CAPE::Utils::LogDrek::openlog  = sub { };
 local *CAPE::Utils::LogDrek::closelog = sub { };
 local *CAPE::Utils::LogDrek::syslog   = sub { };
@@ -374,5 +379,177 @@ foreach my $useless ( '..', '/', '../..' ) {
 	);
 	is( $result->{status}, 400, 'a name of "' . $useless . '" is refused' );
 } ## end foreach my $useless ( '..', '/', '../..' )
+
+#
+# submission gate
+#
+my $gate_dir = $incoming . '/gate';
+mkdir($gate_dir);
+
+# what is sitting in tmp before any of this, as the early returns for a name with
+# no usable file bit in it leave their tempfile behind, which File::Temp only
+# cleans up at exit
+my %tmp_before     = map { $_ => 1 } glob( $incoming . '/tmp/*' );
+my $gate_env_file  = $gate_dir . '/env';
+my $gate_json_copy = $gate_dir . '/json';
+my $gate_ini       = $incoming . '/gate.ini';
+my $gate_receiver  = CAPE::Utils::Nergal->new( ini => $gate_ini );
+
+# a gate that records the enviroment it was handed, says something on both
+# stdout and stderr, and exits with the passed code
+sub gate_script {
+	my ($exit_code) = @_;
+
+	my $path = $gate_dir . '/gate-' . $exit_code;
+	write_file( $path,
+			  "#!/bin/sh\n"
+			. "env | grep '^NERGAL_' | sort > "
+			. $gate_env_file . "\n"
+			. "if [ -f \"\$NERGAL_FILE\" ]; then echo file-exists >> "
+			. $gate_env_file
+			. "; fi\n"
+			. "if [ -n \"\$NERGAL_JSON\" ]; then cat \"\$NERGAL_JSON\" > "
+			. $gate_json_copy
+			. "; fi\n"
+			. "echo gate-said-this\n"
+			. "echo gate-warned-this >&2\n" . "exit "
+			. $exit_code
+			. "\n" );
+	chmod( 0755, $path );
+
+	return $path;
+} ## end sub gate_script
+
+# what the gate was handed, as a hash of the NERGAL_ vars it was ran with
+sub gate_env {
+	my %env;
+	foreach my $line ( split( /\n/, read_file($gate_env_file) ) ) {
+		my ( $var, $value ) = split( /=/, $line, 2 );
+		$env{$var} = $value;
+	}
+
+	return \%env;
+}
+
+# put a gate in place and run a submission through it
+sub run_gated {
+	my ( $gate_command, $name, %opts ) = @_;
+
+	my $config = "incoming=$incoming\nsubmission_gate=$gate_command\n";
+	if ( defined( $opts{timeout} ) ) {
+		$config = $config . "submission_gate_timeout=$opts{timeout}\n";
+	}
+	write_file( $gate_ini, $config );
+
+	@submit_calls   = ();
+	$submit_returns = 42;
+
+	return $gate_receiver->receive(
+		remote_ip => '192.0.2.1',
+		apikey    => undef,
+		raw_json  => $opts{raw_json},
+		upload    => MockUpload->new( filename => $name, content => $name . ' content' ),
+		oversized => 0,
+	);
+} ## end sub run_gated
+
+# 0, accept it, which is business as usual
+$result = run_gated( gate_script(0), 'gate0.bin', raw_json => '{}' );
+is( $result->{status},     200,                         'a gate exiting 0 accepts the submission' );
+is( $result->{body},       "Submitted as task ID 42\n", 'a gate exiting 0 replies with the task ID' );
+is( scalar(@submit_calls), 1,                           'a gate exiting 0 submits it' );
+ok( -f $incoming . '/json/gate0.bin', 'a gate exiting 0 saves the JSON' );
+my $gate0_json = decode_json( read_file( $incoming . '/json/gate0.bin' ) );
+is( $gate0_json->{cape_submit}{gate_results}{exit},   0,                    'gate_results holds the exit' );
+is( $gate0_json->{cape_submit}{gate_results}{stdout}, "gate-said-this\n",   'gate_results holds the stdout' );
+is( $gate0_json->{cape_submit}{gate_results}{stderr}, "gate-warned-this\n", 'gate_results holds the stderr' );
+
+# 1, accept and save it, but do not submit it
+$result = run_gated( gate_script(1), 'gate1.bin', raw_json => '{}' );
+is( $result->{status},     200,          'a gate exiting 1 accepts the submission' );
+is( $result->{body},       "Accepted\n", 'a gate exiting 1 replies with an accepted' );
+is( scalar(@submit_calls), 0,            'a gate exiting 1 does not submit it' );
+ok( -f $incoming . '/json/gate1.bin',           'a gate exiting 1 still saves the JSON' );
+ok( -l $incoming . '/name_to_sha256/gate1.bin', 'a gate exiting 1 still saves the sample' );
+my $gate1_json = decode_json( read_file( $incoming . '/json/gate1.bin' ) );
+ok( !exists( $gate1_json->{cape_submit}{task} ), 'a gate exiting 1 records no task' );
+is( $gate1_json->{cape_submit}{gate_results}{exit}, 1, 'gate_results is recorded for an exit of 1 as well' );
+
+# 2, accept it, but keep nothing
+$result = run_gated( gate_script(2), 'gate2.bin', raw_json => '{}' );
+is( $result->{status},     200,          'a gate exiting 2 accepts the submission' );
+is( $result->{body},       "Accepted\n", 'a gate exiting 2 replies with an accepted' );
+is( scalar(@submit_calls), 0,            'a gate exiting 2 does not submit it' );
+ok( !-e $incoming . '/json/gate2.bin',           'a gate exiting 2 saves no JSON' );
+ok( !-e $incoming . '/name_to_sha256/gate2.bin', 'a gate exiting 2 saves no sample' );
+
+# 3, 4, and 5, the denials
+my %denials = ( 3 => 444, 4 => 445, 5 => 403 );
+foreach my $exit_code ( sort( keys(%denials) ) ) {
+	my $name = 'gate' . $exit_code . '.bin';
+	$result = run_gated( gate_script($exit_code), $name, raw_json => '{}' );
+	is( $result->{status}, $denials{$exit_code},
+		'a gate exiting ' . $exit_code . ' denies with a ' . $denials{$exit_code} );
+	is( $result->{body},       "Denied\n", 'a gate exiting ' . $exit_code . ' replies with a denied' );
+	is( scalar(@submit_calls), 0,          'a gate exiting ' . $exit_code . ' does not submit it' );
+	ok( !-e $incoming . '/json/' . $name, 'a gate exiting ' . $exit_code . ' keeps nothing' );
+}
+
+# a gate that is broken rather than making a call is an error, not a verdict
+$result = run_gated( gate_script(9), 'gate9.bin', raw_json => '{}' );
+is( $result->{status}, 400,                            'an unknown exit is an error' );
+is( $result->{body},   "Error... please see syslog\n", 'an unknown exit replies with the standard error' );
+ok( !-e $incoming . '/json/gate9.bin', 'an unknown exit keeps nothing' );
+
+$result = run_gated( $gate_dir . '/does-not-exist', 'gatemissing.bin', raw_json => '{}' );
+is( $result->{status}, 400, 'a gate that cannot be ran is an error rather than an exit of 2' );
+ok( !-e $incoming . '/json/gatemissing.bin', 'a gate that cannot be ran keeps nothing' );
+
+# a gate that hangs is not allowed to hang the submission with it
+$result = run_gated( '/bin/sleep 30', 'gateslow.bin', raw_json => '{}', timeout => 1 );
+is( $result->{status}, 400, 'a gate that times out is an error rather than an exit of 0' );
+ok( !-e $incoming . '/json/gateslow.bin', 'a gate that times out keeps nothing' );
+
+# what the gate is told, for a submission padded from its name and holding no body
+$result = run_gated( gate_script(0), $std_name );
+my $env = gate_env();
+is( $env->{NERGAL_SLUG},      'acme',                  'the gate is told the slug' );
+is( $env->{NERGAL_MIME},      'application_x-dosexec', 'the gate is told the mime' );
+is( $env->{NERGAL_SRC_IP},    '192.168.1.5',           'the gate is told the source IP' );
+is( $env->{NERGAL_SRC_PORT},  49152,                   'the gate is told the source port' );
+is( $env->{NERGAL_DEST_IP},   '93.184.216.34',         'the gate is told the dest IP' );
+is( $env->{NERGAL_DEST_PORT}, 80,                      'the gate is told the dest port' );
+is( $env->{NERGAL_PROTO},     'TCP',                   'the gate is told the proto' );
+is(
+	$env->{NERGAL_SHA256},
+	$receiver->checksums( $incoming . '/name_to_sha256/' . $std_name )->{sha256},
+	'the gate is told the sha256'
+);
+ok( exists( $env->{NERGAL_SHA1} ),       'the gate is told the sha1' );
+ok( exists( $env->{NERGAL_MD5} ),        'the gate is told the md5' );
+ok( exists( $env->{'file-exists'} ),     'the file is there to be looked at while the gate is running' );
+ok( !exists( $env->{NERGAL_JSON} ),      'no NERGAL_JSON where no body was submitted' );
+ok( !exists( $env->{NERGAL_APP_PROTO} ), 'no NERGAL_APP_PROTO where there is no app proto' );
+
+# and for one that submitted a body
+unlink($gate_json_copy);
+$result = run_gated( gate_script(0), 'gatejson.bin', raw_json => '{"app_proto":"http","src_ip":"10.0.0.1"}' );
+$env    = gate_env();
+is( $env->{NERGAL_APP_PROTO},   'http',     'the gate is told the app proto' );
+is( $env->{NERGAL_SRC_IP},      '10.0.0.1', 'the gate is told the submitted source IP' );
+is( read_file($gate_json_copy), '{"app_proto":"http","src_ip":"10.0.0.1"}', 'NERGAL_JSON holds the body as submitted' );
+ok( !-e $env->{NERGAL_JSON}, 'the JSON handed to the gate is cleaned up after' );
+
+# neither the samples nor the JSONs handed to the gate are left behind in tmp by
+# any of the above, denied or otherwise
+my @tmp_leftovers = grep { !$tmp_before{$_} } glob( $incoming . '/tmp/*' );
+is_deeply( \@tmp_leftovers, [], 'the submission gate leaves nothing behind in tmp' );
+
+# and with no gate configured nothing about a submission changes
+$result = run_gated( '', 'gatenone.bin', raw_json => '{}' );
+is( $result->{status}, 200,                         'an empty submission_gate leaves submissions alone' );
+is( $result->{body},   "Submitted as task ID 42\n", 'an empty submission_gate still replies with the task ID' );
+my $ungated_json = decode_json( read_file( $incoming . '/json/gatenone.bin' ) );
+ok( !exists( $ungated_json->{cape_submit}{gate_results} ), 'no gate_results where there is no gate' );
 
 done_testing();

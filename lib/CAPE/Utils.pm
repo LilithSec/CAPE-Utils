@@ -106,6 +106,8 @@ sub new {
 			'post_link_dir'       => '/malware/storage/links',
 			'post_link_format_template'      => '[% lite.target.file.name %]',
 			'post_link_format_template_file' => '/usr/local/etc/cape_utils_link_format_template.t2',
+			'submission_gate'                => '',
+			'submission_gate_timeout'        => 30,
 		},
 	};
 

@@ -15,6 +15,7 @@ use Socket               qw( inet_pton AF_INET AF_INET6 );
 use POSIX                qw( strftime );
 use Digest::SHA          ();
 use Digest::MD5          ();
+use IPC::Cmd             qw( run_forked );
 use CAPE::Utils::LogDrek qw( log_drek );
 
 =pod
@@ -80,6 +81,79 @@ question. If it already exists it is updated to the newest one.
 
 "task_to_json" contains links from the task name to the JSON it is for.
 
+=head1 SUBMISSION GATE
+
+The 'submission_gate' config value is a command ran per submission to decide what
+becomes of it. It is empty by default, which disables it entirely. What it does
+is taken from how it exits.
+
+    0 -- Accept it. Saved and submitted as normal.
+
+    1 -- Accept and save it, but do not submit it.
+
+    2 -- Accept it, but neither save nor submit it. Nothing is kept.
+
+    3 -- Deny it, temporarily. Replied to with a 444.
+
+    4 -- Deny it, permanently. Replied to with a 445.
+
+    5 -- Deny it, generically, for anything else. Replied to with a 403.
+
+Exits 0 and 1 are replied to with the usual task ID and an "Accepted"
+respectively, and 2 with an "Accepted" as well, it having been accepted but
+simply not kept.
+
+Anything else is a gate that is broken rather than one making a call on the
+submission, and is handled like any other nergal error, meaning the submission is
+dropped and replied to with a 400. A gate that could not be ran, timed out, or
+was killed is treated the same way. So a broken gate never quietly accepts or
+denies anything, but it does mean a bad 'submission_gate' stops submissions until
+it is fixed.
+
+The gate is ran after the submission has been authed and checksummed but before
+anything is written out of tmp, which is what lets an exit of 2 leave nothing
+behind. Ping tests are replied to before any of this and never reach the gate.
+
+It is ran via '/bin/sh -c', so it may be a pipeline or hold redirects, and its
+stdout, stderr, and exit are all logged. Where the submission is saved, exits 0
+and 1, what it had to say is also recorded in the incoming JSON as
+'.cape_submit.gate_results'.
+
+How long it is given to run is set via 'submission_gate_timeout', which defaults
+to 30 seconds.
+
+=head2 GATE ENVIROMENTAL VARIABLES
+
+The submission is described to the gate through the enviroment. Anything not
+known is left unset rather than set to nothing, so a gate can tell a value that
+is missing from one that is genuinely blank.
+
+    NERGAL_FILE      -- Path to the submitted file, which is still in tmp.
+
+    NERGAL_JSON      -- Path to the JSON as submitted. Only set where a body was
+                        submitted and it decoded to a hash. Removed once the gate
+                        has ran.
+
+    NERGAL_SLUG      -- The submitter's slug.
+
+    NERGAL_MIME      -- The mime type, with any '/' replaced by '_'.
+
+    NERGAL_SHA256    -- Checksums of the file as received.
+    NERGAL_SHA1
+    NERGAL_MD5
+
+    NERGAL_SRC_IP    -- The flow the file was extracted from.
+    NERGAL_SRC_PORT
+    NERGAL_DEST_IP
+    NERGAL_DEST_PORT
+    NERGAL_PROTO     -- 'TCP' or 'UDP'.
+    NERGAL_APP_PROTO -- 'http', 'tls', 'smb', and the like.
+
+The slug, mime, and flow info are all as of after anything recoverable from the
+submitted filename has been filled in, so a tool submitting in the standard name
+format without a JSON body is still described to the gate in full. See
+L</parse_name>.
+
 =head1 METHODS
 
 =head2 new
@@ -108,6 +182,22 @@ sub new {
 
 	return bless $self, $class;
 } ## end sub new
+
+# How the submission gate exiting maps to what is done with the submission.
+#   save   -- keep the sample and write the incoming JSON out
+#   submit -- hand it off to CAPE
+#   reply  -- what the submitter is told where there is no task ID to report
+# Anything not in here is a gate that is broken rather than one making a call,
+# and is handled like any other nergal error, as is a gate that timed out, was
+# killed, or could not be ran at all.
+our %GATE_ACTIONS = (
+	0 => { save => 1, submit => 1 },
+	1 => { save => 1, submit => 0, reply => { status => 200, body => "Accepted\n" } },
+	2 => { save => 0, submit => 0, reply => { status => 200, body => "Accepted\n" } },
+	3 => { save => 0, submit => 0, reply => { status => 444, body => "Denied\n" } },
+	4 => { save => 0, submit => 0, reply => { status => 445, body => "Denied\n" } },
+	5 => { save => 0, submit => 0, reply => { status => 403, body => "Denied\n" } },
+);
 
 # thin wrapper so every log line from here is emitted under the nergal ident
 sub _log_drek {
@@ -452,10 +542,15 @@ sub receive {
 	# get the json metadata info
 	my $raw_json = $opts{raw_json};
 	my $json;
+	# the body as submitted, only set when one was actually sent and usable, as
+	# that is what decides if the submission gate is handed a NERGAL_JSON
+	my $submitted_json;
 	eval { $json = decode_json($raw_json); };
 	if ($@) {
 		_log_drek( 'err', 'json param decode error: ' . $@ );
 		$json = {};
+	} elsif ( ref($json) eq 'HASH' ) {
+		$submitted_json = $raw_json;
 	}
 
 	# a JSON body is optional and some submitters send none... a top level that is
@@ -527,6 +622,73 @@ sub receive {
 	$json->{'cape_submit'}{'md5'} = $checksums->{md5};
 	_log_drek( 'info', 'MD5: ' . $json->{'cape_submit'}{'md5'}, $tracking );
 
+	# The sub sections the gate below and the logging further down pull values out
+	# of. Each is only taken as a ref when it is actually there, as dereferencing
+	# $json->{http} and friends directly would autovivify them, leaving an empty
+	# section in the JSON that gets written out.
+	my $http = ref( $json->{'http'} ) eq 'HASH' ? $json->{'http'} : {};
+	my $suricata_section
+		= ref( $json->{'suricata_extract_submit'} ) eq 'HASH' ? $json->{'suricata_extract_submit'} : {};
+	my $lilith_section = ref( $json->{'lilith_cape_submit'} ) eq 'HASH' ? $json->{'lilith_cape_submit'} : {};
+
+	# Hand it off to the submission gate, if one is configured, and take what to
+	# do with the submission from how the gate exited. This sits ahead of the save
+	# below so a gate can have a submission dropped without a trace of it being
+	# left behind, which means the sample is still sitting in tmp/ at this point.
+	my $save   = 1;
+	my $submit = 1;
+	my $gate;
+	my $gate_reply;
+	my $gate_command = $cape_util->{config}->{_}->{submission_gate};
+	if ( defined($gate_command) && $gate_command ne '' ) {
+		eval {
+			$gate = $self->_submission_gate(
+				command        => $gate_command,
+				timeout        => $cape_util->{config}->{_}->{submission_gate_timeout},
+				tracking       => $tracking,
+				submitted_json => $submitted_json,
+				env            => {
+					NERGAL_FILE      => $temp_filename,
+					NERGAL_SLUG      => $suricata_section->{'slug'},
+					NERGAL_MIME      => $suricata_section->{'mime'},
+					NERGAL_SHA256    => $checksums->{sha256},
+					NERGAL_SHA1      => $checksums->{sha1},
+					NERGAL_MD5       => $checksums->{md5},
+					NERGAL_SRC_IP    => $json->{'src_ip'},
+					NERGAL_SRC_PORT  => $json->{'src_port'},
+					NERGAL_DEST_IP   => $json->{'dest_ip'},
+					NERGAL_DEST_PORT => $json->{'dest_port'},
+					NERGAL_PROTO     => $json->{'proto'},
+					NERGAL_APP_PROTO => $json->{'app_proto'},
+				},
+			);
+		};
+		if ($@) {
+			_log_drek( 'err', 'submission_gate: ' . $@, $tracking );
+			unlink($temp_filename);
+			return { status => 400, body => "Error... please see syslog\n" };
+		}
+
+		# an exit not in the table means the gate is broken rather than making a
+		# call on the submission, so it is treated like any other nergal error
+		my $action = $GATE_ACTIONS{ defined( $gate->{exit_code} ) ? $gate->{exit_code} : 'undef' };
+		if ( !defined($action) ) {
+			unlink($temp_filename);
+			return { status => 400, body => "Error... please see syslog\n" };
+		}
+
+		$save       = $action->{save};
+		$submit     = $action->{submit};
+		$gate_reply = $action->{reply};
+	} ## end if ( defined($gate_command) && $gate_command...)
+
+	# nothing is kept for a submission the gate declined to have saved, so there
+	# is nothing to do past dropping the sample and telling the submitter
+	if ( !$save ) {
+		unlink($temp_filename);
+		return $gate_reply;
+	}
+
 	my $sha256_filename = $incoming . '/sha256/' . $json->{'cape_submit'}{'sha256'};
 	my $name_filename   = $incoming . '/name_to_sha256/' . $name;
 	# If it has already been received, we can skip this step and just unlink it.
@@ -558,10 +720,8 @@ sub receive {
 	$additional_info{proto}     = $json->{'proto'};
 	$additional_info{app_proto} = $json->{'app_proto'};
 	$additional_info{flow_id}   = $json->{'flow_id'};
-	# the sub sections are pulled via a hashref that is only taken when the section
-	# is actually there... dereferencing $json->{http} and friends directly would
-	# autovivify them, leaving an empty section in the JSON that gets written out
-	my $http = ref( $json->{'http'} ) eq 'HASH' ? $json->{'http'} : {};
+	# $http, $suricata_section, and $lilith_section are all taken further up, ahead
+	# of the submission gate, which needs values out of them as well
 	$additional_info{http_host}    = $http->{'hostname'};
 	$additional_info{http_url}     = $http->{'url'};
 	$additional_info{http_method}  = $http->{'method'};
@@ -571,9 +731,6 @@ sub receive {
 	$additional_info{http_ua}      = $http->{'http_user_agent'};
 	$additional_info{det_sub_type} = $http->{'http_method'};
 
-	my $suricata_section
-		= ref( $json->{'suricata_extract_submit'} ) eq 'HASH' ? $json->{'suricata_extract_submit'} : {};
-	my $lilith_section = ref( $json->{'lilith_cape_submit'} ) eq 'HASH' ? $json->{'lilith_cape_submit'} : {};
 	$additional_info{src_host} = $suricata_section->{'host'} // $lilith_section->{'host'};
 
 	# record the submission type before the loop below, as that turns undefs into
@@ -623,29 +780,46 @@ sub receive {
 		_log_drek( 'info', 'App Proto: ' . $additional_info{app_proto}, $tracking );
 	}
 
-	# finally submit it
-	my $results;
-	eval { $results = $cape_util->submit( items => [$name_filename], quiet => 1, ); };
-	if ($@) {
-		_log_drek( 'err', '$cape_util->submit( items => ["' . $name_filename . '"], quiet => 1, );  ... ' . $@,
-			$tracking );
-		return { status => 400, body => "Error... please see syslog\n" };
+	# finally submit it, unless the gate said to save it without submitting, in
+	# which case its reply is what the submitter gets as there is no task to name
+	my $response = $gate_reply;
+	my $task_value;
+	if ($submit) {
+		my $results;
+		eval { $results = $cape_util->submit( items => [$name_filename], quiet => 1, ); };
+		if ($@) {
+			_log_drek( 'err', '$cape_util->submit( items => ["' . $name_filename . '"], quiet => 1, );  ... ' . $@,
+				$tracking );
+			return { status => 400, body => "Error... please see syslog\n" };
+		}
+
+		# can't continue if submission failed
+		my @submitted = keys( %{$results} );
+		if ( !defined( $submitted[0] ) ) {
+			_log_drek( 'err', 'Submitting "' . $name_filename . '" failed', $tracking );
+			return { status => 400, body => "Submission failed\n" };
+		}
+
+		# log the submission... the task value may be a single ID or several joined via ','
+		$task_value = $results->{ $submitted[0] };
+		my @task_ids   = split( /,/, $task_value );
+		my $id_wording = defined( $task_ids[1] ) ? 'task IDs' : 'task ID';
+		_log_drek( 'info', 'Submitting "' . $name . '" submitted as ' . $task_value, $tracking );
+		$response = { status => 200, body => 'Submitted as ' . $id_wording . ' ' . $task_value . "\n" };
+		$json->{cape_submit}{task} = $task_value;
+	} else {
+		_log_drek( 'info', 'Not submitting "' . $name . '" as the submission gate said not to', $tracking );
 	}
 
-	# can't continue if submission failed
-	my @submitted = keys( %{$results} );
-	if ( !defined( $submitted[0] ) ) {
-		_log_drek( 'err', 'Submitting "' . $name_filename . '" failed', $tracking );
-		return { status => 400, body => "Submission failed\n" };
+	# record what the gate had to say about it, for anything going over the
+	# incoming JSONs later
+	if ($gate) {
+		$json->{cape_submit}{gate_results} = {
+			exit   => $gate->{exit_code},
+			stdout => $gate->{stdout},
+			stderr => $gate->{stderr},
+		};
 	}
-
-	# log the submission... the task value may be a single ID or several joined via ','
-	my $task_value = $results->{ $submitted[0] };
-	my @task_ids   = split( /,/, $task_value );
-	my $id_wording = defined( $task_ids[1] ) ? 'task IDs' : 'task ID';
-	_log_drek( 'info', 'Submitting "' . $name . '" submitted as ' . $task_value, $tracking );
-	my $response = { status => 200, body => 'Submitted as ' . $id_wording . ' ' . $task_value . "\n" };
-	$json->{cape_submit}{task} = $task_value;
 
 	# write out the json containing the submission info
 	eval { $self->_write_json( $json_filename, $json ); };
@@ -653,14 +827,100 @@ sub receive {
 		_log_drek( 'err', 'Failed to write submission data JSON out to "' . $json_filename . '"... ' . $@ );
 	} else {
 		_log_drek( 'info', 'Wrote submission data JSON out to "' . $json_filename . '"', $tracking );
-		eval { $self->_link_task_to_json( $task_value, $json_filename ); };
-		if ($@) {
-			_log_drek( 'err', $@, $tracking );
+		# nothing to link it to where it was saved without being submitted
+		if ( defined($task_value) ) {
+			eval { $self->_link_task_to_json( $task_value, $json_filename ); };
+			if ($@) {
+				_log_drek( 'err', $@, $tracking );
+			}
 		}
-	}
+	} ## end else [ if ($@) ]
 
 	return $response;
 } ## end sub receive
+
+# Run the configured submission gate and return what it had to say as a hash ref
+# of exit_code, stdout, and stderr. exit_code is undef where the gate did not run
+# to completion, which the caller treats the same as an exit it does not know.
+# Takes command, timeout, tracking, submitted_json, and env, the last being the
+# NERGAL_ prefixed vars the gate is told about the submission through.
+sub _submission_gate {
+	my ( $self, %opts ) = @_;
+
+	my $timeout = $opts{timeout};
+	if ( !defined($timeout) || $timeout !~ /^\d+$/ ) {
+		$timeout = 30;
+	}
+
+	# anything not defined is left unset rather than set empty, so a gate can tell
+	# a value that is missing from one that is genuinely blank
+	my %env;
+	foreach my $var ( keys( %{ $opts{env} } ) ) {
+		if ( defined( $opts{env}{$var} ) ) {
+			$env{$var} = $opts{env}{$var};
+		}
+	}
+
+	# The JSON is handed over as a file the same way the sample is, as a big
+	# enough env var makes the exec fail outright, and the json param has no size
+	# limit of its own past the max request size.
+	my $json_file;
+	if ( defined( $opts{submitted_json} ) ) {
+		my $json_fh;
+		( $json_fh, $json_file ) = tempfile( 'DIR' => $self->{incoming} . '/tmp' );
+		print {$json_fh} $opts{submitted_json};
+		close($json_fh);
+		$env{NERGAL_JSON} = $json_file;
+	}
+
+	# Ran through a shell explicitly rather than handed over as is. IPC::Cmd only
+	# uses a shell when the command holds something needing one, and a gate that
+	# does not exist then comes back as having exited 2, which is a meaningful
+	# value here. Going through a shell every time makes that a 127 instead, and
+	# means a gate can be a pipeline or hold redirects regardless. Passing it as a
+	# string is deliberate as well, as IPC::Cmd 1.04 eats the first line of stdout
+	# when handed a command as an array ref.
+	my $to_run = $opts{command};
+	$to_run =~ s/'/'\\''/g;
+	$to_run = "/bin/sh -c '" . $to_run . "'";
+
+	_log_drek( 'info', 'submission_gate: running "' . $opts{command} . '"', $opts{tracking} );
+
+	my $results;
+	{
+		# scoped so the vars do not leak into anything ran later on
+		local %ENV = ( %ENV, %env );
+		$results = run_forked( $to_run, { timeout => $timeout } );
+	}
+
+	if ( defined($json_file) ) {
+		unlink($json_file);
+	}
+
+	foreach my $stream (qw( stdout stderr )) {
+		if ( defined( $results->{$stream} ) ) {
+			foreach my $line ( split( /\n/, $results->{$stream} ) ) {
+				_log_drek( 'info', 'submission_gate ' . $stream . ': ' . $line, $opts{tracking} );
+			}
+		}
+	}
+
+	# a gate that timed out or was killed comes back as having exited 0, which
+	# would otherwise be taken as it having accepted the submission
+	if ( $results->{timeout} ) {
+		_log_drek( 'err', 'submission_gate: timed out after ' . $timeout . ' seconds', $opts{tracking} );
+		return { exit_code => undef, stdout => $results->{stdout}, stderr => $results->{stderr}, };
+	} elsif ( $results->{killed_by_signal} ) {
+		_log_drek( 'err', 'submission_gate: killed by signal ' . $results->{killed_by_signal}, $opts{tracking} );
+		return { exit_code => undef, stdout => $results->{stdout}, stderr => $results->{stderr}, };
+	}
+
+	my $exit_code = $results->{exit_code};
+	my $level     = defined( $GATE_ACTIONS{$exit_code} ) ? 'info' : 'err';
+	_log_drek( $level, 'submission_gate: exited ' . $exit_code, $opts{tracking} );
+
+	return { exit_code => $exit_code, stdout => $results->{stdout}, stderr => $results->{stderr}, };
+} ## end sub _submission_gate
 
 # atomically write $json (a hashref) out to $file as JSON, so nothing can observe
 # a half written file. A temp file is written in the same directory and renamed
