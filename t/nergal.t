@@ -101,13 +101,38 @@ foreach my $variant ( uc($good_sha1), ucfirst($good_sha1) ) {
 	is( $parsed->{sha1}, $good_sha1, 'parse_name lower cases the sha1 given "' . substr( $variant, 0, 8 ) . '..."' );
 }
 
-# proto likewise matches without regard to case and comes back upper cased
-foreach my $variant (qw( TCP tcp UDP udp )) {
+# proto likewise matches without regard to case and comes back upper cased... any
+# bare token parses, as submitters other than suricata_extract_submit put what
+# the flow actually was there, or 'unknown' where there was no flow at all
+foreach my $variant (qw( TCP tcp UDP udp ICMP icmp SCTP unknown )) {
 	$parsed
 		= $submitter->parse_name(
 			'10.0.0.1-1234-10.0.0.2-80-' . $variant . '-' . $good_sha1 . '-foo-' . $extracted . '-application_pdf' );
 	is( $parsed->{proto}, uc($variant), 'parse_name accepts and upper cases proto "' . $variant . '"' );
 }
+
+# a submission with no flow behind it at all, as tools other than
+# suricata_extract_submit send... zeroed addresses and ports, a proto of
+# 'unknown', and an md5 where the sha1 normally sits
+$parsed
+	= $submitter->parse_name(
+	'0.0.0.0-0-0.0.0.0-0-unknown-3e0ad56ac00aeb9dd0bddab7cb8b956e-foo-1785441239-application_x_msi');
+is_deeply(
+	$parsed,
+	{
+		src_ip    => '0.0.0.0',
+		src_port  => 0,
+		dest_ip   => '0.0.0.0',
+		dest_port => 0,
+		proto     => 'UNKNOWN',
+		sha1      => '3e0ad56ac00aeb9dd0bddab7cb8b956e',
+		slug      => 'foo',
+		time      => 1785441239,
+		timestamp => '2026-07-30T19:53:59Z',
+		mime      => 'application_x_msi',
+	},
+	'parse_name handles a flowless submission with a proto of "unknown"'
+);
 
 $parsed
 	= $submitter->parse_name(
@@ -124,7 +149,12 @@ my %bad = (
 	'empty src port'       => '192.168.1.5--93.184.216.34-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
 	'port over 65535'      => '10.0.0.1-99999-10.0.0.2-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
 	'non hex sha1'         => '10.0.0.1-1234-10.0.0.2-80-TCP-nothexz-foo-' . $extracted . '-app_pdf',
-	'proto not TCP or UDP' => '10.0.0.1-1234-10.0.0.2-80-ICMP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
+	'empty proto'          => '10.0.0.1-1234-10.0.0.2-80--' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
+	'proto with a symbol'  => '10.0.0.1-1234-10.0.0.2-80-TCP.6-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
+
+	# a proto holding a '-', as 'IPv6-ICMP' does, shifts every later field the
+	# same way a slug holding one does
+	'proto holding a "-"' => '10.0.0.1-1234-10.0.0.2-80-IPv6-ICMP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
 	'src ip not an ip'     => 'notanip-1234-10.0.0.2-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
 	'dest ip out of range' => '10.0.0.1-1234-999.1.1.1-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
 	'all digit slug'       => '10.0.0.1-1234-10.0.0.2-80-TCP-' . $good_sha1 . '-12345-' . $extracted . '-app_pdf',

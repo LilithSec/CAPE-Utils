@@ -306,8 +306,12 @@ validation, so it declines rather than mis-parsing.
     1 src_port  :: An integer in the range 0 to 65535.
     2 dest_ip   :: A valid IPv4 or IPv6 address.
     3 dest_port :: An integer in the range 0 to 65535.
-    4 proto     :: 'TCP' or 'UDP', matched without regard to case and
-                   returned upper cased.
+    4 proto     :: A bare alphanumeric token, returned upper cased. 'TCP' and
+                   'UDP' are what suricata_extract_submit puts here, but other
+                   submitters put whatever the flow was, such as 'ICMP', or
+                   'unknown' where there was no flow at all, so no particular
+                   set is required. A '-' in it, as 'IPv6-ICMP' holds, shifts
+                   every later field, so those fail rather than parse.
     5 sha1      :: Hex only, of any length. Upper, lower, or mixed case all
                    parse, and it is returned lower cased so it compares against
                    the checksums L</checksums> generates. Current submitters
@@ -377,7 +381,7 @@ sub parse_name {
 	}
 	# every one of these anchors with \z rather than $, as $ would also match with
 	# a trailing newline on the end of the field
-	if ( $proto !~ /\A(?:TCP|UDP)\z/i ) {
+	if ( $proto !~ /\A[A-Za-z0-9]+\z/ ) {
 		return undef;
 	}
 	if ( $sha1 !~ /\A[0-9a-fA-F]+\z/ ) {
