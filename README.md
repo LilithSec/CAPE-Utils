@@ -129,7 +129,32 @@ results_auth=ip
 results_subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
 # incoming dir to use for nergal
 incoming=/malware/client-incoming
+# 0/1 if submit should work the package out per item from its mime type
+mime_to_package=0
+# the package to use for mime types with no mapping in the mime_packages section
+# 'auto' or empty means submit those with no package, letting CAPE decide
+mime_to_package_default=exe
+# 0/1 if items resolving to the exe package should be checked for being a DLL
+dll_check=1
+
+# maps mime types to the CAPE package to submit them with, only used when
+# mime_to_package is enabled... these are merged in per key, so listing a
+# few here does not remove the shipped defaults
+[mime_packages]
+application/pdf=pdf
+application/x-msi=msi
+# 'auto' means submit with no package, letting CAPE decide
+application/x-ole-storage=auto
+# a empty value unsets a shipped mapping, falling through to mime_to_package_default
+text/plain=
 ```
+
+Mime types are detected via File::LibMagic. A package passed to `cape_utils
+submit --package` always wins over this, with `--package auto` meaning submit
+with no package at all.
+
+`cape_utils submit --dry-run` prints the mime type and package worked out for
+each item without submitting anything, and may be ran as any user.
 
 ### nergal
 

@@ -108,6 +108,60 @@ sub new {
 			'post_link_format_template_file' => '/usr/local/etc/cape_utils_link_format_template.t2',
 			'submission_gate'                => '',
 			'submission_gate_timeout'        => 30,
+			'mime_to_package'                => 0,
+			'mime_to_package_default'        => 'exe',
+			'dll_check'                      => 1,
+		},
+
+		# Maps mime types to the CAPE package to submit them with. Only used when
+		# mime_to_package is enabled.
+		#
+		# A value of 'auto' means submit it with no package and let CAPE decide,
+		# while a empty value unsets the mapping, falling through to
+		# mime_to_package_default.
+		#
+		# The package names here are the ones shipped with CAPEv2. Any deployment
+		# with a different set of packages will want to adjust these.
+		'mime_packages' => {
+			'application/pdf'                                                           => 'pdf',
+			'application/vnd.microsoft.portable-executable'                             => 'exe',
+			'application/x-dosexec'                                                     => 'exe',
+			'application/x-msdownload'                                                  => 'exe',
+			'application/x-msi'                                                         => 'msi',
+			'application/x-ms-win-installer'                                            => 'msi',
+			'application/msword'                                                        => 'doc',
+			'application/vnd.openxmlformats-officedocument.wordprocessingml.document'   => 'doc',
+			'application/vnd.ms-excel'                                                  => 'xls',
+			'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'         => 'xls',
+			'application/vnd.ms-powerpoint'                                             => 'ppt',
+			'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'ppt',
+			'text/rtf'                                                                  => 'rtf',
+			'application/rtf'                                                           => 'rtf',
+			'application/vnd.ms-publisher'                                              => 'pub',
+			'application/vnd.ms-htmlhelp'                                               => 'chm',
+			'application/java-archive'                                                  => 'jar',
+			'application/javascript'                                                    => 'js',
+			'text/javascript'                                                           => 'js',
+			'application/x-shockwave-flash'                                             => 'swf',
+			'application/zip'                                                           => 'zip',
+			'application/x-zip'                                                         => 'zip',
+			'application/vnd.rar'                                                       => 'rar',
+			'application/x-rar'                                                         => 'rar',
+			'application/x-ms-shortcut'                                                 => 'lnk',
+			'application/vnd.ms-outlook'                                                => 'msg',
+			'message/rfc822'                                                            => 'eml',
+			'application/vnd.ms-xpsdocument'                                            => 'xps',
+			'application/oxps'                                                          => 'xps',
+			'application/x-hwp'                                                         => 'hwp',
+			'text/x-python'                                                             => 'python',
+
+			# Generic OLE storage may be a doc, xls, or msi that libmagic could not
+			# pin down, and text may be any number of script types, so submitting
+			# those with the mime_to_package_default would be a guess at best.
+			'application/x-ole-storage' => 'auto',
+			'text/html'                 => 'auto',
+			'text/plain'                => 'auto',
+			'application/x-empty'       => 'auto',
 		},
 	};
 
@@ -115,13 +169,16 @@ sub new {
 	if ( !defined($config) ) {
 		$config = $base_config;
 	} else {
-		my @to_merge = keys( %{ $base_config->{'_'} } );
-		foreach my $item (@to_merge) {
-			if ( !defined( $config->{'_'}->{$item} ) ) {
-				$config->{'_'}->{$item} = $base_config->{'_'}->{$item};
+		# merged per key and not per section so that adding a single mime type to
+		# the mime_packages section does not blow away the shipped defaults
+		foreach my $section ( keys( %{$base_config} ) ) {
+			foreach my $item ( keys( %{ $base_config->{$section} } ) ) {
+				if ( !defined( $config->{$section}->{$item} ) ) {
+					$config->{$section}->{$item} = $base_config->{$section}->{$item};
+				}
 			}
 		}
-	}
+	} ## end else [ if ( !defined($config) ) ]
 
 	# init the object
 	my $self = { 'config' => $config, };
@@ -1249,6 +1306,152 @@ sub search {
 
 =pod
 
+=head2 mime_detect
+
+Detects the mime type of a file via L<File::LibMagic>.
+
+    - file :: The file to examine. Required.
+
+The returned value is a hash ref as below.
+
+    - mime :: The detected mime type, such as 'application/x-msi'.
+
+    - description :: The long form description from libmagic, such as
+      'PE32 executable (DLL) (GUI) Intel 80386, for MS Windows'. This is
+      the only thing that tells a DLL from a EXE, as both use the same
+      mime type.
+
+    my $detected = $cape_util->mime_detect( file => '/tmp/sample.bin' );
+    print $detected->{mime} . "\n";
+
+=cut
+
+sub mime_detect {
+	my ( $self, %opts ) = @_;
+
+	if ( !defined( $opts{file} ) ) {
+		die 'No file to detect the mime type of passed';
+	}
+
+	if ( !-f $opts{file} ) {
+		die( '"' . $opts{file} . '" does not exist or is not a file' );
+	}
+
+	# created on first use and then kept, as reading in the magic database is not
+	# cheap and the bulk of the module never needs it
+	if ( !defined( $self->{'libmagic'} ) ) {
+		eval { require File::LibMagic; };
+		if ($@) {
+			die( 'File::LibMagic could not be loaded, which is required for mime type detection ... ' . $@ );
+		}
+
+		$self->{'libmagic'} = File::LibMagic->new;
+	}
+
+	my $info = $self->{'libmagic'}->info_from_filename( $opts{file} );
+
+	return {
+		mime        => $info->{mime_type},
+		description => $info->{description},
+	};
+} ## end sub mime_detect
+
+=pod
+
+=head2 mime_to_package
+
+Works out which CAPE package to use for a item based on its mime type, using
+the mime_packages section of the config.
+
+Either a file to examine or a already detected mime type must be passed.
+
+    - file :: A file to detect the mime type of via mime_detect.
+      - Default :: undef
+
+    - mime :: A already detected mime type. Skips detection when set.
+      - Default :: undef
+
+    - description :: The libmagic description matching the passed mime, used
+      for telling a DLL from a EXE. Only useful with mime.
+      - Default :: undef
+
+The returned value is the package name to submit the item with, or undef for
+letting CAPE decide, which happens when any of the following are true.
+
+    - The mime type maps to 'auto' in the mime_packages section.
+
+    - The mime type is unmapped and mime_to_package_default is either empty
+      or set to 'auto'.
+
+A mime type mapped to a empty value is treated as unmapped, allowing a shipped
+default to be unset without replacing the whole section.
+
+When dll_check is enabled and a item resolves to the 'exe' package, the libmagic
+description is checked for '(DLL)' and the package switched to 'dll'. libmagic
+uses the same mime type for both, so this is the only thing separating them.
+
+    my $package = $cape_util->mime_to_package( file => '/tmp/sample.bin' );
+    if ( defined($package) ) {
+        print 'submitting as ' . $package . "\n";
+    }
+
+=cut
+
+sub mime_to_package {
+	my ( $self, %opts ) = @_;
+
+	my $default = $self->{'config'}->{'_'}->{'mime_to_package_default'};
+	if ( !defined($default) || $default eq '' || lc($default) eq 'auto' ) {
+		$default = undef;
+	}
+
+	my $mime        = $opts{mime};
+	my $description = $opts{description};
+
+	if ( !defined($mime) && defined( $opts{file} ) ) {
+		my $detected = $self->mime_detect( file => $opts{file} );
+		$mime        = $detected->{mime};
+		$description = $detected->{description};
+	}
+
+	if ( !defined($mime) ) {
+		return $default;
+	}
+
+	# any parameters, such as a charset, are not used for the lookup and the
+	# config keys are all lower case
+	$mime =~ s/\;.*$//;
+	$mime =~ s/^\s+//;
+	$mime =~ s/\s+$//;
+	$mime = lc($mime);
+
+	my $package = $self->{'config'}->{'mime_packages'}->{$mime};
+
+	if ( defined($package) && lc($package) eq 'auto' ) {
+		# let CAPE decide for this mime type
+		return undef;
+	}
+
+	# a empty mapping unsets a shipped default, falling through to
+	# mime_to_package_default
+	if ( !defined($package) || $package eq '' ) {
+		$package = $default;
+	}
+
+	if (   defined($package)
+		&& $package eq 'exe'
+		&& $self->{'config'}->{'_'}->{'dll_check'}
+		&& defined($description)
+		&& $description =~ /\(DLL\)/ )
+	{
+		$package = 'dll';
+	}
+
+	return $package;
+} ## end sub mime_to_package
+
+=pod
+
 =head2 submit
 
 Submits files to CAPE.
@@ -1281,8 +1484,19 @@ otherwise it dies.
       available will be used.
       - Default :: undef
 
-    - package :: Package to use, if not letting CAPE decide.
+    - package :: Package to use, if not letting CAPE decide. Applies to every
+      item submitted and always wins over mime_to_package. A value of 'auto'
+      is a explicit request to let CAPE decide, meaning no package is passed
+      and mime based selection is disabled.
       - Default :: undef
+
+    - mime_to_package :: Work the package out per item from its mime type via
+      mime_to_package. Ignored when package is set.
+      - Default :: the mime_to_package config setting
+
+    - dry_run :: Do not submit anything. Instead work out what would be
+      submitted and how. Changes the returned value, as documented below.
+      - Default :: 0
 
     - options :: Option string to be passed via --options.
       - Default :: undef
@@ -1315,6 +1529,21 @@ a single submitted file, the value is those task IDs joined via ','.
     my $sub_results=$cape_util->submit(items=>@to_detonate,unique=>0, quiet=>1);
     use JSON;
     print encode_json($sub_results)."\n";
+
+When dry_run is set, the keys are every item that would have been submitted and
+the value of each is a hash ref as below.
+
+    - mime :: The detected mime type of the item.
+
+    - package :: The package it would be submitted with, or undef for letting
+      CAPE decide.
+
+    - command :: A array ref of the command that would be run.
+
+dry_run also skips both the CD to the CAPE base dir and the cape_runas handling,
+so it may be ran by any user for the sake of checking mime to package mappings.
+This means the command it returns does not include any "sudo -u <cape_runas>"
+prefix that a real submission would use.
 
 =cut
 
@@ -1363,6 +1592,22 @@ sub submit {
 		$opts{enforce_timeout} = $self->{'config'}->{'_'}->{enforce_timeout};
 	}
 
+	# a package of 'auto' is a explicit request to let CAPE work it out, making it
+	# the same as passing no package with mime based selection disabled
+	if ( defined( $opts{package} ) && lc( $opts{package} ) eq 'auto' ) {
+		delete( $opts{package} );
+		$opts{mime_to_package} = 0;
+	}
+
+	if ( !defined( $opts{mime_to_package} ) ) {
+		$opts{mime_to_package} = $self->{'config'}->{'_'}->{mime_to_package};
+	}
+
+	# a explicitly passed package always wins
+	if ( defined( $opts{package} ) ) {
+		$opts{mime_to_package} = 0;
+	}
+
 	my @to_submit;
 
 	foreach my $item ( @{ $opts{items} } ) {
@@ -1379,10 +1624,14 @@ sub submit {
 		}
 	} ## end foreach my $item ( @{ $opts{items} } )
 
-	chdir( $self->{'config'}->{'_'}->{'base'} )
-		|| die( 'Unable to CD to "' . $self->{'config'}->{'_'}->{'base'} . '"' );
+	# both are skipped for dry runs so any user may check the mappings
+	my @to_run;
+	if ( !$opts{dry_run} ) {
+		chdir( $self->{'config'}->{'_'}->{'base'} )
+			|| die( 'Unable to CD to "' . $self->{'config'}->{'_'}->{'base'} . '"' );
 
-	my @to_run = $self->_cape_runas_prefix;
+		@to_run = $self->_cape_runas_prefix;
+	}
 
 	if ( $self->{'config'}->{'_'}->{poetry} ) {
 		push( @to_run, $self->{'config'}->{'_'}->{poetry_path}, 'run' );
@@ -1406,10 +1655,6 @@ sub submit {
 		push( @to_run, '--enforce-timeout' );
 	}
 
-	if ( defined( $opts{package} ) ) {
-		push( @to_run, '--package', $opts{package} );
-	}
-
 	if ( defined( $opts{machine} ) ) {
 		push( @to_run, '--machine', $opts{machine} );
 	}
@@ -1427,9 +1672,50 @@ sub submit {
 	}
 
 	my $added = {};
-	foreach (@to_submit) {
+	foreach my $to_submit_item (@to_submit) {
 		my @tmp_to_run = @to_run;
-		push( @tmp_to_run, $_ );
+
+		# mime_to_package is always off when a package was passed, so this is only
+		# ever overwritten when there is nothing to overwrite
+		my $item_mime;
+		my $item_package = $opts{package};
+
+		# the mime is also worked out for dry runs with mime_to_package off, as
+		# reporting the detected mime is the point of them
+		if ( $opts{mime_to_package} || $opts{dry_run} ) {
+			my $detected = $self->mime_detect( file => $to_submit_item );
+			$item_mime = $detected->{mime};
+
+			if ( $opts{mime_to_package} ) {
+				$item_package = $self->mime_to_package(
+					mime        => $detected->{mime},
+					description => $detected->{description},
+				);
+			}
+		} ## end if ( $opts{mime_to_package} || $opts{dry_run...})
+
+		if ( defined($item_package) ) {
+			push( @tmp_to_run, '--package', $item_package );
+		}
+
+		push( @tmp_to_run, $to_submit_item );
+
+		if ( $opts{dry_run} ) {
+			$added->{$to_submit_item} = {
+				mime    => $item_mime,
+				package => $item_package,
+				command => \@tmp_to_run,
+			};
+
+			if ( !$opts{quiet} ) {
+				print $to_submit_item . ' :: '
+					. ( defined($item_mime)    ? $item_mime    : 'unknown' ) . ' :: '
+					. ( defined($item_package) ? $item_package : 'auto' ) . "\n";
+			}
+
+			next;
+		} ## end if ( $opts{dry_run} )
+
 		my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf ) = run(
 			command => \@tmp_to_run,
 			verbose => 0
@@ -1455,7 +1741,7 @@ sub submit {
 				$added->{$file} = $task_ids;
 			}
 		} ## end foreach my $item (@results_split)
-	} ## end foreach (@to_submit)
+	} ## end foreach my $to_submit_item (@to_submit)
 
 	return $added;
 } ## end sub submit
@@ -2190,6 +2476,40 @@ default with CAPEv2 in the default config.
     post_link=0
     # Where to create the symbolic links to the submissions report dir
     post_link_dir=/malware/storage/links
+    # 0/1 if submit should work the package out per item from its mime type
+    mime_to_package=0
+    # the package to use for mime types with no mapping in the mime_packages section
+    # set to 'auto' or leave empty to submit those with no package, letting CAPE decide
+    mime_to_package_default=exe
+    # 0/1 if items resolving to the exe package should be checked for being a DLL
+    # libmagic uses the same mime type for both, so the description is all there is to go on
+    dll_check=1
+
+=head2 Mime Packages Section
+
+The 'mime_packages' section maps mime types to the CAPE package to submit
+items with. It is only used when mime_to_package is enabled, either via the
+config or via 'cape_utils submit --mime-package'.
+
+Mime types are detected via L<File::LibMagic> and matched case insensitively
+against the keys of this section, with any unmapped mime type falling through
+to mime_to_package_default.
+
+    [mime_packages]
+    application/pdf=pdf
+    application/x-msi=msi
+    # let CAPE decide for this one
+    application/x-ole-storage=auto
+    # unset a shipped default, falling through to mime_to_package_default
+    text/plain=
+
+A value of 'auto' means submit with no package, letting CAPE decide. A empty
+value unsets that mapping, falling through to mime_to_package_default.
+
+The shipped defaults are merged in per key and not per section, so adding a
+single mime type here does not remove the rest of them. The defaults map the
+common Windows malware types to the packages shipped with CAPEv2, so any
+deployment with a different set of packages will want to review them.
 
 =head2 Report Munge Section
 

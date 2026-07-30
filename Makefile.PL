@@ -34,6 +34,7 @@ my %WriteMakefileArgs = (
 		'Mojolicious::Lite'     => '0',
 		'LWP::UserAgent'        => '0',
 		'File::MimeInfo::Magic' => '0',
+		'File::LibMagic'        => '0',
 		'File::Temp'            => '0',
 		'File::Copy'            => '0',
 		'File::Basename'        => '0',
