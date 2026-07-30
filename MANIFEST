@@ -37,6 +37,7 @@ t/shuffle.t
 t/submit.t
 t/timestamp.t
 src_bin/cape_utils
+src_bin/mojo_cape_submit
 src_bin/nergal
 src_bin/nergal_extend
 src_bin/suricata_extract_submit

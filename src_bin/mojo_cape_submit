@@ -1,0 +1,62 @@
+#!perl
+
+=head1 NAME
+
+mojo_cape_submit - Compatibility wrapper around nergal.
+
+=head1 SYNOPSIS
+
+sudo -u cape mojo_cape_submit daemon -m production -l 'http://*:8080'
+
+=head1 DESCRIPTION
+
+mojo_cape_submit is the old name of L<nergal>. This wrapper exists so anything
+still calling it by that name keeps working. All arguments are passed to nergal
+as is, which then replaces this process, so it behaves exactly as invoking
+nergal directly would.
+
+The nergal sitting in the same directory as this script is used if there is one,
+otherwise it is looked for in the path.
+
+New setups should call nergal directly.
+
+=head1 ENVIROMENTAL VARIABLES
+
+The enviromental variables renamed along with the script are mapped to their
+current names before handing off to nergal, so a old env file keeps working.
+
+    MOJO_CAPE_SUBMIT_MAX_REQ_SIZE -> NERGAL_MAX_REQ_SIZE
+
+The current name wins where both are set. Setting the old one has no effect when
+calling nergal directly.
+
+=cut
+
+use strict;
+use warnings;
+use File::Basename qw( dirname );
+use File::Spec     ();
+
+# old name => current name, for the ones renamed when mojo_cape_submit became nergal
+my %renamed_env_vars = ( 'MOJO_CAPE_SUBMIT_MAX_REQ_SIZE' => 'NERGAL_MAX_REQ_SIZE', );
+
+foreach my $old_name ( keys(%renamed_env_vars) ) {
+	my $current_name = $renamed_env_vars{$old_name};
+	if ( defined( $ENV{$old_name} ) && !defined( $ENV{$current_name} ) ) {
+		$ENV{$current_name} = $ENV{$old_name};
+	}
+}
+
+# prefer the nergal installed alongside us, falling back to whatever is in the path
+my $nergal_path = File::Spec->catfile( dirname($0), 'nergal' );
+if ( !-x $nergal_path ) {
+	$nergal_path = 'nergal';
+}
+
+{
+	# the die below is the error we want, not the warning exec emits on failure
+	no warnings 'exec';
+	exec {$nergal_path} 'nergal', @ARGV;
+}
+
+die( 'failed to exec nergal via "' . $nergal_path . '"... ' . $! );

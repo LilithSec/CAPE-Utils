@@ -19,6 +19,7 @@ Revision history for CAPE-Utils
 		 - nergal no longer autovivifies empty http, suricata_extract_submit, and lilith_cape_submit sections into every incoming JSON it writes out
 		 - nergal now ignores a json param that does not decode to a hash instead of failing the submission with a 400
 		 - nergal_extend now buckets submissions with no slug under 'unknown' rather than an empty string, which also silences the uninitialized value warnings it emitted for them
+		 - add a mojo_cape_submit wrapper that maps MOJO_CAPE_SUBMIT_MAX_REQ_SIZE to NERGAL_MAX_REQ_SIZE and execs nergal, for anything still calling it by the old name
 		 - nergal_extend now detects a changed hash via the digest in the name when the submitter sent no sha256, so submissions without a suricata_extract_submit section are no longer all counted as changed; that digest is a full sha1 from current submitters but the first 18 characters of the md5 from older ones, so it is compared as a prefix against both the sha1 and the md5 taken on receipt
 
 4.0.0   2025-07-21/15:00

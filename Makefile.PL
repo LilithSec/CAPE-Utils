@@ -14,7 +14,7 @@ my %WriteMakefileArgs = (
 	EXE_FILES        => [
 		'src_bin/cape_utils',              'src_bin/nergal',
 		'src_bin/suricata_extract_submit', 'src_bin/suricata_extract_submit_extend',
-		'src_bin/nergal_extend'
+		'src_bin/nergal_extend',           'src_bin/mojo_cape_submit'
 	],
 	CONFIGURE_REQUIRES => {
 		'ExtUtils::MakeMaker' => '0',

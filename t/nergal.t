@@ -275,6 +275,60 @@ my $unpadded = decode_json( read_file( $incoming . '/json/manual-sample.exe' ) )
 ok( !exists( $unpadded->{suricata_extract_submit} ), 'a non standard name creates no suricata_extract_submit' );
 ok( !exists( $unpadded->{src_ip} ),                  'a non standard name pads no flow info' );
 
+# the sections read for logging are never created by reading them, including on
+# the http logging branch, which is the one that touches the http section most
+$submit_returns = 30;
+$receiver->receive(
+	remote_ip => '192.0.2.1',
+	apikey    => undef,
+	raw_json  => '{"app_proto":"http"}',
+	upload    => MockUpload->new( filename => 'nosections.bin', content => 'no sections at all' ),
+	oversized => 0,
+);
+my $nosections = decode_json( read_file( $incoming . '/json/nosections.bin' ) );
+foreach my $section (qw( http suricata_extract_submit lilith_cape_submit )) {
+	ok( !exists( $nosections->{$section} ), 'reading for logging creates no empty ' . $section . ' section' );
+}
+ok( !exists( $nosections->{det_sub_type} ), 'no det_sub_type is written out where there is no http method' );
+
+# the http method is what det_sub_type is taken from
+$submit_returns = 32;
+$receiver->receive(
+	remote_ip => '192.0.2.1',
+	apikey    => undef,
+	raw_json  => '{"app_proto":"http","http":{"http_method":"get"}}',
+	upload    => MockUpload->new( filename => 'withmethod.bin', content => 'has a method' ),
+	oversized => 0,
+);
+my $withmethod = decode_json( read_file( $incoming . '/json/withmethod.bin' ) );
+is( $withmethod->{det_sub_type}, 'get', 'det_sub_type is taken from the http method' );
+
+# and a submitted one is left be where there is no method to take it from
+$submit_returns = 33;
+$receiver->receive(
+	remote_ip => '192.0.2.1',
+	apikey    => undef,
+	raw_json  => '{"det_sub_type":"manual"}',
+	upload    => MockUpload->new( filename => 'subtype.bin', content => 'submitted type' ),
+	oversized => 0,
+);
+my $subtype = decode_json( read_file( $incoming . '/json/subtype.bin' ) );
+is( $subtype->{det_sub_type}, 'manual', 'a submitted det_sub_type is not clobbered' );
+
+# and one submitted as something other than a hash is left as submitted rather
+# than being replaced by the empty hash used in its place for logging
+$submit_returns = 31;
+$receiver->receive(
+	remote_ip => '192.0.2.1',
+	apikey    => undef,
+	raw_json  => '{"app_proto":"http","http":"not a hash","lilith_cape_submit":[1,2]}',
+	upload    => MockUpload->new( filename => 'oddsections.bin', content => 'odd sections' ),
+	oversized => 0,
+);
+my $oddsections = decode_json( read_file( $incoming . '/json/oddsections.bin' ) );
+is( $oddsections->{http}, 'not a hash', 'a non hash http section is left as submitted' );
+is_deeply( $oddsections->{lilith_cape_submit}, [ 1, 2 ], 'a non hash lilith_cape_submit section is left as submitted' );
+
 # a JSON body that is not a hash is ignored rather than dying
 $submit_returns = 4;
 $result         = $receiver->receive(

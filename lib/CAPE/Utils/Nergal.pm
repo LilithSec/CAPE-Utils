@@ -576,6 +576,14 @@ sub receive {
 	my $lilith_section = ref( $json->{'lilith_cape_submit'} ) eq 'HASH' ? $json->{'lilith_cape_submit'} : {};
 	$additional_info{src_host} = $suricata_section->{'host'} // $lilith_section->{'host'};
 
+	# record the submission type before the loop below, as that turns undefs into
+	# the string 'undef' for logging purposes and a submission with no http method
+	# should not have a literal "undef" written out into its JSON... anything the
+	# submitter put there is left alone where there is no method to override it
+	if ( defined( $additional_info{det_sub_type} ) ) {
+		$json->{det_sub_type} = $additional_info{det_sub_type};
+	}
+
 	# set the value for anything not defined to undef for the purpose of logging
 	# this will avoid perl from throwing errors about undef used in cating
 	foreach my $item ( keys(%additional_info) ) {
@@ -583,7 +591,6 @@ sub receive {
 			$additional_info{$item} = 'undef';
 		}
 	}
-	$json->{det_sub_type} = $additional_info{det_sub_type};
 
 	# log additional info
 	_log_drek( 'info', 'Source Host: ' . $additional_info{src_host},         $tracking );
