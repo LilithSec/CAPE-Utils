@@ -41,3 +41,4 @@ bin/suricata_extract_submit_extend
 bin/nergal_extend
 bin/.exists
 todo.md
+bin/
