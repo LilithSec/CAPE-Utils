@@ -34,16 +34,12 @@ our $VERSION = '5.0.0';
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
-
-Perhaps a little code snippet.
-
     use CAPE::Utils;
+    use JSON;
 
     my $cape_util=CAPE::Utils->new();
 
-    my $sub_results=$cape_util->submit(items=>@to_detonate,unique=>0, quiet=>1);
-    use JSON;
+    my $sub_results=$cape_util->submit(items=>\@to_detonate, unique=>0, quiet=>1);
     print encode_json($sub_results)."\n";
 
 =head1 METHODS
@@ -314,7 +310,7 @@ sub get_base_dir {
 
 =head2 get_pending_count
 
-Get pending count pending tasks.
+Gets a count of pending tasks.
 
     - where :: And additional where part of the SQL statement. "and" will
                automatically be used to join it with the rest of the
@@ -354,7 +350,7 @@ sub get_pending_count {
 
 =head2 get_pending
 
-Returns a arrah ref of hash refs of rows from the tasks table where the
+Returns a array ref of hash refs of rows from the tasks table where the
 status is set to pending via "select * from tasks where status = 'pending'"
 
     - where :: And additional where part of the SQL statement. "and" will
@@ -362,7 +358,7 @@ status is set to pending via "select * from tasks where status = 'pending'"
                statement. May not contain a ';'.
         - Default :: undef
 
-    - where :: Additional SQL where statements to add.
+    my $pending=$cape_util->get_pending;
 
 =cut
 
@@ -401,7 +397,7 @@ sub get_pending {
 
 Generates a ASCII table for pending.
 
-The following config variables can are relevant to this and
+The following config variables are relevant to this and
 may be overriden.
 
     table_border
@@ -485,7 +481,7 @@ sub get_pending_table {
 
 =head2 get_results_dir
 
-Returns the path to a results directory for a anaylyses.
+Returns the path to a results directory for a analyses.
 
 Takes a ID.
 
@@ -514,7 +510,7 @@ sub get_results_dir {
 =head2 get_running
 
 Returns a array ref of hash refs of rows from the tasks table where the
-status is set to pending.
+status is set to running.
 
      select * from tasks where status = 'running'
 
@@ -565,7 +561,7 @@ sub get_running {
 
 =head2 get_running_count
 
-Get pending count running tasks.
+Gets a count of running tasks.
 
      select * from tasks where status = 'running'
 
@@ -609,9 +605,9 @@ sub get_running_count {
 
 =head2 get_running_table
 
-Generates a ASCII table for pending.
+Generates a ASCII table for running.
 
-The following config variables can are relevant to this and
+The following config variables are relevant to this and
 may be overriden.
 
     table_border
@@ -631,7 +627,7 @@ The following options are also supported.
                statement. May not contain a ';'.
         - Default :: undef
 
-    print $cape_util->get_pending_table( pending_columns=>'id,package');
+    print $cape_util->get_running_table( running_columns=>'id,package');
 
 =cut
 
@@ -717,8 +713,8 @@ sub get_storage_dir {
 
 =head2 get_tasks
 
-Returns a array ref of hash refs of rows from the tasks table where the
-status is set to pending.
+Returns a array ref of hash refs of rows from the tasks table, ordered and
+limited as specified.
 
     - where :: The where part of the SQL statement. May not contain a ';'.
         - Default :: undef
@@ -732,12 +728,12 @@ status is set to pending.
     - direction :: Direction to order in.
         - Default :: desc
 
-    use Data::Dumper;
-
 A small example showing getting running, ordering by category, and limiting to 20.
 
+    use Data::Dumper;
+
     my $tasks=$cape_utils->get_tasks(where=>"status = 'running'", limit=>20, order=>"category", direction=>'desc');
-    print Dumper($running);
+    print Dumper($tasks);
 
 =cut
 
@@ -809,14 +805,14 @@ sub get_tasks {
 
 Gets a count of tasks.
 
-    - where :: The where part of the SQL statement. May not contain a ';'.
+    - where :: The where part of the SQL statement. The leading "where"
+               keyword is optional and added if it is not already there,
+               so either form works. May not contain a ';'.
         - Default :: undef
 
-    use Data::Dumper;
+A small example showing counting the running tasks.
 
-A small example showing getting running, ordering by category, and limiting to 20.
-
-    my $count=$cape_util->get_tasks_count(where=>"status = 'running'", limit=>20, order=>"category", direction=>'desc');
+    my $count=$cape_util->get_tasks_count(where=>"status = 'running'");
 
 =cut
 
@@ -831,8 +827,15 @@ sub get_tasks_count {
 
 	my $statement = "select * from tasks";
 	if ( defined( $opts{'where'} ) ) {
-		$statement = $statement . ' ' . $opts{'where'};
-	}
+
+		# accept both a bare fragment and one already carrying the keyword, so
+		# the same string works here as it does for get_tasks
+		my $where_clause = $opts{'where'};
+		if ( $where_clause !~ /^\s*where\s/i ) {
+			$where_clause = 'where ' . $where_clause;
+		}
+		$statement = $statement . ' ' . $where_clause;
+	} ## end if ( defined( $opts{'where'} ) )
 
 	my $sth = $dbh->prepare($statement);
 	$sth->execute;
@@ -851,7 +854,7 @@ sub get_tasks_count {
 
 Generates a ASCII table for tasks.
 
-The following config variables can are relevant to this and
+The following config variables are relevant to this and
 may be overriden.
 
     table_border
@@ -1109,212 +1112,6 @@ sub munge {
 
 	return 1;
 } ## end sub munge
-
-=pod
-
-=head2 search
-
-Searches the list of tasks. By default everything will be return ed.
-
-    - where :: Additional SQL where statements to use for searching.
-               May not contain a ';'.
-      - Default :: undef
-
-Addtionally there are also helpers for searching. These may not contain either a /\'/
-or a /\\/. They will be joined via and.
-
-The following are handled as a simple equality.
-
-    - timeout
-    - memory
-    - enforce_timeout
-    - timedout
-
-The following are numeric. Each one may accept multiple
-comma sperated values. The equalities =, >,>=, <=, and !
-are supported. If no equality is specified, then = is used.
-
-    - id
-    - timeout
-    - priority
-    - dropped_files
-    - running_processes
-    - api_calls
-    - domains
-    - signatures_total
-    - signatures_alert
-    - files_written
-    - registry_keys_modified
-    - crash_issues
-    - anti_issues
-    - sample_id
-    - machine_id
-
-    # will result in id >= 3 and id < 44
-    id => '>=3,<44'
-
-    # either of these will be id = 4
-    id => '=4'
-    id => '4'
-
-The following are string items. As is, they
-are evaluated as a simple equality. If ending with
-ending in '_like', they will be evaluated as a like.
-
-    - target
-    - category
-    - custom
-    - machine
-    - package
-    - route
-    - tags_tasks
-    - options
-    - platform
-
-    # becomes... target = 'foo'
-    target => 'foo'
-
-    # becomes... target like 'foo%'
-    target_like => 'foo%'
-
-=cut
-
-sub search {
-	my ( $self, %opts ) = @_;
-
-	if ( defined( $opts{'where'} ) && $opts{'where'} =~ /\;/ ) {
-		die '$opts{where},"' . $opts{'where'} . '", contains a ";"';
-	}
-
-	#
-	# make sure all the set variables are not dangerous or potentially dangerous
-	#
-
-	my @to_check = (
-		'id',            'target',                 'route',            'machine',
-		'timeout',       'priority',               'route',            'tags_tasks',
-		'options',       'clock',                  'added_on',         'started_on',
-		'completed_on',  'status',                 'dropped_files',    'running_processes',
-		'api_calls',     'domains',                'signatures_total', 'signatures_alert',
-		'files_written', 'registry_keys_modified', 'crash_issues',     'anti_issues',
-		'timedout',      'sample_id',              'machine_id',       'parent_id',
-		'tlp',           'category',               'package'
-	);
-
-	foreach my $var_to_check (@to_check) {
-		if ( defined( $opts{$var_to_check} ) && $opts{$var_to_check} =~ /[\\\']/ ) {
-			die( '"' . $opts{$var_to_check} . '" for "' . $var_to_check . '" matched /[\\\']/' );
-		}
-	}
-
-	#
-	# init the SQL statement
-	#
-
-	my $sql = "select * from tasks where id >= 0";
-
-	if ( defined( $opts{'where'} ) ) {
-		$sql = $sql . ' AND ' . $opts{'where'};
-	}
-
-	#
-	# add simple items
-	#
-
-	my @simple = ( 'timeout', 'memory', 'enforce_timeout', 'timedout' );
-
-	foreach my $item (@simple) {
-		if ( defined( $opts{$item} ) ) {
-			$sql = $sql . " and " . $item . " = '" . $opts{$item} . "'";
-		}
-	}
-
-	#
-	# add numeric items
-	#
-
-	my @numeric = (
-		'id',                'timeout',       'priority',               'dropped_files',
-		'running_processes', 'api_calls',     'domains',                'signatures_total',
-		'signatures_alert',  'files_written', 'registry_keys_modified', 'crash_issues',
-		'anti_issues',       'sample_id',     'machine_id'
-	);
-
-	foreach my $item (@numeric) {
-		if ( defined( $opts{$item} ) ) {
-
-			# remove and tabs or spaces
-			$opts{$item} =~ s/[\ \t]//g;
-			my @arg_split = split( /\,/, $opts{$item} );
-
-			# process each item
-			foreach my $arg (@arg_split) {
-
-				# match the start of the item
-				if ( $arg =~ /^[0-9]+$/ ) {
-					$sql = $sql . " and " . $item . " = '" . $arg . "'";
-				} elsif ( $arg =~ /^\=[0-9]+$/ ) {
-					$arg =~ s/^\=//;
-					$sql = $sql . " and " . $item . " <= '" . $arg . "'";
-				} elsif ( $arg =~ /^\<\=[0-9]+$/ ) {
-					$arg =~ s/^\<\=//;
-					$sql = $sql . " and " . $item . " <= '" . $arg . "'";
-				} elsif ( $arg =~ /^\<[0-9]+$/ ) {
-					$arg =~ s/^\<//;
-					$sql = $sql . " and " . $item . " < '" . $arg . "'";
-				} elsif ( $arg =~ /^\>\=[0-9]+$/ ) {
-					$arg =~ s/^\>\=//;
-					$sql = $sql . " and " . $item . " >= '" . $arg . "'";
-				} elsif ( $arg =~ /^\>[0-9]+$/ ) {
-					$arg =~ s/^\>\=//;
-					$sql = $sql . " and " . $item . " > '" . $arg . "'";
-				} elsif ( $arg =~ /^\![0-9]+$/ ) {
-					$arg =~ s/^\!//;
-					$sql = $sql . " and " . $item . " != '" . $arg . "'";
-				} elsif ( $arg =~ /^$/ ) {
-
-					# only exists for skipping when some one has passes something starting
-					# with a ,, ending with a,, or with ,, in it.
-				} else {
-					# if we get here, it means we don't have a valid use case for what ever was passed and should error
-					die( '"' . $arg . '" does not appear to be a valid item for a numeric search for the ' . $item );
-				}
-			} ## end foreach my $arg (@arg_split)
-		} ## end if ( defined( $opts{$item} ) )
-	} ## end foreach my $item (@numeric)
-
-	#
-	# handle string items
-	#
-
-	my @strings
-		= ( 'target', 'category', 'custom', 'machine', 'package', 'route', 'tags_tasks', 'options', 'platform', );
-
-	foreach my $item (@strings) {
-		if ( defined( $opts{$item} ) ) {
-			if ( defined( $opts{ $item . '_like' } ) && $opts{ $item . '_like' } ) {
-				$sql = $sql . " and host like '" . $opts{$item} . "'";
-			} else {
-				$sql = $sql . " and " . $item . " = '" . $opts{$item} . "'";
-			}
-		}
-	}
-
-	#
-	# finalize it and search
-	#
-
-	$sql = $sql . ';';
-
-	my $dbh = $self->connect;
-	my $sth = $dbh->prepare($sql);
-
-	$sth->execute;
-
-	my $rows;
-
-	return $rows;
-} ## end sub search
 
 =pod
 
@@ -1738,12 +1535,13 @@ otherwise it dies.
     -quiet :: Do not print the results.
         - Default :: 0
 
-The retuned value is a hash ref where the keys are successfully submitted files
+The returned value is a hash ref where the keys are successfully submitted files
 and values of those keys is the task ID. Should CAPE create multiple tasks for
 a single submitted file, the value is those task IDs joined via ','.
 
-    my $sub_results=$cape_util->submit(items=>@to_detonate,unique=>0, quiet=>1);
     use JSON;
+
+    my $sub_results=$cape_util->submit(items=>\@to_detonate, unique=>0, quiet=>1);
     print encode_json($sub_results)."\n";
 
 When dry_run is set, the keys are every item that would have been submitted and
@@ -2185,7 +1983,7 @@ sub timestamp {
 
 =head2 shuffle
 
-Performa a Fisher Yates shuffle on the passed array ref.
+Performs a Fisher Yates shuffle on the passed array ref.
 
 =cut
 
@@ -2632,11 +2430,11 @@ default with CAPEv2 in the default config.
     enable_sudo=1
     # 0/1 if fail should be allowed to run with out a where statement
     fail_all=0
-    # colums to use for pending table show
+    # columns to use for pending table show
     pending_columns=id,target,package,timeout,ET,route,options,clock,added_on
-    # colums to use for runniong table show
+    # columns to use for running table show
     running_columns=id,target,package,timeout,ET,route,options,clock,added_on,started_on,machine
-    # colums to use for tasks table
+    # columns to use for tasks table
     task_columns=id,target,package,timeout,ET,route,options,clock,added_on,latest,machine,status
     # if the target column for running table display should be clipped to the filename
     running_target_clip=1
@@ -2668,13 +2466,13 @@ default with CAPEv2 in the default config.
     auth=ip
     # the api key to for with nergal
     #apikey=
-    # comma seperated list of allowed subnets for nergal
+    # comma separated list of allowed subnets for nergal
     subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
     # how to auth for the nergal results endpoint (ip/apikey/both/either), like auth above
     results_auth=ip
     # the api key for the nergal results endpoint
     #results_apikey=
-    # comma seperated list of allowed subnets for the nergal results endpoint
+    # comma separated list of allowed subnets for the nergal results endpoint
     results_subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
     # incoming dir to use for nergal
     incoming=/malware/client-incoming
@@ -2745,7 +2543,7 @@ Below is a example showing the setup for a single script.
 
 If more than one munge section exists, they are ran in sorted order.
 
-If the paths specied do not start with a '/', './', or '../', then '/usr/local/etc/cape_utils_munge/' is
+If the paths specified do not start with a '/', './', or '../', then '/usr/local/etc/cape_utils_munge/' is
 applied to the start.
 
 The scripts are read as evaled strings.
@@ -2780,7 +2578,7 @@ It reads the 'lite.json' report for task as well as the incoming JSON. It then c
 'incoming'.'/eve/'.$task_id.'.json' and appending it to the file specified via the config value 'eve'.
 
 The are two possible values for 'event_type', 'potential_malware_detonation' and 'alert'.
-'potential_malware_detonation' is changed to alert when 'malscore' goves over the value
+'potential_malware_detonation' is changed to alert when 'malscore' goes over the value
 specified via config value 'malscore'.
 
 'row' is the full row for the task in question from the task table as a hash.
@@ -2818,17 +2616,13 @@ L<https://metacpan.org/release/CAPE-Utils>
 
 =item * Git
 
-L<git@github.com:VVelox/CAPE-Utils.git>
+C<< git@github.com:VVelox/CAPE-Utils.git >>
 
 =item * Web
 
 L<https://github.com/VVelox/CAPE-Utils>
 
 =back
-
-
-=head1 ACKNOWLEDGEMENTS
-
 
 =head1 LICENSE AND COPYRIGHT
 

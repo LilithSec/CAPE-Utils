@@ -15,8 +15,11 @@ cape_utils - A utility to help with various basic tasks related to CAPEv2.
 =head1 SYNOPSIS
 
 cape_utils submit [B<-i> <config>] [B<--clock> <time>] [B<--timeout> <seconds>] [B<--machine> <machine>]
-[B<--package> <package>] [B<--options> <options>] [B<--tags> <tags>] [B<--platform> <platform>]
-[B<--enforce_timeout>] [B<--unique>] [B<--json>] [B<--pretty>] [B<--quiet>] <file/dir> [<file/dir>...]
+[B<--package> <package>] [B<--mime-package>|B<--no-mime-package>] [B<--dry-run>] [B<--options> <options>]
+[B<--tags> <tags>] [B<--platform> <platform>] [B<--enforce_timeout>] [B<--unique>] [B<--json>]
+[B<--pretty>] [B<--quiet>] <file/dir> [<file/dir>...]
+
+cape_utils resub [B<-i> <config>] ( B<-n> <incoming name> | B<-r> <task ID> ) [B<--json>] [B<--pretty>]
 
 cape_utils running [B<-i> <config>] [B<-C>] [B<-w> <where>] [B<--json>] [B<--pretty>]
 
@@ -30,7 +33,13 @@ cape_utils eve [B<-i> <config>]
 
 cape_utils munge [B<-i> <config>] B<-r> <report json>
 
-cape_utils post [B<-i> <config>] B<-r> <report json>
+cape_utils post [B<-i> <config>] [B<-d>] B<-r> <ID>
+
+cape_utils exec [B<-i> <config>] [B<--quiet>] [B<--verbose>] [B<--json>] [B<--pretty>] B<--> <command> [<arg>...]
+
+cape_utils poetry [B<-i> <config>] [B<--quiet>] [B<--verbose>] [B<--json>] [B<--pretty>] B<--> <arg>...
+
+cape_utils mime_to_packages [B<-i> <config>] [B<--as-ini>] [B<--diff>] [B<--json>] [B<--pretty>]
 
 cape_utils commands
 
@@ -70,37 +79,65 @@ Pretty print the JSON output.
 
 =head1 COMMANDS
 
+The options for each are shown via C<cape_utils help E<lt>commandE<gt>>.
+
 =head2 submit
 
-Submit files/dirs to CAPE. See L<CAPE::Utils::Cmd::Command::submit>.
+Submit files/dirs to CAPE. C<--mime-package> works the package out per item from
+its mime type via the mime_packages config section, and C<--dry-run> prints what
+would be submitted and how without submitting anything. See L<CAPE::Utils/submit>.
+
+=head2 resub
+
+Resubmit a sample originally submitted via L<nergal>, located by either its
+incoming name (C<-n>) or a task ID (C<-r>). See L<CAPE::Utils::Nergal/resub>.
 
 =head2 running
 
-Show running tasks. See L<CAPE::Utils::Cmd::Command::running>.
+Show running tasks. See L<CAPE::Utils/get_running_table>.
 
 =head2 pending
 
-Show pending tasks. See L<CAPE::Utils::Cmd::Command::pending>.
+Show pending tasks. See L<CAPE::Utils/get_pending_table>.
 
 =head2 tasks
 
-Show tasks. See L<CAPE::Utils::Cmd::Command::tasks>.
+Show tasks. See L<CAPE::Utils/get_tasks_table>.
 
 =head2 fail
 
-Fail pending tasks. See L<CAPE::Utils::Cmd::Command::fail>.
+Fail pending tasks. See L<CAPE::Utils/fail>.
 
 =head2 eve
 
-Invoke CAPE::Utils->eve_process. See L<CAPE::Utils::Cmd::Command::eve>.
+Process finished tasks into the EVE log. See L<CAPE::Utils/eve_process>.
 
 =head2 munge
 
-Munge a report JSON. See L<CAPE::Utils::Cmd::Command::munge>.
+Munge a report JSON. See L<CAPE::Utils/munge>.
 
 =head2 post
 
-Perform the post actions for a run. See L<CAPE::Utils::Cmd::Command::post>.
+Perform the configured post actions for a run ID. C<-d> describes the actions
+that would be taken. See L<CAPE::Utils/post>.
+
+=head2 exec
+
+Run an arbitrary command from the CAPE base directory, wrapped in "poetry run"
+when poetry is enabled in the config, the same way submissions are executed.
+Everything after C<--> is the command and its arguments. See L<CAPE::Utils/exec>.
+
+=head2 poetry
+
+Run an arbitrary poetry command from the CAPE base directory. Unlike L</exec>,
+which wraps the command in "poetry run", everything after C<--> is handed
+straight to poetry. See L<CAPE::Utils/poetry>.
+
+=head2 mime_to_packages
+
+Show the mime type to package settings used by C<submit --mime-package>.
+C<--as-ini> prints them as INI and C<--diff> limits it to what differs from the
+shipped defaults. See L<CAPE::Utils/mime_packages>.
 
 =head1 CONFIG FILE
 

@@ -50,6 +50,13 @@ Revision history for CAPE-Utils
         - add cape_utils submit --mime-package and --dry-run
         - add cape_utils mime_to_packages for printing the mime to package settings, with --as-ini
           and --diff for printing them as INI and limiting it to what differs from the defaults
+        - get_tasks_count now adds the "where" keyword when the passed where does not already start
+          with it, so cape_utils tasks -C -w takes the same string as cape_utils tasks -w instead of
+          building invalid SQL
+        - document the exec, poetry, resub, and mime_to_packages commands in the cape_utils POD, fix
+          post's entry to take a run ID rather than a report JSON, and point the per command links at
+          the CAPE::Utils methods backing them rather than the POD-less command modules
+        - remove search, a old unimplemented feature
 
 4.0.0   2025-07-21/15:00
         - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry

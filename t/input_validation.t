@@ -13,8 +13,8 @@ my $cape = CAPE::Utils->new('/nonexistent/cape_utils.ini');
 # these all die prior to connecting to the DB, so no DB is needed
 #
 my @where_methods = (
-	'fail',              'get_pending_count', 'get_pending',     'get_running',
-	'get_running_count', 'get_tasks',         'get_tasks_count', 'search',
+	'fail',              'get_pending_count', 'get_pending', 'get_running',
+	'get_running_count', 'get_tasks',         'get_tasks_count',
 );
 foreach my $method (@where_methods) {
 	eval { $cape->$method( where => "target = 'foo'; drop table tasks" ); };
@@ -36,14 +36,5 @@ like( $@, qr/does\ not\ match/, 'get_tasks dies on a invalid order' );
 
 eval { $cape->get_tasks( limit => 'ten' ); };
 like( $@, qr/does\ not\ match/, 'get_tasks dies on a non-numeric limit' );
-
-#
-# search helpers may not contain a ' or a \
-#
-eval { $cape->search( target => "fo'o" ); };
-like( $@, qr/matched/, 'search dies if a string helper contains a single quote' );
-
-eval { $cape->search( id => '1\\' ); };
-like( $@, qr/matched/, 'search dies if a helper contains a backslash' );
 
 done_testing;
