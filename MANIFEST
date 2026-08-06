@@ -14,6 +14,7 @@ lib/CAPE/Utils/Cmd/Command/resub.pm
 lib/CAPE/Utils/Cmd/Command/running.pm
 lib/CAPE/Utils/Cmd/Command/submit.pm
 lib/CAPE/Utils/Cmd/Command/tasks.pm
+lib/CAPE/Utils/Cmd/Command/version.pm
 lib/CAPE/Utils/LogDrek.pm
 lib/CAPE/Utils/Nergal.pm
 Makefile.PL
@@ -38,6 +39,7 @@ t/resub.t
 t/shuffle.t
 t/submit.t
 t/timestamp.t
+t/version.t
 src_bin/cape_utils
 src_bin/mojo_cape_submit
 src_bin/nergal

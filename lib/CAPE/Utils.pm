@@ -46,10 +46,30 @@ our $VERSION = '5.0.0';
 
 =cut
 
-# Returns a fresh hash ref of the shipped defaults.
+# The shipped defaults, which new() merges the config file over the top of and
+# which mime_packages() compares against for its diff mode.
 #
 # Rebuilt per call rather than kept as a constant so that nothing handed a copy
 # can reach back and change what the next call sees.
+#
+# Args:
+#     - none
+#
+# Returns a hash ref shaped like a parsed Config::Tiny config, that being one key
+# per INI section with a hash ref of settings under each.
+#
+#     - _ :: The main section, holding everything not in a named section. All
+#       values are plain strings or numbers. The one worked out at runtime is
+#       enable_sudo, which defaults to 1 for root and 0 for anyone else, as root
+#       is the only user that can count on sudo working unattended.
+#
+#     - mime_packages :: Maps mime types to the CAPE package to submit them with,
+#       keyed by lower case mime type with no parameters. See the comment on the
+#       section below for what the values mean.
+#
+#     my $defaults = _default_config();
+#     print $defaults->{'_'}{'timeout'} . "\n";
+#     print $defaults->{'mime_packages'}{'application/pdf'} . "\n";
 sub _default_config {
 	return {
 		'_' => {
@@ -1291,7 +1311,26 @@ The values are the raw config values and not what they resolve to.
 
 =cut
 
-# true if both are undef or both are defined and equal as strings
+# Compares a config value against the shipped default for it, used by
+# mime_packages() to work out what to leave out when asked for a diff.
+#
+# Config values are all strings, so they are compared as such, but either side
+# may be undef where a setting is absent, which a plain eq would warn about.
+#
+# Args:
+#     - value :: The value from the config. A string, or undef when the setting
+#       is not present. Required, though undef is fine.
+#
+#     - default_value :: The shipped default to compare it against. A string, or
+#       undef when there is no default for it. Required, though undef is fine.
+#
+# Returns 1 if the two match, that being both undef or both defined and equal as
+# strings, and 0 otherwise.
+#
+#     _same_value( 'exe', 'exe' );   # 1
+#     _same_value( undef, undef );   # 1
+#     _same_value( 'dll', 'exe' );   # 0
+#     _same_value( undef, 'exe' );   # 0
 sub _same_value {
 	my ( $value, $default_value ) = @_;
 
@@ -1306,7 +1345,22 @@ sub _same_value {
 	return $value eq $default_value;
 } ## end sub _same_value
 
-# the settings that live in the main section, in the order they are printed in
+# The mime type to package settings that live in the main section of the config,
+# as opposed to the per mime type mappings in the mime_packages section.
+#
+# Kept in one place so mime_packages(), mime_packages_ini(), and
+# mime_packages_table() all cover the same settings in the same order, rather
+# than each carrying its own list to fall out of step with the others.
+#
+# Args:
+#     - none
+#
+# Returns a list of setting names as strings, in the order they should be printed
+# in.
+#
+#     foreach my $setting ( _mime_packages_settings() ) {
+#         print $setting . '=' . $self->{'config'}{'_'}{$setting} . "\n";
+#     }
 sub _mime_packages_settings {
 	return ( 'mime_to_package', 'mime_to_package_default', 'dll_check' );
 }
@@ -1364,8 +1418,24 @@ not as what it resolves to.
 
 =cut
 
-# the "foo=bar" lines for the settings in the main section of a mime_packages
-# hash ref, skipping any that are not in it, as happens with diff
+# Renders the main section settings of a mime_packages() hash ref as INI lines,
+# for mime_packages_ini() to put in front of the mime_packages section.
+#
+# Settings missing from the hash ref are skipped rather than written out empty,
+# as that is how diff mode says a setting matches the shipped default and writing
+# it back out would defeat the point of asking for a minimal fragment.
+#
+# Args:
+#     - settings :: The hash ref mime_packages() returned. Only the main section
+#       settings named by _mime_packages_settings are looked at, the
+#       mime_packages key being handled by the caller. Required.
+#
+# Returns a string of newline terminated "setting=value" lines, in the order
+# _mime_packages_settings gives them. A setting present but undef is written out
+# with a empty value. Returns a empty string when none of them are present.
+#
+#     my $lines = _mime_packages_settings_lines( { mime_to_package => 1, dll_check => 0 } );
+#     # "mime_to_package=1\ndll_check=0\n"
 sub _mime_packages_settings_lines {
 	my ($settings) = @_;
 
@@ -1514,16 +1584,16 @@ otherwise it dies.
     - options :: Option string to be passed via --options.
       - Default :: undef
 
-    - random :: If it should randomize the order of submission.
+    - random :: Randomize the order the items are submitted in. The items read
+      out of a submitted dir are shuffled in with everything else rather than
+      being kept together. Set to 0 to submit them in the order they were
+      gathered.
       - Default :: 1
 
     - tags :: Tags to be passed to the script via --tags.
       - Default :: undef
 
     - platform :: What to pass to --platform.
-      - Default :: undef
-
-    - custom :: Any custom values to pass via --custom.
       - Default :: undef
 
     - enforce_timeout :: Force it to run the entire period.
@@ -1561,12 +1631,24 @@ prefix that a real submission would use.
 
 =cut
 
-# Returns the command prefix needed to run as the configured cape_runas user.
+# The command prefix needed to run something as the configured cape_runas user.
 #
-# If already running as cape_runas, an empty list is returned. Otherwise, if
-# enable_sudo is set, ( 'sudo', '-u', $cape_runas ) is returned so the command
-# is re-run as that user. If enable_sudo is not set and the user does not match,
-# this dies.
+# CAPE's own tooling expects to be ran as the user owning the install, so
+# anything shelling out to it goes through here first to either confirm that is
+# already the case or arrange for it.
+#
+# Args:
+#     - none, everything it needs coming from the config, those being cape_runas
+#       for the user to run as and enable_sudo for whether sudo may be used to
+#       get there.
+#
+# Returns a list to put in front of the command. That is a empty list when
+# already running as cape_runas, meaning nothing needs prefixing, or
+# ( 'sudo', '-u', $cape_runas ) when not. Dies when the user does not match and
+# enable_sudo is not set, as there is no way to run the command correctly.
+#
+#     my @to_run = $self->_cape_runas_prefix;
+#     push( @to_run, 'python3', 'utils/process.py', '-r', '1' );
 sub _cape_runas_prefix {
 	my ($self) = @_;
 
@@ -1637,6 +1719,15 @@ sub submit {
 			closedir($dh);
 		}
 	} ## end foreach my $item ( @{ $opts{items} } )
+
+	# done after the dirs have been read out so that the items from a submitted dir
+	# are shuffled in with everything else instead of staying in a block
+	if ( !defined( $opts{random} ) ) {
+		$opts{random} = 1;
+	}
+	if ( $opts{random} ) {
+		$self->shuffle( \@to_submit );
+	}
 
 	# both are skipped for dry runs so any user may check the mappings
 	my @to_run;
@@ -1824,21 +1915,50 @@ sub exec {
 	);
 } ## end sub exec
 
-# Private helper shared by exec() and poetry().
+# Runs a command from the CAPE base directory as the configured cape_runas user,
+# shared by exec() and poetry().
 #
-# CDs to the CAPE base dir and runs the passed command tail as the configured
-# cape_runas user (via _cape_runas_prefix). Handles the verbose reporting of the
-# chdir, runas prefix, final command, and exit status, and prints the combined
-# output unless quiet is set.
+# CDs to the base dir, works out the runas prefix via _cape_runas_prefix, runs
+# the command, and prints the combined output unless quiet is set. The verbose
+# reporting of the chdir, prefix, final command, and exit status lives here so
+# both callers report the same way.
 #
-# Options:
-#     - label        :: Prefix used for the verbose STDERR messages, e.g. 'exec'.
-#     - command_tail :: An array ref of the command and args to run, minus the
-#       cape_runas prefix. Required.
-#     - quiet        :: Do not print the output from the command.
-#     - verbose      :: Print to STDERR what it is doing.
+# Args:
+#     - label :: The prefix put in front of the verbose STDERR messages, so the
+#       caller can be told apart in the output. A string such as 'exec' or
+#       'poetry'. Defaults to 'exec' when undef.
 #
-# Returns the same hash ref shape documented for exec().
+#     - command_tail :: An array ref of the command and its arguments, minus the
+#       cape_runas prefix, such as [ 'python3', 'utils/process.py', '-r', '1' ].
+#       Required.
+#
+#     - quiet :: 0/1 for not printing the output from the command. The output is
+#       returned either way.
+#       - Default :: 0
+#
+#     - verbose :: 0/1 for printing to STDERR what it is doing.
+#       - Default :: 0
+#
+# Returns a hash ref, the same shape exec() and poetry() are documented as
+# returning.
+#
+#     - command :: An array ref of what was actually ran, runas prefix included.
+#
+#     - success :: 0/1 for if the command exited zero.
+#
+#     - error :: The error message from IPC::Cmd, or undef when it succeeded.
+#
+#     - output :: The combined STDOUT and STDERR of the command as a string.
+#
+# Dies if the base dir can not be entered, or if _cape_runas_prefix can not
+# arrange to run as the right user.
+#
+#     my $results = $self->_run_in_base(
+#         label        => 'exec',
+#         command_tail => [ 'python3', 'utils/process.py', '-r', '1' ],
+#         quiet        => 1,
+#     );
+#     if ( !$results->{success} ) { warn( $results->{output} ); }
 sub _run_in_base {
 	my ( $self, %opts ) = @_;
 
@@ -1983,7 +2103,17 @@ sub timestamp {
 
 =head2 shuffle
 
-Performs a Fisher Yates shuffle on the passed array ref.
+Performs a Fisher Yates shuffle on the passed array ref. Used by L</submit> for
+its C<random> option.
+
+The array ref is shuffled in place and returned, so either the return value or
+the ref that was passed in may be used afterwards.
+
+    - The array ref to shuffle. Required.
+
+    my $items = [ 'a', 'b', 'c' ];
+    $cape_util->shuffle($items);
+    print join( ',', @{$items} ) . "\n";
 
 =cut
 
@@ -2009,10 +2139,15 @@ allowed and 0 otherwise. Takes the API key and IP as a hash.
 The C<auth> config value selects the mode, with anything other than the below
 treated as C<ip>:
 
-    ip     -- allowed iff the remote IP is in an allowed subnet; apikey ignored
-    apikey -- allowed iff a non empty apikey is configured and the submitted one matches
-    both   -- allowed if the IP matches and the API key matches
-    either -- allowed if the IP matches or the API key matches
+    - ip :: Allowed only if the remote IP is in an allowed subnet. The apikey
+      is ignored.
+
+    - apikey :: Allowed only if a non empty apikey is configured and the
+      submitted one matches.
+
+    - both :: Allowed only if the IP and the API key both match.
+
+    - either :: Allowed if the IP or the API key matches.
 
     $results=$cape_utils->check_remote(apikey=>$apikey, ip=>$remote_ip);
     if (!$results){
@@ -2062,16 +2197,48 @@ sub check_remote_results {
 	);
 } ## end sub check_remote_results
 
-# Shared ACL evaluation backing check_remote and check_remote_results. Takes the
-# auth mode, expected API key, and subnets string to check against, plus the
-# submitted apikey/ip. Returns 1 if allowed, 0 otherwise.
+# The ACL evaluation backing check_remote and check_remote_results.
 #
-#   ip     -- allowed iff the remote IP is in an allowed subnet; apikey ignored
-#   apikey -- allowed iff a non empty key is configured and the submitted one matches
-#   both   -- allowed if the IP matches and the API key matches
-#   either -- allowed if the IP matches or the API key matches
+# The two differ only in which set of config values they check against, so the
+# values are passed in and the deciding lives here, keeping submission and
+# results access gated the same way while remaining separately configurable.
 #
-# anything else for the auth mode is treated as 'ip'.
+# Args:
+#     - auth :: How to decide, one of the following. Anything else, undef
+#       included, is treated as 'ip', that being the safe reading of a
+#       misconfigured value as it does not let a key alone through.
+#       - ip :: Allowed only if the remote IP is in an allowed subnet. The API
+#         key is not looked at.
+#       - apikey :: Allowed only if a non empty key is configured and the
+#         submitted one matches. The IP is not looked at.
+#       - both :: Allowed only if the IP and the API key both match.
+#       - either :: Allowed if the IP or the API key matches.
+#
+#     - expected_apikey :: The API key from the config to check the submitted one
+#       against. A empty string or undef means no key is configured, which never
+#       matches, so a key can not be left unset and still work.
+#
+#     - subnets :: The allowed subnets as a comma separated string, such as
+#       '192.168.0.0/16,::1/128'. Whitespace and repeated commas are ignored. A
+#       bare address with no mask is taken as a single host, /32 for IPv4 and
+#       /128 for IPv6. Entries that are neither are skipped.
+#
+#     - apikey :: The API key the remote end submitted, or undef if it did not
+#       submit one.
+#
+#     - ip :: The IP the request came from, v4 or v6, or undef if not known.
+#
+# Returns 1 if the request is allowed and 0 if it is not. Dies if the subnet list
+# is present but Net::Subnet can not make a matcher out of it, as that is a
+# broken config rather than a failed check.
+#
+#     my $allowed = $self->_acl_check(
+#         auth            => 'either',
+#         expected_apikey => $self->{'config'}{'_'}{'apikey'},
+#         subnets         => $self->{'config'}{'_'}{'subnets'},
+#         apikey          => $submitted_apikey,
+#         ip              => $remote_ip,
+#     );
 sub _acl_check {
 	my ( $self, %opts ) = @_;
 
@@ -2383,7 +2550,28 @@ sub post {
 	return 1;
 } ## end sub post
 
-# sends stuff to syslog
+# Sends a message to syslog, used for the actions that happen out of sight of a
+# terminal, such as the post actions run from CAPE's processing.
+#
+# Each call opens and closes the log rather than holding it open, so the ident
+# can vary per call and nothing is left open in a long lived process.
+#
+# Args:
+#     - sender :: The syslog ident to log under, so the caller can be picked out
+#       of the log. A string such as 'cape_post'. Defaults to 'CAPE::Utils' when
+#       undef.
+#
+#     - level :: The syslog level, that being one of the levels Sys::Syslog
+#       takes, such as 'info', 'warning', or 'err'. Defaults to 'info' when
+#       undef.
+#
+#     - message :: What to log, as a string. Passed as an argument rather than as
+#       the format, so percent signs in it are not taken as format escapes.
+#
+# Returns nothing, the point of it being the side effect. Dies if syslog can not
+# be opened.
+#
+#     $self->log_drek( 'cape_post', 'err', 'post munge failed for task 1' );
 sub log_drek {
 	my ( $self, $sender, $level, $message ) = @_;
 
@@ -2476,6 +2664,12 @@ default with CAPEv2 in the default config.
     results_subnets=192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8
     # incoming dir to use for nergal
     incoming=/malware/client-incoming
+    # a command ran per nergal submission to decide what becomes of it, via how it
+    # exits... empty, the default, disables it
+    # see the SUBMISSION GATE section of CAPE::Utils::Nergal for what the exits mean
+    #submission_gate=
+    # how many seconds the submission gate is given before it is killed
+    submission_gate_timeout=30
     # Location to write the eve log to.
     eve=/opt/CAPEv2/log/eve.json
     # how far to go back for processing eve
@@ -2490,6 +2684,13 @@ default with CAPEv2 in the default config.
     post_link=0
     # Where to create the symbolic links to the submissions report dir
     post_link_dir=/malware/storage/links
+    # The Template Toolkit template the post action link names are rendered from,
+    # with the parsed report available as the 'lite' variable
+    post_link_format_template=[% lite.target.file.name %]
+    # A file to read post_link_format_template from, which wins over the setting
+    # above when it exists, so a multi line template does not have to fit on a
+    # single INI line
+    post_link_format_template_file=/usr/local/etc/cape_utils_link_format_template.t2
     # 0/1 if submit should work the package out per item from its mime type
     mime_to_package=0
     # the package to use for mime types with no mapping in the mime_packages section

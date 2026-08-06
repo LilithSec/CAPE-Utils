@@ -75,10 +75,4 @@ sub log_drek {
 	return;
 } ## end sub log_drek
 
-=head1 AUTHOR
-
-Zane C. Bowers-Hadley, C<< <vvelox at vvelox.net> >>
-
-=cut
-
 1;

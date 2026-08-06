@@ -30,6 +30,22 @@ suricata_extract_submit - Submits files extracted by Suricata to nergal for deto
 
 =cut
 
+# Prints the version, for -v/--version.
+#
+# The version is repeated here rather than read from anywhere, as this is a
+# script and not a module, so there is no $VERSION to go looking at. It wants
+# keeping in step with the VERSION section of the POD above.
+#
+# Args:
+#     - none
+#
+# Returns nothing, the point of it being what it prints. Unlike the version subs
+# in the extends, this does not exit, the caller doing that.
+#
+#     if ($version) {
+#         version;
+#         exit 255;
+#     }
 sub version {
 	print "suricata_extract_submit v. 1.1.0\n";
 }
@@ -95,16 +111,13 @@ The config file used is '/usr/local/etc/suricata_extract_submit.ini'.
     # a file of regex to use for checking host names to ignore
     #ignoreHosts=
 
-    # a file of regex to use for checking host names to ignore
-    #ignoreHosts=
-
     # a file of regex to use for checking user agents to ignore
-    #ignoreUAs=
+    #ignoreUA=
 
     # a file of regex to use for checking path chunks of the URL to ignore
     #ignorePaths=
 
-    # a file of regex to use for checking path chunks of the URL to ignore
+    # the largest a extracted file may be, in bytes, before it is ignored
     ignoreMaxSize=52428800
 
     # a JSON file to use for using with Web::ACL for checking for ignores
@@ -169,7 +182,21 @@ if ($help) {
 my $t          = localtime;
 my $today_name = $t->strftime('%F');
 
-# sends stuff to syslog
+# Logs a message to syslog and prints it, this being ran from cron where the
+# printed copy becomes the mail cron sends and syslog is what is left when that
+# is redirected to /dev/null, as the suggested crontab line does.
+#
+# Args:
+#     - level :: The syslog level, that being one of the levels Sys::Syslog
+#       takes, such as 'info' or 'err'. Defaults to 'info' when undef.
+#
+#     - message :: What to log, as a string. Passed as an argument rather than as
+#       the format, so percent signs in it are not taken as format escapes.
+#
+# Returns nothing, the point of it being the side effects. Dies if syslog can not
+# be opened.
+#
+#     log_something( 'err', 'PID file check failed... ' . $@ );
 sub log_something {
 	my ( $level, $message ) = @_;
 
@@ -406,7 +433,7 @@ if ( defined($ignoreUAs_file) && -f $ignoreUAs_file ) {
 	log_something( 'info', $found_regex . ' regexs loaded to ignore for UAs' );
 } ## end if ( defined($ignoreUAs_file) && -f $ignoreUAs_file)
 
-# read in the file of UAs to ignore
+# read in the file of URL path chunks to ignore
 my $ignorePaths_file = $config->{_}->{ignorePaths};
 my @paths_to_ignore;
 if ( defined($ignorePaths_file) && -f $ignorePaths_file ) {
@@ -426,7 +453,7 @@ if ( defined($ignorePaths_file) && -f $ignorePaths_file ) {
 	log_something( 'info', $found_regex . ' regexs loaded to ignore for paths' );
 } ## end if ( defined($ignorePaths_file) && -f $ignorePaths_file)
 
-# read in the file of UAs to ignore
+# read in the Web::ACL to check ignores against
 my $ignoreWebACL_file = $config->{_}->{ignoreWebACL};
 my $webacl;
 my @acls;

@@ -10,6 +10,7 @@ use Sys::Hostname        qw( hostname );
 use File::Temp           qw( tempfile );
 use File::Copy           qw( move );
 use File::Basename       qw( basename dirname );
+use File::Path           qw( make_path );
 use Cwd                  qw( abs_path );
 use Socket               qw( inet_pton AF_INET AF_INET6 );
 use POSIX                qw( strftime );
@@ -69,6 +70,11 @@ The following directories are used under the incoming directory.
     task_to_json
     tmp
 
+nergal creates any of them that are missing when it starts, via L</make_dirs>,
+so only the incoming directory itself has to be there beforehand. That one is
+never created for you, as it is normally a mount and creating it would turn a
+failed mount into samples landing on the wrong filesystem.
+
 "tmp" is where the file is written to first to get the checksum.
 
 "sha256" is where it is moved to after we have the checksum if it does not
@@ -87,17 +93,17 @@ The 'submission_gate' config value is a command ran per submission to decide wha
 becomes of it. It is empty by default, which disables it entirely. What it does
 is taken from how it exits.
 
-    0 -- Accept it. Saved and submitted as normal.
+    - 0 :: Accept it. Saved and submitted as normal.
 
-    1 -- Accept and save it, but do not submit it.
+    - 1 :: Accept and save it, but do not submit it.
 
-    2 -- Accept it, but neither save nor submit it. Nothing is kept.
+    - 2 :: Accept it, but neither save nor submit it. Nothing is kept.
 
-    3 -- Deny it, temporarily. Replied to with a 444.
+    - 3 :: Deny it, temporarily. Replied to with a 444.
 
-    4 -- Deny it, permanently. Replied to with a 445.
+    - 4 :: Deny it, permanently. Replied to with a 445.
 
-    5 -- Deny it, generically, for anything else. Replied to with a 403.
+    - 5 :: Deny it, generically, for anything else. Replied to with a 403.
 
 Exits 0 and 1 are replied to with the usual task ID and an "Accepted"
 respectively, and 2 with an "Accepted" as well, it having been accepted but
@@ -128,29 +134,27 @@ The submission is described to the gate through the enviroment. Anything not
 known is left unset rather than set to nothing, so a gate can tell a value that
 is missing from one that is genuinely blank.
 
-    NERGAL_FILE      -- Path to the submitted file, which is still in tmp.
+    - NERGAL_FILE :: Path to the submitted file, which is still in tmp.
 
-    NERGAL_FILENAME  -- The submitted file name, with any directory bits stripped
-                        off of it, as it will be saved under in incoming.
+    - NERGAL_FILENAME :: The submitted file name, with any directory bits
+      stripped off of it, as it will be saved under in incoming.
 
-    NERGAL_JSON      -- Path to the JSON as submitted. Only set where a body was
-                        submitted and it decoded to a hash. Removed once the gate
-                        has ran.
+    - NERGAL_JSON :: Path to the JSON as submitted. Only set where a body was
+      submitted and it decoded to a hash. Removed once the gate has ran.
 
-    NERGAL_SLUG      -- The submitter's slug.
+    - NERGAL_SLUG :: The submitter's slug.
 
-    NERGAL_MIME      -- The mime type, with any '/' replaced by '_'.
+    - NERGAL_MIME :: The mime type, with any '/' replaced by '_'.
 
-    NERGAL_SHA256    -- Checksums of the file as received.
-    NERGAL_SHA1
-    NERGAL_MD5
+    - NERGAL_SHA256, NERGAL_SHA1, NERGAL_MD5 :: Checksums of the file as
+      received.
 
-    NERGAL_SRC_IP    -- The flow the file was extracted from.
-    NERGAL_SRC_PORT
-    NERGAL_DEST_IP
-    NERGAL_DEST_PORT
-    NERGAL_PROTO     -- 'TCP' or 'UDP'.
-    NERGAL_APP_PROTO -- 'http', 'tls', 'smb', and the like.
+    - NERGAL_SRC_IP, NERGAL_SRC_PORT, NERGAL_DEST_IP, NERGAL_DEST_PORT :: The
+      flow the file was extracted from.
+
+    - NERGAL_PROTO :: 'TCP' or 'UDP'.
+
+    - NERGAL_APP_PROTO :: 'http', 'tls', 'smb', and the like.
 
 The slug, mime, and flow info are all as of after anything recoverable from the
 submitted filename has been filled in, so a tool submitting in the standard name
@@ -187,9 +191,9 @@ sub new {
 } ## end sub new
 
 # How the submission gate exiting maps to what is done with the submission.
-#   save   -- keep the sample and write the incoming JSON out
-#   submit -- hand it off to CAPE
-#   reply  -- what the submitter is told where there is no task ID to report
+#   - save :: keep the sample and write the incoming JSON out
+#   - submit :: hand it off to CAPE
+#   - reply :: what the submitter is told where there is no task ID to report
 # Anything not in here is a gate that is broken rather than one making a call,
 # and is handled like any other nergal error, as is a gate that timed out, was
 # killed, or could not be ran at all.
@@ -202,7 +206,27 @@ our %GATE_ACTIONS = (
 	5 => { save => 0, submit => 0, reply => { status => 403, body => "Denied\n" } },
 );
 
-# thin wrapper so every log line from here is emitted under the nergal ident
+# Logs under the nergal ident, wrapping the exported log_drek so nothing in here
+# has to remember to pass it.
+#
+# Everything this module does happens out of sight of a terminal, so the log is
+# the only record of it, and having it all under the one ident keeps it possible
+# to follow a submission through.
+#
+# Args:
+#     - level :: The syslog level, that being one of the levels Sys::Syslog
+#       takes, such as 'info' or 'err'. Defaults to 'info' when undef.
+#
+#     - message :: What to log, as a string.
+#
+#     - tracking_int :: The tracking integer for the submission being handled,
+#       prepended to the message so the lines for one submission can be picked
+#       out of the log. Left off when undef, as is the case for the results
+#       endpoints, which are not submissions and so have no tracking integer.
+#
+# Returns nothing, the point of it being the side effect.
+#
+#     _log_drek( 'err', 'submission_gate: timed out', $tracking_int );
 sub _log_drek {
 	my ( $level, $message, $tracking_int ) = @_;
 
@@ -215,10 +239,33 @@ Ensures the incoming directory and its required sub directories all exist and
 are writable. Dies with a descriptive message on the first problem found.
 C<< $self->{incoming} >> must be set, which L</receive> does from the config.
 
+Only checks. L</make_dirs> is the one that creates anything.
+
     eval { $submitter->check_dirs; };
     if ($@) { ... }
 
 =cut
+
+# The sub directories that have to exist under the incoming directory.
+#
+# Kept in one place so check_dirs and make_dirs cannot fall out of step with each
+# other, which would leave make_dirs creating a set of dirs that check_dirs then
+# rejects, or the other way around.
+#
+# See the INCOMING DIR STRUCTURE section for what each is for.
+#
+# Args:
+#     - none
+#
+# Returns the sub directory names as a list of strings, relative to the incoming
+# directory.
+#
+#     foreach my $subdir ( _incoming_subdirs() ) {
+#         make_path( $incoming . '/' . $subdir );
+#     }
+sub _incoming_subdirs {
+	return qw( sha256 json name_to_sha256 task_to_json tmp );
+}
 
 sub check_dirs {
 	my ($self) = @_;
@@ -231,7 +278,7 @@ sub check_dirs {
 		die 'incoming directory, "' . $incoming . '", is not writable';
 	}
 
-	foreach my $subdir (qw( sha256 json name_to_sha256 task_to_json tmp )) {
+	foreach my $subdir ( _incoming_subdirs() ) {
 		my $path = $incoming . '/' . $subdir;
 		if ( !-d $path ) {
 			die 'incoming ' . $subdir . ' directory, "' . $path . '", does not exist';
@@ -242,6 +289,59 @@ sub check_dirs {
 
 	return 1;
 } ## end sub check_dirs
+
+=head2 make_dirs
+
+Creates any of the incoming sub directories that are missing, then runs
+L</check_dirs> over the result. Meant to be called once at start up so a fresh
+install works without the five of them being made by hand.
+
+    eval { $submitter->make_dirs; };
+    if ($@) { ... }
+
+C<< $self->{incoming} >> is used when set, and read from the config the same way
+L</receive> does when it is not, so this may be called before any submission has
+come in.
+
+The incoming directory itself is never created, only the sub directories beneath
+it. It is normally a mount, or at least something deliberately set up, so
+creating it would turn a failed mount or a typo'd config into samples quietly
+landing somewhere they do not belong and filling that filesystem. A missing
+incoming directory is a error worth a human looking at rather than something to
+paper over.
+
+Dies with the same messages L</check_dirs> does, plus one of its own where a sub
+directory could not be created.
+
+=cut
+
+sub make_dirs {
+	my ($self) = @_;
+
+	if ( !defined( $self->{incoming} ) ) {
+		my $cape_util = CAPE::Utils->new( $self->{ini} );
+		$self->{incoming} = $cape_util->{config}->{_}->{incoming};
+	}
+
+	my $incoming = $self->{incoming};
+
+	if ( !-d $incoming ) {
+		die 'incoming directory, "' . $incoming . '", does not exist';
+	}
+
+	foreach my $subdir ( _incoming_subdirs() ) {
+		my $path = $incoming . '/' . $subdir;
+		next if -d $path;
+
+		my $error;
+		make_path( $path, { error => \$error } );
+		if ( ( $error && @{$error} ) || !-d $path ) {
+			die 'incoming ' . $subdir . ' directory, "' . $path . '", could not be created... ' . $!;
+		}
+	} ## end foreach my $subdir ( _incoming_subdirs() )
+
+	return $self->check_dirs;
+} ## end sub make_dirs
 
 =head2 checksums
 
@@ -331,8 +431,22 @@ same instant rendered as an ISO 8601 UTC string for convenience.
 
 =cut
 
-# valid if the system can pack it as either family... inet_pton handles the full
-# range of IPv6 forms, which is not worth hand rolling a regex for
+# Checks a string is a usable IP address, used by parse_name when validating the
+# source and destination fields of a submission name.
+#
+# The system is asked to pack it rather than matching it against a regex, as
+# inet_pton already handles the full range of IPv6 forms, including the
+# compressed and IPv4 mapped ones, which is not worth hand rolling.
+#
+# Args:
+#     - address :: The string to check. Anything may be passed, including undef
+#       and the empty string, both of which are simply not addresses.
+#
+# Returns 1 if it is a valid IPv4 or IPv6 address and 0 if it is not.
+#
+#     _is_ip('192.168.14.15');   # 1
+#     _is_ip('::1');             # 1
+#     _is_ip('not-an-ip');       # 0
 sub _is_ip {
 	my ($address) = @_;
 
@@ -347,6 +461,20 @@ sub _is_ip {
 	return 0;
 } ## end sub _is_ip
 
+# Checks a string is a usable port number, used by parse_name when validating the
+# source and destination port fields of a submission name.
+#
+# Args:
+#     - port :: The string to check. Anything may be passed, including undef.
+#       Only bare digits are accepted, so no sign, whitespace, or leading '0x'.
+#
+# Returns 1 if it is a valid port, that being one to five digits and no greater
+# than 65535, and 0 if it is not. Note that 0 is accepted as a port, as it does
+# show up in traffic even though nothing listens on it.
+#
+#     _is_port('443');     # 1
+#     _is_port('65536');   # 0
+#     _is_port('http');    # 0
 sub _is_port {
 	my ($port) = @_;
 
@@ -463,6 +591,17 @@ headers and may hold path separators. A name with nothing usable left after
 that is rejected with a 400. C<< .cape_submit.orig_name >> still records the
 name exactly as submitted.
 
+A submission of exactly ten bytes holding C<1234567890> is a ping test, used for
+checking a submitter can reach and auth against nergal without putting anything
+through CAPE. It is answered with a 200 and a body of C<TEST RECIEVED>, and
+processing stops there, so nothing is saved, submitted, or run past the
+submission gate. The size and the payload both have to match, so a ten byte file
+of anything else is submitted as normal.
+
+The check happens after the ACL, meaning an unauthed ping is rejected the same
+as any other submission would be, and it is deliberately cheap enough to be ran
+on a timer.
+
 Should CAPE create multiple tasks for the submission, the body becomes
 C<Submitted as task IDs 1,2,3> style, C<< .cape_submit.task >> holds the IDs
 joined via ',', and a task_to_json link is created for each ID.
@@ -551,7 +690,7 @@ sub receive {
 	if ( $size == 10 ) {
 		my $file_data = $file->slurp;
 		if ( $file_data =~ /1234567890/ ) {
-			_log_drek( 'info', 'got ping test, size=10 payload=01234567890', $tracking );
+			_log_drek( 'info', 'got ping test, size=10 payload=1234567890', $tracking );
 			return { status => 200, body => "TEST RECIEVED\n" };
 		}
 	}
@@ -865,11 +1004,53 @@ sub receive {
 	return $response;
 } ## end sub receive
 
-# Run the configured submission gate and return what it had to say as a hash ref
-# of exit_code, stdout, and stderr. exit_code is undef where the gate did not run
-# to completion, which the caller treats the same as an exit it does not know.
-# Takes command, timeout, tracking, submitted_json, and env, the last being the
-# NERGAL_ prefixed vars the gate is told about the submission through.
+# Runs the configured submission gate and reports what it had to say, so receive()
+# can decide whether to save and submit what came in.
+#
+# The gate is an external command, so anything it writes to stdout or stderr is
+# logged line by line, giving a gate somewhere to explain itself.
+#
+# Args:
+#     - command :: The gate command to run, as a string. Ran through /bin/sh, so
+#       it may be a pipeline or hold redirects. Required.
+#
+#     - timeout :: How many seconds to give the gate before killing it. Falls
+#       back to 30 when undef or not a plain integer.
+#
+#     - tracking :: The tracking integer for the submission, used for the log
+#       lines so the gate's output can be tied back to it.
+#
+#     - submitted_json :: The submission JSON as a string, written to a temp file
+#       the gate is pointed at via NERGAL_JSON and removed afterwards. Handed over
+#       as a file rather than an env var, as a large enough env var makes the exec
+#       fail outright and the json parameter has no size limit of its own past the
+#       max request size. Left unset when undef.
+#
+#     - env :: A hash ref of the NERGAL_ prefixed variables describing the
+#       submission, which is how the gate is told what it is deciding on. Keys
+#       with a undef value are left unset rather than set empty, so a gate can
+#       tell a value that is missing from one that is genuinely blank.
+#
+# Returns a hash ref.
+#
+#     - exit_code :: What the gate exited, which receive() looks up in
+#       %GATE_ACTIONS to work out what to do. undef where the gate did not run to
+#       completion, that being a timeout or a signal, which the caller treats the
+#       same as an exit code it does not know. A gate that does not exist comes
+#       back as 127, the shell's answer for that.
+#
+#     - stdout :: What the gate wrote to stdout, as a string, or undef.
+#
+#     - stderr :: What the gate wrote to stderr, as a string, or undef.
+#
+#     my $gate = $self->_submission_gate(
+#         command        => $self->{config}{'_'}{submission_gate},
+#         timeout        => $self->{config}{'_'}{submission_gate_timeout},
+#         tracking       => $tracking_int,
+#         submitted_json => $json_string,
+#         env            => { NERGAL_SHA256 => $sha256, NERGAL_SLUG => $slug },
+#     );
+#     my $action = $GATE_ACTIONS{ defined( $gate->{exit_code} ) ? $gate->{exit_code} : 'undef' };
 sub _submission_gate {
 	my ( $self, %opts ) = @_;
 
@@ -948,9 +1129,26 @@ sub _submission_gate {
 	return { exit_code => $exit_code, stdout => $results->{stdout}, stderr => $results->{stderr}, };
 } ## end sub _submission_gate
 
-# atomically write $json (a hashref) out to $file as JSON, so nothing can observe
-# a half written file. A temp file is written in the same directory and renamed
-# into place, which is atomic on the one filesystem the incoming dir lives on.
+# Writes a structure out as JSON atomically, so nothing reading the incoming store
+# can catch a half written file.
+#
+# A temp file is written in the same directory and renamed into place, a rename
+# within the one filesystem being atomic. Same directory matters, as a rename
+# across filesystems is a copy and would give up the atomicity.
+#
+# Args:
+#     - file :: Where to write it, that being a path under the incoming
+#       directory such as '/malware/client-incoming/json/foo.json'. Replaced if
+#       it already exists. Required.
+#
+#     - json :: What to write, that being the hash ref of submission data. Any
+#       structure JSON can encode works. Required.
+#
+# Returns nothing. The file is left mode 0644 and ends in a newline. Dies if the
+# temp file can not be made or the rename fails, removing the temp file in the
+# latter case rather than leaving it behind.
+#
+#     $self->_write_json( $self->{incoming} . '/json/' . $name . '.json', $submission );
 sub _write_json {
 	my ( $self, $file, $json ) = @_;
 
@@ -968,9 +1166,25 @@ sub _write_json {
 	return;
 } ## end sub _write_json
 
-# create, or refresh, the task_to_json/<task> symlink pointing at $json_file.
-# $task may be several task IDs joined via ',', in which case each ID gets a link.
-# Dies if the path exists and is not a symlink, as that needs human intervention.
+# Creates, or refreshes, the task_to_json links pointing at a submission's JSON,
+# which is what makes it possible to go from a CAPE task ID back to what was
+# submitted.
+#
+# Args:
+#     - task :: The task ID to link, as returned by the submission. CAPE hands
+#       back several IDs joined with ',' when one submission produces more than
+#       one task, in which case each ID gets its own link to the same JSON.
+#       Required.
+#
+#     - json_file :: The submission JSON to point the links at, as a path such as
+#       '/malware/client-incoming/json/foo.json'. Required.
+#
+# Returns nothing. An existing link is replaced, so a resubmission repoints it
+# rather than failing. Dies if the link path exists and is not a symlink, as
+# something has put a real file where the link belongs and that wants a human
+# looking at it, or if the unlink or symlink fails.
+#
+#     $self->_link_task_to_json( '1,2', $self->{incoming} . '/json/foo.json' );
 sub _link_task_to_json {
 	my ( $self, $task, $json_file ) = @_;
 
@@ -1303,8 +1517,37 @@ sub results_fetch {
 	};
 } ## end sub results_fetch
 
-# Build a CAPE::Utils and run the results ACL. Returns ($cape_util, undef) on
-# success or (undef, $response) on failure so callers can early return.
+# Builds a CAPE::Utils and runs the results ACL against the request, shared by
+# results_list and results_fetch.
+#
+# The object is returned alongside the verdict as both callers need it afterwards
+# for the storage directory, and building it is the step most likely to fail.
+#
+# The failure detail goes to syslog rather than into the response, as the
+# requester is on the other side of an ACL they have just failed and does not
+# need to be told why.
+#
+# Args:
+#     - apikey :: The API key from the request's apikey query parameter, or undef
+#       if it did not carry one.
+#
+#     - remote_ip :: The IP the request came from, or undef if not known.
+#
+# Returns a two element list.
+#
+#     - On success :: ( $cape_util, undef ), the first being the CAPE::Utils
+#       object to carry on with.
+#
+#     - On failure :: ( undef, $response ), the second being a hash ref of
+#       'status' and 'body' for the caller to return as is. That is a 403 when
+#       the ACL says no, and a 400 when the config could not be read or the check
+#       itself blew up.
+#
+#     my ( $cape_util, $response ) = $self->_results_auth(
+#         apikey    => $apikey,
+#         remote_ip => $remote_ip,
+#     );
+#     if ( defined($response) ) { return $response; }
 sub _results_auth {
 	my ( $self, %opts ) = @_;
 
@@ -1329,12 +1572,48 @@ sub _results_auth {
 	return ( $cape_util, undef );
 } ## end sub _results_auth
 
-# the fixed candidate result files, relative to the task dir; shots are dynamic
+# The fixed set of result files that may be fetched, relative to a task's
+# analysis directory.
+#
+# The results endpoints work off an allow list rather than serving whatever is
+# under the analysis directory, as that directory also holds the sample itself
+# and everything dropped during detonation. Screenshots are not in here, their
+# names not being known ahead of time, and are matched by pattern instead.
+#
+# Args:
+#     - none
+#
+# Returns a list of paths as strings, relative to the analysis directory. This is
+# also the list results_list checks for existence when reporting what a task has.
+#
+#     foreach my $candidate ( _results_candidates() ) {
+#         push( @have, $candidate ) if ( -f $task_dir . '/' . $candidate );
+#     }
 sub _results_candidates {
 	return ( 'reports/lite.json', 'reports/report.json', 'reports/report.html', 'reports/summary-report.html' );
 }
 
-# true if $path is a fetchable result: one of the fixed candidates or a shot jpg
+# Decides whether a requested path is one of the results that may be fetched.
+#
+# This is the check standing between the results endpoint and the rest of the
+# analysis directory, so it is an allow list and not a deny list. Path traversal
+# needs no special handling as a result, '../../etc/passwd' simply not being one
+# of the things on the list.
+#
+# Args:
+#     - path :: The path from the request, relative to the analysis directory,
+#       such as 'reports/lite.json' or 'shots/0001.jpg'. Anything may be passed,
+#       undef included.
+#
+# Returns 1 if the path may be fetched, that being an exact match for one of
+# _results_candidates or a screenshot, those being a jpg directly under shots/
+# whose name is only letters, digits, underscores, and hyphens. Returns 0 for
+# anything else.
+#
+#     _results_path_allowed('reports/lite.json');    # 1
+#     _results_path_allowed('shots/0001.jpg');       # 1
+#     _results_path_allowed('binary');               # 0
+#     _results_path_allowed('../../etc/passwd');     # 0
 sub _results_path_allowed {
 	my ($path) = @_;
 
@@ -1346,7 +1625,23 @@ sub _results_path_allowed {
 	return 0;
 } ## end sub _results_path_allowed
 
-# content type for a fetchable result path, based on its extension
+# Works out the content type to serve a fetchable result with, based on its
+# extension.
+#
+# Only ever called on paths _results_path_allowed has already accepted, so the
+# handful of extensions those can have is the whole of what it needs to know.
+#
+# Args:
+#     - path :: The path being served, relative to the analysis directory, such
+#       as 'reports/lite.json'. Required, and expected to have already passed
+#       _results_path_allowed.
+#
+# Returns the content type as a string, that being 'application/json' for .json,
+# 'text/html' for .html, and 'image/jpeg' for .jpg, falling back to
+# 'application/octet-stream' for anything else.
+#
+#     _results_content_type('reports/lite.json');   # 'application/json'
+#     _results_content_type('shots/0001.jpg');      # 'image/jpeg'
 sub _results_content_type {
 	my ($path) = @_;
 

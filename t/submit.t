@@ -235,4 +235,52 @@ SKIP: {
 		'application/pdf', 'a dry run reports the detected mime even with mime based selection off' );
 } ## end SKIP:
 
+#
+# the random option, which shuffles the order the items are submitted in
+#
+my $random_dir = $base . '/random';
+mkdir($random_dir);
+foreach my $item_number ( 1 .. 20 ) {
+	write_file( $random_dir . '/sample' . sprintf( '%02d', $item_number ) . '.bin', 'sample' . $item_number );
+}
+
+# submits the whole dir and hands back the order the items reached submit.py in
+my $submit_order_for = sub {
+	my (%submit_opts) = @_;
+
+	my @submitted_order;
+	{
+		no warnings qw( redefine once );
+		local *CAPE::Utils::run = sub {
+			my (%run_opts) = @_;
+			push( @submitted_order, $run_opts{command}[-1] );
+			return ( 1, undef, [''], [''], [] );
+		};
+		$cape_util->submit( items => [$random_dir], quiet => 1, %submit_opts );
+	}
+
+	return \@submitted_order;
+}; ## end $submit_order_for = sub
+
+my $unshuffled = $submit_order_for->( random => 0 );
+is( scalar( @{$unshuffled} ), 20, 'every item in a submitted dir is submitted' );
+is_deeply( $submit_order_for->( random => 0 ), $unshuffled, 'random => 0 submits in a stable order' );
+
+is_deeply(
+	[ sort @{ $submit_order_for->( random => 1 ) } ],
+	[ sort @{$unshuffled} ],
+	'random => 1 submits the same set of items, none lost or repeated'
+);
+
+# 20 items shuffling back into the same order is possible but not something that
+# will ever be seen, so a handful of tries is plenty to show it is shuffling
+my $shuffles_by_default = 0;
+foreach ( 1 .. 5 ) {
+	if ( join( ',', @{ $submit_order_for->() } ) ne join( ',', @{$unshuffled} ) ) {
+		$shuffles_by_default = 1;
+		last;
+	}
+}
+ok( $shuffles_by_default, 'the order is shuffled by default' );
+
 done_testing();

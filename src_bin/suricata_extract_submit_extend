@@ -21,6 +21,23 @@ suricata_extract_submit_extend - Provides a LibreNMS style SNMP extend for suric
 
 =cut
 
+# Prints the version and exits, for -v/--version.
+#
+# The version is repeated here rather than read from anywhere, as this is a
+# script and not a module, so there is no $VERSION to go looking at. It wants
+# keeping in step with the VERSION section of the POD above.
+#
+# Args:
+#     - none
+#
+# Never returns, exiting 255 once it has printed. That matches the exit used for
+# the help output, both being a request for information rather than a run of the
+# script proper, and keeps a bare -v from looking like a successful run to
+# whatever called it.
+#
+#     if ($version) {
+#         version;
+#     }
 sub version {
 	print "suricata_extract_submit_extend v. 1.0.1\n";
 	exit 255;
@@ -50,7 +67,7 @@ Default :: /var/cache/suricata_extract_submit_stats
 
 =head2 -r <seconds>
 
-The number of seconds to look back buy for generating stats.
+The number of seconds to look back by for generating stats.
 
 Default :: 300
 
@@ -130,9 +147,9 @@ GetOptions(
 	'help'    => \$help,
 	'v'       => \$version,
 	'version' => \$version,
-	'c'       => \$cache,
-	'd'       => \$cache_dir,
-	'r'       => \$rewind_by,
+	'c=s'     => \$cache,
+	'd=s'     => \$cache_dir,
+	'r=i'     => \$rewind_by,
 	'Z'       => \$dont_compress,
 );
 

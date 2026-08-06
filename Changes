@@ -57,6 +57,34 @@ Revision history for CAPE-Utils
           post's entry to take a run ID rather than a report JSON, and point the per command links at
           the CAPE::Utils methods backing them rather than the POD-less command modules
         - remove search, a old unimplemented feature
+        - fix cape_utils post handing the INI path to its cape_utils helper instead of the options
+          hash ref, which made post -i die
+        - document the internal subs and the App::Cmd command classes, add a from source install
+          section to the README, and drop the duplicate AUTHOR section from CAPE::Utils::LogDrek
+        - submit now actually shuffles when "random" is set, which it documented but never did; the
+          items read out of a submitted dir are shuffled in with the rest rather than kept together
+        - drop the submit "custom" option, which submit() never implemented and nothing else, the
+          POD entry aside, existed for
+        - document post_link_format_template and post_link_format_template_file in the CONFIG FILE
+          section, both having been in the defaults but not the docs
+        - fix the suricata_extract_submit config docs: the UA ignore key is ignoreUA and not
+          ignoreUAs, ignoreHosts was listed twice, and ignoreMaxSize is a byte limit rather than
+          the file of regexes its comment claimed
+        - fix suricata_extract_submit_extend -c, -d, and -r, which were declared to GetOptions as
+          bare booleans, so passing any of them a value set it to 1 and left the value in @ARGV
+        - cape_utils version now reports the CAPE::Utils version rather than the CAPE::Utils::Cmd
+          App::Cmd glue version, which was stuck at 0.1.0 and said nothing about what it can do
+        - document submission_gate and submission_gate_timeout in the CONFIG FILE section, and bring
+          both README config blocks back in step with the PODs they mirror, the CAPE::Utils one
+          having been missing 13 settings and the suricata_extract_submit one 8
+        - the README now says what the six installed scripts are, introduces the cape_utils CLI and
+          its sub commands, and covers nergal_extend and suricata_extract_submit_extend
+        - fix the nergal ping test docs, which said a size 10 file matching /01234567890/ when that
+          is 11 bytes and so could never match... it is /1234567890/, and the log line said the same
+          wrong payload
+        - nergal now creates the incoming sub dirs at start up via CAPE::Utils::Nergal->make_dirs,
+          rather than refusing every submission until they were made by hand; the incoming dir
+          itself is still never created, as it is normally a mount
 
 4.0.0   2025-07-21/15:00
         - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry

@@ -10,7 +10,10 @@ cape_utils - A utility to help with various basic tasks related to CAPEv2.
 
 =head1 VERSION
 
-0.1.0
+Versioned with L<CAPE::Utils>, that being the module every command is backed by.
+Ask it directly rather than going by anything written here.
+
+    cape_utils version
 
 =head1 SYNOPSIS
 
@@ -44,6 +47,8 @@ cape_utils mime_to_packages [B<-i> <config>] [B<--as-ini>] [B<--diff>] [B<--json
 cape_utils commands
 
 cape_utils help <command>
+
+cape_utils version
 
 =head1 DESCRIPTION
 

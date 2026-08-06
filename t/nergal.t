@@ -116,7 +116,7 @@ foreach my $variant (qw( TCP tcp UDP udp ICMP icmp SCTP unknown )) {
 # 'unknown', and an md5 where the sha1 normally sits
 $parsed
 	= $submitter->parse_name(
-	'0.0.0.0-0-0.0.0.0-0-unknown-3e0ad56ac00aeb9dd0bddab7cb8b956e-foo-1785441239-application_x_msi');
+		'0.0.0.0-0-0.0.0.0-0-unknown-3e0ad56ac00aeb9dd0bddab7cb8b956e-foo-1785441239-application_x_msi');
 is_deeply(
 	$parsed,
 	{
@@ -142,19 +142,22 @@ is( $parsed->{dest_ip}, '2606:2800:220::1', 'parse_name handles an IPv6 destinat
 
 # anything not valid in full parses to nothing rather than a partial hash
 my %bad = (
-	'a plain name'         => 'invoice.doc',
-	'too few fields'       => 'lilith-manual-sample.exe',
-	'no mime'              => '192.168.1.5-49152-93.184.216.34-80-TCP-' . $good_sha1 . '-foo-' . $extracted,
-	'mime with no "_"'     => '10.0.0.1-1234-10.0.0.2-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-applicationpdf',
-	'empty src port'       => '192.168.1.5--93.184.216.34-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
-	'port over 65535'      => '10.0.0.1-99999-10.0.0.2-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
-	'non hex sha1'         => '10.0.0.1-1234-10.0.0.2-80-TCP-nothexz-foo-' . $extracted . '-app_pdf',
-	'empty proto'          => '10.0.0.1-1234-10.0.0.2-80--' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
-	'proto with a symbol'  => '10.0.0.1-1234-10.0.0.2-80-TCP.6-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
+	'a plain name'        => 'invoice.doc',
+	'too few fields'      => 'lilith-manual-sample.exe',
+	'no mime'             => '192.168.1.5-49152-93.184.216.34-80-TCP-' . $good_sha1 . '-foo-' . $extracted,
+	'mime with no "_"'    => '10.0.0.1-1234-10.0.0.2-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-applicationpdf',
+	'empty src port'      => '192.168.1.5--93.184.216.34-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
+	'port over 65535'     => '10.0.0.1-99999-10.0.0.2-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
+	'non hex sha1'        => '10.0.0.1-1234-10.0.0.2-80-TCP-nothexz-foo-' . $extracted . '-app_pdf',
+	'empty proto'         => '10.0.0.1-1234-10.0.0.2-80--' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
+	'proto with a symbol' => '10.0.0.1-1234-10.0.0.2-80-TCP.6-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
 
 	# a proto holding a '-', as 'IPv6-ICMP' does, shifts every later field the
 	# same way a slug holding one does
-	'proto holding a "-"' => '10.0.0.1-1234-10.0.0.2-80-IPv6-ICMP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
+	'proto holding a "-"' => '10.0.0.1-1234-10.0.0.2-80-IPv6-ICMP-'
+		. $good_sha1 . '-foo-'
+		. $extracted
+		. '-app_pdf',
 	'src ip not an ip'     => 'notanip-1234-10.0.0.2-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
 	'dest ip out of range' => '10.0.0.1-1234-999.1.1.1-80-TCP-' . $good_sha1 . '-foo-' . $extracted . '-app_pdf',
 	'all digit slug'       => '10.0.0.1-1234-10.0.0.2-80-TCP-' . $good_sha1 . '-12345-' . $extracted . '-app_pdf',
@@ -194,6 +197,53 @@ mkdir( $incoming . '/tmp' );
 my $gone = CAPE::Utils::Nergal->new( incoming => $incoming . '/nope' );
 eval { $gone->check_dirs; };
 like( $@, qr/incoming directory.*does not exist/, 'check_dirs dies on a missing incoming dir' );
+
+#
+# make_dirs, which creates the sub dirs so a fresh install does not need them
+# made by hand
+#
+my $fresh = tempdir( CLEANUP => 1 );
+my $maker = CAPE::Utils::Nergal->new( incoming => $fresh );
+
+# nothing but the incoming dir to start with
+eval { $maker->check_dirs; };
+ok( $@, 'a fresh incoming dir does not pass check_dirs to begin with' );
+
+my $made = eval { $maker->make_dirs; };
+ok( $made && !$@, 'make_dirs succeeds on a fresh incoming dir' );
+foreach my $subdir (qw( sha256 json name_to_sha256 task_to_json tmp )) {
+	ok( -d $fresh . '/' . $subdir, 'make_dirs created the ' . $subdir . ' sub dir' );
+}
+ok( eval { $maker->check_dirs; }, 'check_dirs passes after make_dirs' );
+
+# safe to run again, as it is called on every start up
+ok( eval { $maker->make_dirs; }, 'make_dirs is fine being run a second time' );
+
+# fills in only what is missing, leaving anything already there alone
+write_file( $fresh . '/json/keepme', 'still here' );
+rmdir( $fresh . '/tmp' );
+ok( eval { $maker->make_dirs; }, 'make_dirs recreates just the missing sub dir' );
+ok( -d $fresh . '/tmp',          'the missing sub dir is back' );
+is( read_file( $fresh . '/json/keepme' ),
+	'still here', 'make_dirs left the existing sub dirs and their contents alone' );
+
+# the incoming dir itself is never created, as it is normally a mount and making
+# it would send samples to the wrong filesystem
+my $no_incoming = CAPE::Utils::Nergal->new( incoming => $fresh . '/nope' );
+eval { $no_incoming->make_dirs; };
+like( $@, qr/incoming directory.*does not exist/, 'make_dirs dies rather than creating the incoming dir' );
+ok( !-e $fresh . '/nope', 'make_dirs really did not create the incoming dir' );
+
+# with no incoming set it is read from the config, the way receive does it, so
+# it can be called at start up before any submission has come in
+my $cfg_incoming = tempdir( CLEANUP => 1 );
+my $cfg_ini      = $cfg_incoming . '/cape_utils.ini';
+write_file( $cfg_ini, "incoming=$cfg_incoming\n" );
+my $from_config = CAPE::Utils::Nergal->new( ini => $cfg_ini );
+ok( eval { $from_config->make_dirs; }, 'make_dirs resolves incoming from the config when it was not passed' );
+foreach my $subdir (qw( sha256 json name_to_sha256 task_to_json tmp )) {
+	ok( -d $cfg_incoming . '/' . $subdir, 'make_dirs created ' . $subdir . ' under the configured incoming dir' );
+}
 
 #
 # receive, with the remote check and the actual CAPE submission mocked
@@ -249,6 +299,52 @@ foreach my $task_id (qw( 307616 307617 307618 )) {
 }
 my $multi_json = decode_json( read_file( $incoming . '/json/multi.bin' ) );
 is( $multi_json->{cape_submit}{task}, '307616,307617,307618', '.cape_submit.task holds the comma joined IDs' );
+
+#
+# the ping test, that being exactly ten bytes of '1234567890', which is answered
+# without anything being saved or submitted
+#
+@submit_calls = ();
+@logged       = ();
+$result       = $receiver->receive(
+	remote_ip => '192.0.2.1',
+	apikey    => undef,
+	raw_json  => undef,
+	upload    => MockUpload->new( filename => 'ping.bin', content => '1234567890' ),
+	oversized => 0,
+);
+is( $result->{status}, 200,               'a ping test is answered with a 200' );
+is( $result->{body},   "TEST RECIEVED\n", 'a ping test is answered with TEST RECIEVED' );
+is_deeply( \@submit_calls, [], 'a ping test submits nothing to CAPE' );
+ok( !-e $incoming . '/json/ping.bin', 'a ping test writes no incoming JSON' );
+like( join( "\n", @logged ), qr/payload=1234567890/, 'the ping is logged with the payload that actually matches' );
+unlike( join( "\n", @logged ), qr/payload=01234567890/, 'the log does not carry the old eleven byte payload' );
+
+# the payload has to match, so ten bytes of anything else is a normal submission
+$submit_returns = 4242;
+@submit_calls   = ();
+$result         = $receiver->receive(
+	remote_ip => '192.0.2.1',
+	apikey    => undef,
+	raw_json  => undef,
+	upload    => MockUpload->new( filename => 'notping.bin', content => '0123456789' ),
+	oversized => 0,
+);
+is( $result->{status},     200, 'ten bytes that are not the ping payload still submit' );
+is( scalar(@submit_calls), 1,   'ten bytes that are not the ping payload reach CAPE' );
+
+# and the eleven byte string the docs used to claim is not a ping either, as it
+# never passes the size check
+@submit_calls = ();
+$result       = $receiver->receive(
+	remote_ip => '192.0.2.1',
+	apikey    => undef,
+	raw_json  => undef,
+	upload    => MockUpload->new( filename => 'oldping.bin', content => '01234567890' ),
+	oversized => 0,
+);
+is( $result->{status},     200, 'the old documented eleven byte payload is not a ping' );
+is( scalar(@submit_calls), 1,   'the old documented eleven byte payload is submitted as a normal sample' );
 
 #
 # padding from the submission name, for tools submitting in the standard format

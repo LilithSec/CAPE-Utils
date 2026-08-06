@@ -92,17 +92,17 @@ The 'submission_gate' setting is a command ran per submission to decide what
 becomes of it. It is empty by default, which disables it. What is done with the
 submission is taken from how it exits.
 
-    0 -- Accept it. Saved and submitted as normal.
+    - 0 :: Accept it. Saved and submitted as normal.
 
-    1 -- Accept and save it, but do not submit it.
+    - 1 :: Accept and save it, but do not submit it.
 
-    2 -- Accept it, but neither save nor submit it. Nothing is kept.
+    - 2 :: Accept it, but neither save nor submit it. Nothing is kept.
 
-    3 -- Deny it, temporarily. Replied to with a 444.
+    - 3 :: Deny it, temporarily. Replied to with a 444.
 
-    4 -- Deny it, permanently. Replied to with a 445.
+    - 4 :: Deny it, permanently. Replied to with a 445.
 
-    5 -- Deny it, generically, for anything else. Replied to with a 403.
+    - 5 :: Deny it, generically, for anything else. Replied to with a 403.
 
 Anything else is a gate that is broken rather than one making a call, and is
 handled like any other error, meaning the submission is dropped and replied to
@@ -213,9 +213,10 @@ C<apikey> query parameter.
 
 =head1 PINGING
 
-If you submit a file with a file with the size of 10 and matching
-/01234567890/ it will return "TEST RECIEVED\n", provided the submitter is authed.
-At that point it will just stop processing of it.
+If you submit a file of size 10 matching /1234567890/, so the ten bytes
+"1234567890" and nothing else, it will return "TEST RECIEVED\n", provided the
+submitter is authed. At that point it stops processing it, so nothing is saved
+or submitted to CAPE.
 
 =head1 ENVIROMENTAL VARIABLES
 
@@ -235,7 +236,14 @@ The following directories are used under the incoming directory.
     task_to_json
     tmp
 
-"tmp" is where the written to first to get the checksum.
+Any of them that are missing are created at start up, so only the incoming
+directory itself has to be made beforehand. That one is never created for you,
+as it is normally a mount and creating it would turn a failed mount into samples
+landing on the wrong filesystem. Where it is missing, that is logged and every
+submission is refused until it turns up, at which point nergal picks up again
+without needing a restart.
+
+"tmp" is where the file is written to first to get the checksum.
 
 "sha256" is where it is moved to after we have the checksum if it does not
 already exist.
@@ -255,6 +263,19 @@ use CAPE::Utils::LogDrek qw( log_drek );
 
 # one instance shared across requests so the tracking int keeps incrementing
 my $submitter = CAPE::Utils::Nergal->new;
+
+# Make the incoming sub dirs up front so a fresh install works without them being
+# created by hand, which otherwise 400s every submission until someone notices.
+#
+# Not fatal, as the incoming dir may be a mount that is not up yet and receive
+# checks per submission anyway, so this recovers on its own once it appears. It
+# is logged to both syslog and STDERR so it still shows in the journal.
+eval { $submitter->make_dirs; };
+if ($@) {
+	my $error_message = 'incoming dir setup failed, submissions will be refused until it is sorted... ' . $@;
+	log_drek( 'err', $error_message, undef, 'nergal' );
+	warn($error_message);
+}
 
 # results fetching. list what result files exist for a task...
 get '/results/:task_id' => sub ($c) {
@@ -303,7 +324,29 @@ post '/' => sub ($c) {
 	the_stuff($c);
 };
 
-# thin adapter: pull the request bits off $c, hand them to the backend, render the result
+# Handles a submission, adapting between Mojolicious and the backend by pulling
+# the pieces of the request off the controller, handing them to
+# CAPE::Utils::Nergal->receive, and rendering whatever comes back.
+#
+# It exists because the two routes it backs, '/*' and '/', do not overlap in
+# Mojolicious and so both have to be declared, and neither wants its own copy of
+# this.
+#
+# The failure detail goes to syslog rather than into the response, as a submitter
+# that has just tripped over something has no need to be told the internals of
+# it.
+#
+# Args:
+#     - c :: The Mojolicious::Controller for the request. The remote address,
+#       the apikey and json parameters, the uploaded file, and whether the
+#       request ran past the max request size are taken off it. Required.
+#
+# Returns nothing, the point of it being the response it renders. That is what
+# receive() decided on, or a 400 when receive() died.
+#
+#     post '/*' => sub ($c) {
+#         the_stuff($c);
+#     };
 sub the_stuff {
 	my $c = $_[0];
 
