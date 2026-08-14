@@ -7,9 +7,29 @@ StartLimitIntervalSec=0
 Type=simple
 User=cape
 Group=cape
+# hypnotoad defaults its pid file to a 'hypnotoad.pid' sitting next to the nergal
+# script, which is a bin dir the cape user has no business writing to, so it goes
+# in a runtime dir systemd creates as this user and cleans up on stop. nergal
+# passes this on to hypnotoad, as its settings come from the app rather than the
+# command line.
+#
+# Setting it in nergal.env wins, as what 'EnvironmentFile=' reads overrides what
+# 'Environment=' sets, so somewhere else may be used without editing this.
+RuntimeDirectory=nergal
+Environment=NERGAL_PID_FILE=/run/nergal/nergal.pid
 EnvironmentFile=/usr/local/etc/nergal.env
-ExecStart=/usr/local/bin/nergal daemon -m production -l $LISTEN_ON
+# '-f' keeps the manager process in the foreground so systemd tracks it as the
+# main process rather than it forking off on its own. The listen from LISTEN_ON
+# is handed to hypnotoad by nergal.
+ExecStart=/usr/local/bin/hypnotoad -f /usr/local/bin/nergal
+# QUIT is hypnotoad's graceful shutdown, which lets the workers finish the
+# submissions they are in the middle of. The default TERM drops them.
+KillSignal=SIGQUIT
 TimeoutStartSec=300
+# hypnotoad gives a worker 120 seconds to finish up before forcing it, so this
+# sits above that to let hypnotoad be the one that decides, rather than systemd
+# SIGKILLing the lot of it mid submission
+TimeoutStopSec=150
 Restart=always
 RestartSec=3
 

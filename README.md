@@ -366,17 +366,84 @@ curl -F filename=@/tmp/nergal-ping https://cape.example.net:8443/cgi-bin/whateve
 
 GET is only used for the results endpoint below.
 
-Using the provided systemd service file, you will also need to create
+The provided systemd service file runs nergal under hypnotoad, Mojolicious'
+preforking server, so submissions are handled by a pool of workers rather than
+one process at a time. Using it, you will also need to create
 '/usr/local/etc/nergal.env' and configure it akin to below.
 
 ```
 LISTEN_ON="http://192.168.14.15:8080"
 ```
 
+More than one may be listened on, seperated by whitespace.
+
+```
+LISTEN_ON="http://192.168.14.15:8080 http://127.0.0.1:8080"
+```
+
+For TLS, make it a 'https://' listen and point 'cert' and 'key' at the
+certificate and its key via the query string.
+
+```
+LISTEN_ON="https://192.168.14.15:8443?cert=/usr/local/etc/nergal/cert.pem&key=/usr/local/etc/nergal/key.pem"
+```
+
+The '&' needs no escaping, as systemd runs 'ExecStart' directly rather than
+through a shell. Both files have to be readable by the user nergal runs as,
+'cape' by default.
+
+```
+install -d -o cape -g cape -m 0750 /usr/local/etc/nergal
+install -o cape -g cape -m 0444 fullchain.pem /usr/local/etc/nergal/cert.pem
+install -o cape -g cape -m 0400 privkey.pem /usr/local/etc/nergal/key.pem
+systemctl restart nergal
+```
+
+'cert' should be the full chain where a intermediate is involved, as nothing
+else is sent to the client. A 'https://' listen without 'cert' and 'key' still
+comes up, but on Mojolicious' built in test certificate, which is self signed,
+issued to 'localhost', and shipped with its private key, so always set them.
+Renewing means restarting nergal, as the certificate is read at listen time.
+
+```
+LISTEN_ON="https://192.168.14.15:8443?cert=/usr/local/etc/nergal/cert.pem&key=/usr/local/etc/nergal/key.pem&ca=/usr/local/etc/nergal/ca.pem"
+```
+
+The rest of what may be set, such as 'ciphers' and 'version', is covered in
+`perldoc Mojo::Server::Daemon` under 'listen'.
+
+Hypnotoad takes its settings from the application rather than the command line,
+so nergal hands it these from the environment. The other two are optional.
+
+```
+# how many worker processes to run, hypnotoad's own default being 4. A worker is
+# tied up for as long as handing the sample to CAPE takes, so this is how many
+# submissions may be handled at once.
+NERGAL_WORKERS="8"
+# where hypnotoad keeps its pid file. The unit sets this to /run/nergal/nergal.pid,
+# a runtime dir it has systemd create as the user nergal runs as, so this only
+# needs setting when running hypnotoad by hand, as its own default is a
+# 'hypnotoad.pid' next to the nergal script.
+NERGAL_PID_FILE="/run/nergal/nergal.pid"
+```
+
+Deploy with a plain `systemctl restart nergal`. Hypnotoad's hot deployment,
+running it a second time or sending it a USR2, replaces the manager process
+with a new one, which systemd sees as the service having died, so do not use it
+under the unit.
+
+With more than one worker, the tracking int in the log is per worker rather than
+global, so pair it with the pid syslog records when following a submission
+through the log.
+
 The service runs as the user and group 'cape' via the unit's 'User='
 and 'Group=' directives. If you need it to run as a different user, edit
 those in 'systemd/nergal.service' rather than setting an environment
 variable.
+
+If Mojolicious came from your distribution rather than CPAN, hypnotoad is
+generally '/usr/bin/hypnotoad' rather than the '/usr/local/bin/hypnotoad' the
+unit's 'ExecStart=' uses, so adjust that as needed.
 
 ### nergal results endpoint
 
