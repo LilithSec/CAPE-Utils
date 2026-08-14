@@ -352,6 +352,20 @@ from.
 To enable the use of a API key, set the value of 'apikey' and set 'auth'
 to 'apikey' (key only), 'both' (key and IP), or 'either' (key or IP).
 
+Submissions are POST only, and the path is not matched on at all, so '/',
+'/submit', or a CGI one like '/cgi-bin/whatever.cgi' all work. Opening a
+submission URL in a browser is a GET, which nergal answers with a 405 and an
+'Allow: POST' rather than accepting anything. To check a submission path end to
+end, POST the ten byte ping, which is answered with "TEST RECIEVED" and is not
+saved or detonated.
+
+```
+printf 1234567890 > /tmp/nergal-ping
+curl -F filename=@/tmp/nergal-ping https://cape.example.net:8443/cgi-bin/whatever.cgi
+```
+
+GET is only used for the results endpoint below.
+
 Using the provided systemd service file, you will also need to create
 '/usr/local/etc/nergal.env' and configure it akin to below.
 

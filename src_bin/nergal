@@ -121,7 +121,16 @@ See L<CAPE::Utils::Nergal/"SUBMISSION GATE"> for the full details.
 
 =head1 SUBMISSION
 
-Submissions must be made using the post method.
+Submissions must be made using the post method, to any path. The path is not
+matched on at all, so C<< / >>, C<< /submit >>, or a CGI one like
+C<< /cgi-bin/bluedot-submit.cgi >> all land in the same place, and a submitter
+already pointed at some other path keeps working as is.
+
+A GET of a submission URL, which is what pasting it into a browser to see if
+nergal is up does, is replied to with a 405 and an C<Allow: POST>. That is the
+method being wrong rather than the URL, so it is not a 404. To actually check a
+submission path end to end, POST the ten byte ping described in L</PINGING>.
+GET is only used for results fetching, see L</"RESULTS FETCHING">.
 
 =head2 Submission Parameters
 
@@ -220,6 +229,17 @@ or submitted to CAPE.
 
 =head1 ENVIROMENTAL VARIABLES
 
+=head2 MOJO_MODE
+
+The Mojolicious mode, which nergal defaults to 'production' rather than
+Mojolicious' own default of 'development'. Development mode replies to a request
+it has no route for with a page listing every route, the request internals, and
+the module versions, which is not something a submitter should be shown.
+
+This is only a default, so setting it, or 'PLACK_ENV', still works, as does
+C<< -m >> on the command line, which is what the systemd unit uses. It matters
+most for CGI, where there is no command line to pass C<< -m >> on.
+
 =head2 NERGAL_MAX_REQ_SIZE
 
 This is the max request size, which will affect the size of files the can be submitted.
@@ -256,6 +276,25 @@ in question. If it already exists it is updated to the newest one.
 "task_to_json" contains links to from the task name to the JSON it is for.
 
 =cut
+
+use strict;
+use warnings;
+
+# Mojolicious defaults to development mode, where anything it has no route for is
+# replied to with a page listing every route, the request internals, and the
+# module versions. Under 'daemon' the mode is set via '-m production', as the
+# systemd unit does, but a CGI invocation has no command line to put that on and
+# so gets the debug page, which is both noise and more than a submitter should be
+# told. So default it here instead.
+#
+# Has to be a BEGIN as Mojolicious::Lite builds the app when it is imported. Only
+# defaulted, never overridden, so 'MOJO_MODE'/'PLACK_ENV' still work, as does
+# '-m', which is parsed after this and wins as the mode is looked up lazily.
+BEGIN {
+	if ( !defined( $ENV{'MOJO_MODE'} ) && !defined( $ENV{'PLACK_ENV'} ) ) {
+		$ENV{'MOJO_MODE'} = 'production';
+	}
+}
 
 use Mojolicious::Lite -signatures;
 use CAPE::Utils::Nergal  ();
@@ -315,6 +354,29 @@ get '/results/:task_id/*subpath' => sub ($c) {
 	}
 	return;
 }; ## end sub
+
+# Submissions are POST only, so a GET of the submission URL, which is what
+# happens when someone pastes it into a browser to see if nergal is up, matches
+# nothing and falls through to the not found handler. That is a 404 that reads
+# like the URL is wrong when the method is the only thing that was, so answer it
+# with a 405 naming the method that is wanted instead.
+#
+# Declared after the results routes so those still win, and as with the POST
+# routes below, both '/*' and '/' are needed as the two do not overlap.
+sub method_not_allowed {
+	my $c = $_[0];
+
+	$c->res->headers->allow('POST');
+	$c->render( text => "nergal: submissions are POST only, see the nergal docs\n", status => 405, );
+
+	return;
+}
+get '/*' => sub ($c) {
+	method_not_allowed($c);
+};
+get '/' => sub ($c) {
+	method_not_allowed($c);
+};
 
 # two are needed as /* and / don't overlap... so pass it to the_stuff to actually handle it
 post '/*' => sub ($c) {
