@@ -114,6 +114,7 @@ sub _default_config {
 			'post_link_format_template_file' => '/usr/local/etc/cape_utils_link_format_template.t2',
 			'submission_gate'                => '',
 			'submission_gate_timeout'        => 30,
+			'enable_access_logs'             => 0,
 			'mime_to_package'                => 0,
 			'mime_to_package_default'        => 'exe',
 			'dll_check'                      => 1,
@@ -2670,6 +2671,10 @@ default with CAPEv2 in the default config.
     #submission_gate=
     # how many seconds the submission gate is given before it is killed
     submission_gate_timeout=30
+    # 0/1 if nergal should write HTTP access logs under the http_access_logs
+    # dir beneath the incoming dir... requires the optional module
+    # Mojolicious::Plugin::AccessLog
+    enable_access_logs=0
     # Location to write the eve log to.
     eve=/opt/CAPEv2/log/eve.json
     # how far to go back for processing eve

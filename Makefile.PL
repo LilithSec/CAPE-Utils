@@ -54,14 +54,21 @@ my %WriteMakefileArgs = (
 		'Proc::PID::File'       => '1.29',
 		'Statistics::Lite'      => '0',
 		'Web::ACL'              => '0.1.0',
-		'DBIx::Class'   => '0',
+		'DBIx::Class'           => '0',
 		'App::Cmd'              => '0',
 	},
 	dist       => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
 	clean      => { FILES    => 'CAPE-Utils-*' },
 	META_MERGE => {
 		"meta-spec" => { version => 2 },
-		resources   => {
+		prereqs     => {
+			runtime => {
+				recommends => {
+					'Mojolicious::Plugin::AccessLog' => '0',
+				},
+			},
+		},
+		resources => {
 			repository => {
 				type => 'git',
 				url  => 'git@github.com:LilithSec/CAPE-Utils.git',

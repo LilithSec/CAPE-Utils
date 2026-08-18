@@ -87,6 +87,10 @@ question. If it already exists it is updated to the newest one.
 
 "task_to_json" contains links from the task name to the JSON it is for.
 
+The nergal front end also keeps "http_access_logs" here where its
+'enable_access_logs' setting is on. Nothing in this module touches it, so it is
+not among the directories L</make_dirs> and L</check_dirs> handle.
+
 =head1 SUBMISSION GATE
 
 The 'submission_gate' config value is a command ran per submission to decide what

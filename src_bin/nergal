@@ -77,6 +77,11 @@ cape_utils settings, 'base', 'cape_runas', 'timeout', and the like.
       it is killed and the submission dropped as an error.
       - Default :: 30
 
+    - enable_access_logs :: If HTTP access logs should be written under the
+      'http_access_logs' directory beneath 'incoming'. Requires the optional
+      module L<Mojolicious::Plugin::AccessLog>. See "HTTP ACCESS LOGS" below.
+      - Default :: 0
+
 =head1 SECURITY
 
 By default this will auth of the remote IP via the setting 'subnets', which by default is
@@ -118,6 +123,18 @@ incoming JSON as well. How long it is given to run is set via
 'submission_gate_timeout', which defaults to 30 seconds.
 
 See L<CAPE::Utils::Nergal/"SUBMISSION GATE"> for the full details.
+
+=head1 HTTP ACCESS LOGS
+
+Where 'enable_access_logs' is set, every request is written in common log
+format to 'http_access_logs/access.log' under the 'incoming' directory, via
+L<Mojolicious::Plugin::AccessLog>. That module is optional and only needed
+where this is enabled.
+
+The 'http_access_logs' directory is created at start up where missing. Should
+the setup fail, be it the module not being installed, the incoming directory
+being absent, or the directory not being creatable, that is logged and nergal
+runs on without access logging until it is restarted.
 
 =head1 SUBMISSION
 
@@ -255,9 +272,13 @@ in question. If it already exists it is updated to the newest one.
 
 "task_to_json" contains links to from the task name to the JSON it is for.
 
+Where 'enable_access_logs' is set, "http_access_logs" is also created here and
+is where the HTTP access log is written. See "HTTP ACCESS LOGS" above.
+
 =cut
 
 use Mojolicious::Lite -signatures;
+use CAPE::Utils          ();
 use CAPE::Utils::Nergal  ();
 use CAPE::Utils::LogDrek qw( log_drek );
 
@@ -273,6 +294,36 @@ my $submitter = CAPE::Utils::Nergal->new;
 eval { $submitter->make_dirs; };
 if ($@) {
 	my $error_message = 'incoming dir setup failed, submissions will be refused until it is sorted... ' . $@;
+	log_drek( 'err', $error_message, undef, 'nergal' );
+	warn($error_message);
+}
+
+# HTTP access logging is optional and off by default via enable_access_logs.
+# Where enabled the http_access_logs dir is made under the incoming dir and
+# Mojolicious::Plugin::AccessLog, an optional module, writes the log beneath it.
+#
+# Not fatal, as being unable to log accesses is not worth refusing submissions
+# over. It is logged to both syslog and STDERR so it still shows in the journal,
+# and nergal runs on without access logging until restarted.
+eval {
+	my $cape_util = CAPE::Utils->new;
+	if ( $cape_util->{config}->{_}->{enable_access_logs} ) {
+		my $incoming       = $cape_util->{config}->{_}->{incoming};
+		my $access_log_dir = $incoming . '/http_access_logs';
+		# mkdir rather than make_path, as the incoming dir is deliberately never
+		# created... it is normally a mount and make_path would quietly make it,
+		# putting the access log on the wrong filesystem
+		if ( !-d $incoming ) {
+			die 'incoming directory, "' . $incoming . '", does not exist';
+		}
+		if ( !-d $access_log_dir && !mkdir($access_log_dir) ) {
+			die 'access log directory, "' . $access_log_dir . '", could not be created... ' . $!;
+		}
+		plugin 'AccessLog' => { log => $access_log_dir . '/access.log' };
+	} ## end if ( $cape_util->{config}->{_}->{enable_access_logs...})
+};
+if ($@) {
+	my $error_message = 'access log setup failed, continuing without it... ' . $@;
 	log_drek( 'err', $error_message, undef, 'nergal' );
 	warn($error_message);
 }

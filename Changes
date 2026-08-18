@@ -85,6 +85,9 @@ Revision history for CAPE-Utils
         - nergal now creates the incoming sub dirs at start up via CAPE::Utils::Nergal->make_dirs,
           rather than refusing every submission until they were made by hand; the incoming dir
           itself is still never created, as it is normally a mount
+        - nergal can now write HTTP access logs under the incoming dir's http_access_logs sub dir
+          via the optional module Mojolicious::Plugin::AccessLog, enabled via enable_access_logs,
+          which defaults to 0
 
 4.0.0   2025-07-21/15:00
         - Add poetry_path config with a default of /etc/poetry/bin/poetry, which is where it is located for new CAPEv2 installs... older installs should set it to just poetry
