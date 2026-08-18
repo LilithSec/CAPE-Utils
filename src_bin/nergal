@@ -129,8 +129,9 @@ cape_utils settings, 'base', 'cape_runas', 'timeout', and the like.
       - Default :: 30
 
     - enable_access_logs :: If HTTP access logs should be written under the
-      'http_access_logs' directory beneath 'incoming'. Requires the optional
-      module L<Mojolicious::Plugin::AccessLog>. See "HTTP ACCESS LOGS" below.
+      'http_access_logs' directory beneath 'incoming', one file per day.
+      Requires the optional module L<Mojolicious::Plugin::AccessLog>. See
+      "HTTP ACCESS LOGS" below.
       - Default :: 0
 
 =head1 SECURITY
@@ -177,15 +178,21 @@ See L<CAPE::Utils::Nergal/"SUBMISSION GATE"> for the full details.
 
 =head1 HTTP ACCESS LOGS
 
-Where 'enable_access_logs' is set, every request is written in common log
-format to 'http_access_logs/access.log' under the 'incoming' directory, via
-L<Mojolicious::Plugin::AccessLog>. That module is optional and only needed
-where this is enabled.
+Where 'enable_access_logs' is set, every request is written in combinedio
+format, Apache combined plus bytes received and sent, via
+L<Mojolicious::Plugin::AccessLog> to a daily file under the
+'incoming' directory, 'http_access_logs/access-<YYYY-MM-DD>.log'. That module
+is optional and only needed where this is enabled.
 
-The 'http_access_logs' directory is created at start up where missing. Should
-the setup fail, be it the module not being installed, the incoming directory
-being absent, or the directory not being creatable, that is logged and nergal
-runs on without access logging until it is restarted.
+The day comes from local time and the log rolls over to a new file with it.
+
+The 'http_access_logs' directory is created at start up where missing and the
+day's log is opened then as well, so an unwritable dir is caught at start up
+rather than on the first request. Should any of that fail, be it the module
+not being installed, the incoming directory being absent, or the directory or
+log not being creatable, it is logged and nergal runs on without access
+logging until it is restarted. A rollover that fails is logged and retried per
+request, with requests logged to the old day's file in the meantime.
 
 =head1 SUBMISSION
 
@@ -376,7 +383,7 @@ in question. If it already exists it is updated to the newest one.
 "task_to_json" contains links to from the task name to the JSON it is for.
 
 Where 'enable_access_logs' is set, "http_access_logs" is also created here and
-is where the HTTP access log is written. See "HTTP ACCESS LOGS" above.
+is where the daily HTTP access logs are written. See "HTTP ACCESS LOGS" above.
 
 =cut
 
@@ -403,6 +410,8 @@ use Mojolicious::Lite -signatures;
 use CAPE::Utils          ();
 use CAPE::Utils::Nergal  ();
 use CAPE::Utils::LogDrek qw( log_drek );
+use POSIX                qw( strftime );
+use IO::Handle           ();
 
 # one instance shared across requests so the tracking int keeps incrementing
 my $submitter = CAPE::Utils::Nergal->new;
@@ -422,16 +431,53 @@ if ($@) {
 
 # HTTP access logging is optional and off by default via enable_access_logs.
 # Where enabled the http_access_logs dir is made under the incoming dir and
-# Mojolicious::Plugin::AccessLog, an optional module, writes the log beneath it.
+# Mojolicious::Plugin::AccessLog, an optional module, is handed a logger writing
+# beneath it, one file per day.
 #
 # Not fatal, as being unable to log accesses is not worth refusing submissions
 # over. It is logged to both syslog and STDERR so it still shows in the journal,
 # and nergal runs on without access logging until restarted.
+my $access_log_dir;
+my $access_log_fh;
+my $access_log_day = '';
+
+# Opens the daily access log for the passed day and swaps it in, which is what
+# rotates the log. Mojolicious::Plugin::AccessLog opens a path handed to it once
+# and holds it forever, so it is handed a coderef writing via this instead.
+#
+# Args:
+#     - day :: The day to open the log for, as a 'YYYY-MM-DD' string from local
+#       time. Becomes part of the file name, 'access-<day>.log' under
+#       $access_log_dir.
+#
+# Returns nothing. On success $access_log_fh holds the new handle, autoflushed
+# so lines are not sat in a buffer, $access_log_day holds the day, and any
+# previous handle has been closed. Dies where the file could not be opened,
+# changing neither.
+#
+#     $open_access_log->( strftime( '%Y-%m-%d', localtime ) );
+my $open_access_log = sub {
+	my ($day) = @_;
+
+	my $access_log_file = $access_log_dir . '/access-' . $day . '.log';
+	open( my $new_access_log_fh, '>>', $access_log_file )
+		or die 'access log, "' . $access_log_file . '", could not be opened... ' . $!;
+	$new_access_log_fh->autoflush(1);
+
+	if ( defined($access_log_fh) ) {
+		close($access_log_fh);
+	}
+	$access_log_fh  = $new_access_log_fh;
+	$access_log_day = $day;
+
+	return;
+}; ## end $open_access_log = sub
+
 eval {
 	my $cape_util = CAPE::Utils->new;
 	if ( $cape_util->{config}->{_}->{enable_access_logs} ) {
-		my $incoming       = $cape_util->{config}->{_}->{incoming};
-		my $access_log_dir = $incoming . '/http_access_logs';
+		my $incoming = $cape_util->{config}->{_}->{incoming};
+		$access_log_dir = $incoming . '/http_access_logs';
 		# mkdir rather than make_path, as the incoming dir is deliberately never
 		# created... it is normally a mount and make_path would quietly make it,
 		# putting the access log on the wrong filesystem
@@ -441,7 +487,27 @@ eval {
 		if ( !-d $access_log_dir && !mkdir($access_log_dir) ) {
 			die 'access log directory, "' . $access_log_dir . '", could not be created... ' . $!;
 		}
-		plugin 'AccessLog' => { log => $access_log_dir . '/access.log' };
+
+		# opened up front so an unwritable dir is caught here, where failing
+		# disables access logging cleanly, rather than on the first request
+		$open_access_log->( strftime( '%Y-%m-%d', localtime ) );
+
+		plugin 'AccessLog' => {
+			format => 'combinedio',
+			log    => sub {
+				my $day = strftime( '%Y-%m-%d', localtime );
+				if ( $day ne $access_log_day ) {
+					# a failed rollover is logged and retried per request, with
+					# lines going to the old day's file rather than being lost
+					eval { $open_access_log->($day); };
+					if ($@) {
+						log_drek( 'err', 'access log rollover failed... ' . $@, undef, 'nergal' );
+					}
+				}
+				print {$access_log_fh} $_[0];
+				return;
+			},
+		};
 	} ## end if ( $cape_util->{config}->{_}->{enable_access_logs...})
 };
 if ($@) {
@@ -623,9 +689,10 @@ if ( defined( $ENV{'NERGAL_WORKERS'} ) ) {
 			'$ENV{NERGAL_WORKERS} set to "'
 				. $ENV{'NERGAL_WORKERS'}
 				. '" which does not match /^[1-9]\d*$/ ... leaving it to hypnotoad',
-			undef, 'nergal'
+			undef,
+			'nergal'
 		);
-	}
+	} ## end else [ if ( $ENV{'NERGAL_WORKERS'} =~ /^[1-9]\d*$/)]
 } ## end if ( defined( $ENV{'NERGAL_WORKERS'} ) )
 
 app->config( 'hypnotoad' => \%hypnotoad );

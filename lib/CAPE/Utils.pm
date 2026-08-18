@@ -2672,8 +2672,8 @@ default with CAPEv2 in the default config.
     # how many seconds the submission gate is given before it is killed
     submission_gate_timeout=30
     # 0/1 if nergal should write HTTP access logs under the http_access_logs
-    # dir beneath the incoming dir... requires the optional module
-    # Mojolicious::Plugin::AccessLog
+    # dir beneath the incoming dir, one file per day... requires the optional
+    # module Mojolicious::Plugin::AccessLog
     enable_access_logs=0
     # Location to write the eve log to.
     eve=/opt/CAPEv2/log/eve.json

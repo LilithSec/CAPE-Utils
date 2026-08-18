@@ -87,7 +87,7 @@ Revision history for CAPE-Utils
           itself is still never created, as it is normally a mount
         - nergal can now write HTTP access logs under the incoming dir's http_access_logs sub dir
           via the optional module Mojolicious::Plugin::AccessLog, enabled via enable_access_logs,
-          which defaults to 0
+          which defaults to 0; rotated daily, written as access-<YYYY-MM-DD>.log in combinedio format
         - nergal now defaults MOJO_MODE to production instead of Mojolicious' development, so a
           request it has no route for is no longer replied to with a page listing every route, the
           request internals, and the module versions; MOJO_MODE, PLACK_ENV, and -m still win, this
