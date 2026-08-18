@@ -6,6 +6,8 @@ nergal - A mojolicious script for handling submissions of files for detonation.
 
 =head1 SYNOPSIS
 
+sudo -u cape hypnotoad -f /usr/local/bin/nergal
+
 sudo -u cape nergal daemon -m production -l 'http://*:8080'
 
 =head1 DESCRIPTION
@@ -18,12 +20,61 @@ To work, this script needs to be running as the same user as CAPEv2.
 This will write activity to syslog.
 
 A systemd service file is provided at 'systemd/nergal.service' in this modules
-tarball. It runs as the user and group 'cape' via the unit's 'User=' and 'Group='
-directives, so edit those if you need a different user. It expects the enviromental
+tarball. It runs nergal under L<hypnotoad>, Mojolicious' preforking server, as the
+user and group 'cape' via the unit's 'User=' and 'Group=' directives, so edit
+those if you need a different user. It expects the enviromental
 '/usr/local/etc/nergal.env' file to be setup with the variable 'LISTEN_ON'. So lets
 say you want to listen on http://192.168.14.15:8080, it would be like below.
 
     LISTEN_ON="http://192.168.14.15:8080"
+
+More than one may be listened on, seperated by whitespace, which the single
+'daemon -l' this replaced could not do.
+
+    LISTEN_ON="http://192.168.14.15:8080 http://127.0.0.1:8080"
+
+For TLS, make it a 'https://' listen and point 'cert' and 'key' at the
+certificate and its key via the query string, as below.
+
+    LISTEN_ON="https://192.168.14.15:8443?cert=/usr/local/etc/nergal/cert.pem&key=/usr/local/etc/nergal/key.pem"
+
+The '&' does not need escaping, as systemd runs 'ExecStart' directly rather than
+through a shell. Both files must be readable by the user nergal runs as, 'cape'
+by default, which for the key generally means giving it to that user with mode
+0400 rather than leaving it where it landed.
+
+A 'https://' listen with no 'cert' and 'key' still comes up, but on Mojolicious'
+built in test certificate, which is self signed, issued to 'localhost', and
+shipped with its private key in the Mojolicious tarball, so it secures nothing
+against anyone who bothers to look. Always set the two of them.
+
+'cert' should be the full chain where a intermediate is involved, as nothing else
+is sent to the client, and a submitter validating the certificate fails without
+it. Where the certificate is a private one, the submitter has to be told to trust
+the CA that signed it.
+
+    LISTEN_ON="https://192.168.14.15:8443?cert=/usr/local/etc/nergal/fullchain.pem&key=/usr/local/etc/nergal/key.pem&ca=/usr/local/etc/nergal/ca.pem"
+
+Renewing a certificate means restarting nergal, as it is read at listen time. The
+rest of what may be set here, such as 'ciphers' and 'version', is covered in
+L<Mojo::Server::Daemon/listen>.
+
+Hypnotoad takes its settings from the application rather than the command line,
+so nergal hands it the ones in "ENVIROMENTAL VARIABLES" below, 'LISTEN_ON' being
+the one that matters. With none of them set it comes up on its own default of
+http://*:8080 with four workers, which is unlikely to be what is wanted.
+
+Submissions are handled by a pool of workers, so unlike the single process
+'daemon' this replaced, more than one may be in flight at a time. A worker is
+busy for as long as the sample takes to hand off to CAPE, so 'NERGAL_WORKERS' is
+effectively how many submissions may be dealt with at once. The tracking int in
+the log is per worker rather than global, so pair it with the pid syslog records
+when following a submission through the log.
+
+Deploy with a plain 'systemctl restart nergal'. Hypnotoad's hot deployment, so
+running it a second time or signalling it with a USR2, replaces the manager
+process with a new one, which systemd sees as the service having died and takes
+it from there, so it is not something to do under the unit.
 
 Alternatively, this script can be invoked as a CGI script if it is ran as the user CAPEv2 is.
 
@@ -138,7 +189,16 @@ runs on without access logging until it is restarted.
 
 =head1 SUBMISSION
 
-Submissions must be made using the post method.
+Submissions must be made using the post method, to any path. The path is not
+matched on at all, so C<< / >>, C<< /submit >>, or a CGI one like
+C<< /cgi-bin/bluedot-submit.cgi >> all land in the same place, and a submitter
+already pointed at some other path keeps working as is.
+
+A GET of a submission URL, which is what pasting it into a browser to see if
+nergal is up does, is replied to with a 405 and an C<Allow: POST>. That is the
+method being wrong rather than the URL, so it is not a 404. To actually check a
+submission path end to end, POST the ten byte ping described in L</PINGING>.
+GET is only used for results fetching, see L</"RESULTS FETCHING">.
 
 =head2 Submission Parameters
 
@@ -237,11 +297,54 @@ or submitted to CAPE.
 
 =head1 ENVIROMENTAL VARIABLES
 
+The three hypnotoad ones, 'LISTEN_ON', 'NERGAL_PID_FILE', and 'NERGAL_WORKERS',
+are only looked at when nergal is ran under L<hypnotoad>, which is what the
+systemd unit does. Nothing else pays them any mind, so a 'daemon' invocation
+still takes its listen from C<< -l >>.
+
+=head2 LISTEN_ON
+
+What to listen on, one or more Mojolicious listen URLs seperated by whitespace.
+See L<Mojo::Server::Daemon/listen> for the full syntax, and "DESCRIPTION" above
+for the TLS ones.
+
+If undef, hypnotoad's own default of 'http://*:8080' is used.
+
+=head2 MOJO_MODE
+
+The Mojolicious mode, which nergal defaults to 'production' rather than
+Mojolicious' own default of 'development'. Development mode replies to a request
+it has no route for with a page listing every route, the request internals, and
+the module versions, which is not something a submitter should be shown.
+
+This is only a default, so setting it, or 'PLACK_ENV', still works, as does
+C<< -m >> on the command line. It matters most for CGI, where there is no command
+line to pass C<< -m >> on. Hypnotoad defaults to production as well, so under the
+systemd unit this only comes up if something has set it to development.
+
 =head2 NERGAL_MAX_REQ_SIZE
 
 This is the max request size, which will affect the size of files the can be submitted.
 
 If undef, this defaults to 1G, 1073741824.
+
+=head2 NERGAL_PID_FILE
+
+Where hypnotoad keeps its process id file. The systemd unit points this at
+'/run/nergal/nergal.pid', a runtime dir it has systemd create as the user nergal
+runs as.
+
+If undef, hypnotoad's own default is used, which is a 'hypnotoad.pid' sitting
+next to the nergal script, meaning in a bin dir that the user it runs as should
+not be able to write to. So set it to somewhere that user owns.
+
+=head2 NERGAL_WORKERS
+
+How many hypnotoad worker processes to run, as a positive integer. Anything else
+is logged and ignored. A worker is tied up for as long as handing the sample to
+CAPE takes, so this is how many submissions may be handled at once.
+
+If undef, hypnotoad's own default of 4 is used.
 
 =head1 INCOMING DIR STRUCTURE
 
@@ -276,6 +379,25 @@ Where 'enable_access_logs' is set, "http_access_logs" is also created here and
 is where the HTTP access log is written. See "HTTP ACCESS LOGS" above.
 
 =cut
+
+use strict;
+use warnings;
+
+# Mojolicious defaults to development mode, where anything it has no route for is
+# replied to with a page listing every route, the request internals, and the
+# module versions. Under 'daemon' the mode is set via '-m production', as the
+# systemd unit does, but a CGI invocation has no command line to put that on and
+# so gets the debug page, which is both noise and more than a submitter should be
+# told. So default it here instead.
+#
+# Has to be a BEGIN as Mojolicious::Lite builds the app when it is imported. Only
+# defaulted, never overridden, so 'MOJO_MODE'/'PLACK_ENV' still work, as does
+# '-m', which is parsed after this and wins as the mode is looked up lazily.
+BEGIN {
+	if ( !defined( $ENV{'MOJO_MODE'} ) && !defined( $ENV{'PLACK_ENV'} ) ) {
+		$ENV{'MOJO_MODE'} = 'production';
+	}
+}
 
 use Mojolicious::Lite -signatures;
 use CAPE::Utils          ();
@@ -367,6 +489,29 @@ get '/results/:task_id/*subpath' => sub ($c) {
 	return;
 }; ## end sub
 
+# Submissions are POST only, so a GET of the submission URL, which is what
+# happens when someone pastes it into a browser to see if nergal is up, matches
+# nothing and falls through to the not found handler. That is a 404 that reads
+# like the URL is wrong when the method is the only thing that was, so answer it
+# with a 405 naming the method that is wanted instead.
+#
+# Declared after the results routes so those still win, and as with the POST
+# routes below, both '/*' and '/' are needed as the two do not overlap.
+sub method_not_allowed {
+	my $c = $_[0];
+
+	$c->res->headers->allow('POST');
+	$c->render( text => "nergal: submissions are POST only, see the nergal docs\n", status => 405, );
+
+	return;
+}
+get '/*' => sub ($c) {
+	method_not_allowed($c);
+};
+get '/' => sub ($c) {
+	method_not_allowed($c);
+};
+
 # two are needed as /* and / don't overlap... so pass it to the_stuff to actually handle it
 post '/*' => sub ($c) {
 	the_stuff($c);
@@ -438,5 +583,51 @@ if ( defined( $ENV{'NERGAL_MAX_REQ_SIZE'} ) ) {
 	$ENV{'NERGAL_MAX_REQ_SIZE'} = 1073741824;
 }
 app->max_request_size( $ENV{'NERGAL_MAX_REQ_SIZE'} );
+
+# Hypnotoad, which is what the systemd unit runs nergal under, takes its settings
+# from the application config rather than the command line, so the enviroment is
+# mapped into that here. Without this 'LISTEN_ON' would be quietly ignored and
+# every install would come up on hypnotoad's own default of http://*:8080.
+#
+# Only what is actually set is put in there, as anything present in the config
+# overrides hypnotoad's default even when it is undef. None of it affects the
+# 'daemon' command, which takes its listen from '-l' and does not look at this.
+my %hypnotoad;
+
+# More than one may be listened on, seperated by whitespace, which the 'daemon
+# -l' this replaced could not do, as systemd splits ExecStart on whitespace too
+# and only the first would have been taken as the listen. Split on ' ' rather
+# than /\s+/ so leading whitespace does not produce an empty listen.
+if ( defined( $ENV{'LISTEN_ON'} ) ) {
+	my @listen_on = split( ' ', $ENV{'LISTEN_ON'} );
+	if (@listen_on) {
+		$hypnotoad{'listen'} = \@listen_on;
+	}
+}
+
+# hypnotoad defaults this to a 'hypnotoad.pid' next to the nergal script, which
+# is a bin dir the user it runs as has no business writing to
+if ( defined( $ENV{'NERGAL_PID_FILE'} ) ) {
+	$hypnotoad{'pid_file'} = $ENV{'NERGAL_PID_FILE'};
+}
+
+# A submission blocks its worker until CAPE has been handed the sample, so this
+# is how many may be in flight at once. Left to hypnotoad's own default of 4 when
+# not set.
+if ( defined( $ENV{'NERGAL_WORKERS'} ) ) {
+	if ( $ENV{'NERGAL_WORKERS'} =~ /^[1-9]\d*$/ ) {
+		$hypnotoad{'workers'} = $ENV{'NERGAL_WORKERS'};
+	} else {
+		log_drek(
+			'err',
+			'$ENV{NERGAL_WORKERS} set to "'
+				. $ENV{'NERGAL_WORKERS'}
+				. '" which does not match /^[1-9]\d*$/ ... leaving it to hypnotoad',
+			undef, 'nergal'
+		);
+	}
+} ## end if ( defined( $ENV{'NERGAL_WORKERS'} ) )
+
+app->config( 'hypnotoad' => \%hypnotoad );
 
 app->start;
