@@ -102,6 +102,7 @@ sub _default_config {
 			'results_subnets'     => '192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8',
 			'incoming'            => '/malware/client-incoming',
 			'eve_look_back'       => 360,
+			'cape_timezone'       => 'UTC',
 			'malscore'            => 0,
 			'poetry_path'         => '/etc/poetry/bin/poetry',
 			'cape_runas'          => 'cape',
@@ -2314,28 +2315,44 @@ Process the finished tasks for CAPEv2.
 sub eve_process {
 	my ( $self, %opts ) = @_;
 
+	my $look_back     = $self->{'config'}{'_'}{'eve_look_back'};
+	my $cape_timezone = $self->{'config'}{'_'}{'cape_timezone'};
+	if ( !defined($look_back) || $look_back !~ /^[0-9]+$/ ) {
+		die( 'eve_look_back, "' . ( $look_back // 'undef' ) . '", is not a whole number of seconds' );
+	}
+	if ( !defined($cape_timezone) || $cape_timezone eq '' ) {
+		die('cape_timezone is empty');
+	}
+
 	my $dbh;
 	eval { $dbh = $self->connect or die $DBI::errstr };
 	if ($@) {
 		die( 'Failed to connect to the DB... ' . $@ );
 	}
 
+	# CAPE stores completed_on as a naive timestamp in its [cuckoo] timezone setting. Converting
+	# now into that zone keeps the comparison right regardless of the DB session's timezone.
 	my $statement
-		= "select * from tasks where ( status = 'reported' ) AND ( completed_on  >= CURRENT_TIMESTAMP - interval '"
-		. $self->{'config'}{'_'}{eve_look_back}
-		. " seconds' )";
+		= "select * from tasks where status = 'reported'"
+		. ' AND completed_on >= ( CURRENT_TIMESTAMP AT TIME ZONE ? ) - make_interval( secs => ? )';
 
-	my $sth = $dbh->prepare($statement);
-	$sth->execute;
-
-	my $row;
 	my @rows;
-	while ( $row = $sth->fetchrow_hashref ) {
-		push( @rows, $row );
-	}
-
-	$sth->finish;
+	eval {
+		my $sth = $dbh->prepare($statement)         or die $dbh->errstr;
+		$sth->execute( $cape_timezone, $look_back ) or die $sth->errstr;
+		while ( my $row = $sth->fetchrow_hashref ) {
+			push( @rows, $row );
+		}
+		$sth->finish;
+	};
+	my $query_error = $@;
 	$dbh->disconnect;
+	if ($query_error) {
+		die(      'Failed to fetch reported tasks... check that cape_timezone, "'
+				. $cape_timezone
+				. '", is a timezone name Postgres knows... '
+				. $query_error );
+	}
 
 	my $main_eve = $self->{'config'}{'_'}{'eve'};
 
@@ -2679,6 +2696,8 @@ default with CAPEv2 in the default config.
     eve=/opt/CAPEv2/log/eve.json
     # how far to go back for processing eve
     eve_look_back=360
+    # timezone CAPE stores task times in, matching [cuckoo] timezone in CAPE's cuckoo.conf
+    cape_timezone=UTC
     # malscore for changing the event_type for eve from potential_malware_detonation to alert
     malscore=0
     # If munge should be called on the report JSON for the post action.
@@ -2768,6 +2787,12 @@ For some examples see the directory 'munge_examples'.
 
 Tasks are found by looking back X number of seconds in the tasks table for tasks that have reported.
 The amount of time is determined by the config value 'eve_look_back'.
+
+CAPE stores task times without a timezone, in whatever its '[cuckoo] timezone' setting is.
+The config value 'cape_timezone' needs to match that for the look back to line up. It
+defaults to 'UTC', the same as CAPE. Any IANA name Postgres knows works, such as
+'America/Chicago'. Unlike CAPE, which falls back to UTC on a bad name, an unknown name
+here makes eve_process die.
 
 It will check if a task has been processed already or not be seeing if a task specified EVE JSON
 has been created under the 'eve' directory beneath the 'incoming' directory. This is in the

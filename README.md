@@ -271,6 +271,8 @@ submission_gate_timeout=30
 eve=/opt/CAPEv2/log/eve.json
 # how far to go back for processing eve
 eve_look_back=360
+# timezone CAPE stores task times in, matching [cuckoo] timezone in CAPE's cuckoo.conf
+cape_timezone=UTC
 # malscore for changing the event_type for eve from potential_malware_detonation to alert
 malscore=0
 # If munge should be called on the report JSON for the post action.
