@@ -2,6 +2,8 @@ Revision history for CAPE-Utils
 
 5.0.?   ?/?
         - add cape_utils completion for generating bash and zsh completion scripts
+        - add route to CAPE::Utils->submit, --route to cape_utils submit, and a route config default,
+          as CAPE stores a task with no route as false, overriding routing.conf
         - add -d/--dir to cape_utils exec and dir to CAPE::Utils->exec for running from a dir under base
         - pod cleanup
         - eve look back now compares in CAPE's timezone via new cape_timezone setting, fixing missed or

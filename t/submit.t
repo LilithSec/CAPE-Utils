@@ -303,4 +303,42 @@ foreach ( 1 .. 5 ) {
 }
 ok( $shuffles_by_default, 'the order is shuffled by default' );
 
+#
+# route, passed via --route when set either directly or via the config, and not
+# passed at all when empty
+#
+# Args for the closure are the CAPE::Utils object followed by any extra submit
+# opts. Returns the value after --route in the dry run command, or undef if
+# --route was not in it.
+my $submitted_route = sub {
+	my ( $cape_utils_object, @extra_submit_opts ) = @_;
+
+	my $dry_run_results
+		= $cape_utils_object->submit( items => [$sample], quiet => 1, dry_run => 1, @extra_submit_opts );
+	my @command = @{ $dry_run_results->{$sample}{command} };
+
+	for my $index ( 0 .. $#command ) {
+		if ( $command[$index] eq '--route' ) {
+			return $command[ $index + 1 ];
+		}
+	}
+
+	return undef;
+};
+
+is( $submitted_route->($cape_util), undef, 'no --route is passed when route is unset' );
+
+is( $submitted_route->( $cape_util, route => 'tor' ), 'tor', 'a explicitly passed route is used' );
+
+my $route_ini = $base . '/route.ini';
+write_file( $route_ini, "base=$base\npoetry=0\ncape_runas=$current_user\nroute=tor\n" );
+my $route_cape = CAPE::Utils->new($route_ini);
+
+is( $submitted_route->($route_cape), 'tor', 'route may be set via the config' );
+
+is( $submitted_route->( $route_cape, route => 'internet' ),
+	'internet', 'a explicitly passed route overrides the config' );
+
+is( $submitted_route->( $route_cape, route => '' ), undef, 'a empty route overrides the config with no --route' );
+
 done_testing();

@@ -18,7 +18,7 @@ Ask it directly rather than going by anything written here.
 =head1 SYNOPSIS
 
 cape_utils submit [B<-i> <config>] [B<--clock> <time>] [B<--timeout> <seconds>] [B<--machine> <machine>]
-[B<--package> <package>] [B<--mime-package>|B<--no-mime-package>] [B<--dry-run>] [B<--options> <options>]
+[B<--route> <route>] [B<--package> <package>] [B<--mime-package>|B<--no-mime-package>] [B<--dry-run>] [B<--options> <options>]
 [B<--tags> <tags>] [B<--platform> <platform>] [B<--enforce_timeout>] [B<--unique>] [B<--json>]
 [B<--pretty>] [B<--quiet>] <file/dir> [<file/dir>...]
 
@@ -94,7 +94,8 @@ The options for each are shown via C<cape_utils help E<lt>commandE<gt>>.
 
 Submit files/dirs to CAPE. C<--mime-package> works the package out per item from
 its mime type via the mime_packages config section, and C<--dry-run> prints what
-would be submitted and how without submitting anything. See L<CAPE::Utils/submit>.
+would be submitted and how without submitting anything. C<--route>
+sets the route, overriding the route config setting. See L<CAPE::Utils/submit>.
 
 =head2 resub
 

@@ -23,6 +23,7 @@ is( $cape->{config}->{_}->{poetry},           1,                             'de
 is( $cape->{config}->{_}->{fail_all},         0,                             'default fail_all' );
 is( $cape->{config}->{_}->{timeout},          200,                           'default timeout' );
 is( $cape->{config}->{_}->{enforce_timeout},  0,                             'default enforce_timeout' );
+is( $cape->{config}->{_}->{route},            '',                            'default route' );
 is( $cape->{config}->{_}->{auth},             'ip',                          'default auth' );
 is( $cape->{config}->{_}->{set_clock_to_now}, 1,                             'default set_clock_to_now' );
 is( $cape->{config}->{_}->{eve_look_back},    360,                           'default eve_look_back' );

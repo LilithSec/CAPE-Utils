@@ -33,7 +33,7 @@ sub abstract {
 #     print CAPE::Utils::Cmd::Command::submit->usage_desc;
 sub usage_desc {
 	return 'cape_utils submit [-i <config>] [--clock <time>] [--timeout <seconds>]
-   [--machine <machine>] [--package> <package] [--options <options>]
+   [--machine <machine>] [--route <route>] [--package <package>] [--options <options>]
    [--tags <tags>] [--enforce_timeout] [--unique] [--json] [--pretty]
    [--quiet] [--mime-package|--no-mime-package] [--dry-run]
    <file/dir> [<file/dir>...]
@@ -75,6 +75,7 @@ sub opt_spec {
 		[ 'clock=s',   'timestamp to set the VM clock to, format mm-dd-yyy HH:MM:ss' ],
 		[ 'timeout=i', 'timeout value in seconds, default 200' ],
 		[ 'machine=s', 'the machine to use, first available if undefined' ],
+		[ 'route=s',   'route to pass via --route, overriding the route config setting' ],
 		[ 'package=s', 'package to use, if not letting CAPE decide, or auto to let CAPE decide' ],
 		[
 			'mime_package|mime-package!',
@@ -153,6 +154,7 @@ sub execute {
 		clock           => $opt->{clock},
 		timeout         => $opt->{timeout},
 		machine         => $opt->{machine},
+		route           => $opt->{route},
 		package         => $opt->{package},
 		mime_to_package => $opt->{mime_package},
 		dry_run         => $opt->{dry_run},

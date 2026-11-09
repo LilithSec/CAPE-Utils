@@ -277,6 +277,10 @@ set_clock_to_now=1
 timeout=200
 # default value for enforce timeout for submit
 enforce_timeout=0
+# route to pass to submit.py via --route, such as tor, internet, or a VPN
+# name. Empty means none is passed, which CAPE stores as false, overriding
+# the routing.conf default.
+route=
 # how to auth for nergal
 # ip = match against subnets
 # apikey = use apikey

@@ -94,6 +94,7 @@ sub _default_config {
 			'set_clock_to_now'    => 1,
 			'timeout'             => 200,
 			'enforce_timeout'     => 0,
+			'route'               => '',
 			'subnets'             => '192.168.0.0/16,127.0.0.1/8,::1/128,172.16.0.0/12,10.0.0.0/8',
 			'apikey'              => '',
 			'auth'                => 'ip',
@@ -1619,6 +1620,11 @@ otherwise it dies.
     - enforce_timeout :: Force it to run the entire period.
       - Default :: 0
 
+    - route :: The route to pass via --route, such as tor, internet, none, or a
+      VPN name. A empty value means --route is not passed, which CAPE stores
+      as a route of false, overriding the routing.conf default.
+      - Default :: the route config setting
+
     - unique :: Only submit it if it is unique.
         - Default :: 0
 
@@ -1708,6 +1714,10 @@ sub submit {
 		$opts{enforce_timeout} = $self->{'config'}->{'_'}->{enforce_timeout};
 	}
 
+	if ( !defined( $opts{route} ) ) {
+		$opts{route} = $self->{'config'}->{'_'}->{route};
+	}
+
 	# a package of 'auto' is a explicit request to let CAPE work it out, making it
 	# the same as passing no package with mime based selection disabled
 	if ( defined( $opts{package} ) && lc( $opts{package} ) eq 'auto' ) {
@@ -1782,6 +1792,10 @@ sub submit {
 
 	if ( defined( $opts{machine} ) ) {
 		push( @to_run, '--machine', $opts{machine} );
+	}
+
+	if ( defined( $opts{route} ) && $opts{route} ne '' ) {
+		push( @to_run, '--route', $opts{route} );
 	}
 
 	if ( defined( $opts{options} ) ) {
@@ -2760,6 +2774,10 @@ default with CAPEv2 in the default config.
     timeout=200
     # default value for enforce timeout for submit
     enforce_timeout=0
+    # route to pass to submit.py via --route, such as tor, internet, or a VPN
+    # name. Empty means none is passed, which CAPE stores as false, overriding
+    # the routing.conf default.
+    route=
     # how to auth for nergal
     # ip = match against subnets
     # apikey = use apikey
