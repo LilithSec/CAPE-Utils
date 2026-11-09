@@ -110,6 +110,11 @@ __PACKAGE__->table("machines");
   data_type: 'boolean'
   is_nullable: 0
 
+=head2 attributes
+
+  data_type: 'jsonb'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -148,6 +153,8 @@ __PACKAGE__->add_columns(
   { data_type => "varchar", is_nullable => 0, size => 255 },
   "reserved",
   { data_type => "boolean", is_nullable => 0 },
+  "attributes",
+  { data_type => "jsonb", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -206,8 +213,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07052 @ 2026-05-07 19:58:08
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4Oz+h9MRZsorfzY6wjUpqQ
+# Created by DBIx::Class::Schema::Loader v0.07052 @ 2026-11-09 10:27:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:55RjhXklO/YQ4LEKOQJJpg
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

@@ -17,6 +17,24 @@ lib/CAPE/Utils/Cmd/Command/tasks.pm
 lib/CAPE/Utils/Cmd/Command/version.pm
 lib/CAPE/Utils/LogDrek.pm
 lib/CAPE/Utils/Nergal.pm
+lib/CAPE/Utils/Schema.pm
+lib/CAPE/Utils/Schema/Result/AlembicVersion.pm
+lib/CAPE/Utils/Schema/Result/AvailableTest.pm
+lib/CAPE/Utils/Schema/Result/Error.pm
+lib/CAPE/Utils/Schema/Result/GuacSession.pm
+lib/CAPE/Utils/Schema/Result/Guest.pm
+lib/CAPE/Utils/Schema/Result/Machine.pm
+lib/CAPE/Utils/Schema/Result/MachinesTag.pm
+lib/CAPE/Utils/Schema/Result/Sample.pm
+lib/CAPE/Utils/Schema/Result/SampleAssociation.pm
+lib/CAPE/Utils/Schema/Result/Tag.pm
+lib/CAPE/Utils/Schema/Result/Task.pm
+lib/CAPE/Utils/Schema/Result/TasksTag.pm
+lib/CAPE/Utils/Schema/Result/TestObjectiveInstance.pm
+lib/CAPE/Utils/Schema/Result/TestObjectivesTemplate.pm
+lib/CAPE/Utils/Schema/Result/TestRun.pm
+lib/CAPE/Utils/Schema/Result/TestSession.pm
+lib/CAPE/Utils/Schema/Result/TestTemplateAssociation.pm
 Makefile.PL
 MANIFEST			This list of files
 README.md

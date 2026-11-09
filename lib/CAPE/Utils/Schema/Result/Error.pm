@@ -84,12 +84,12 @@ __PACKAGE__->belongs_to(
   "task",
   "CAPE::Utils::Schema::Result::Task",
   { id => "task_id" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "NO ACTION" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07052 @ 2026-05-07 19:58:08
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:znw7+60czzZEdv5QUJNS5Q
+# Created by DBIx::Class::Schema::Loader v0.07052 @ 2026-11-09 10:27:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:gMYFWKcWu0lhNDamv1N0Jg
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
