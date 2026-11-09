@@ -2,6 +2,7 @@ Changes
 lib/CAPE/Utils.pm
 lib/CAPE/Utils/Cmd.pm
 lib/CAPE/Utils/Cmd/Base.pm
+lib/CAPE/Utils/Cmd/Command/completion.pm
 lib/CAPE/Utils/Cmd/Command/eve.pm
 lib/CAPE/Utils/Cmd/Command/exec.pm
 lib/CAPE/Utils/Cmd/Command/fail.pm
@@ -40,6 +41,7 @@ Makefile.PL
 MANIFEST			This list of files
 README.md
 t/00-load.t
+t/completion.t
 t/exec.t
 t/input_validation.t
 t/legacy_argv.t

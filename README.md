@@ -104,10 +104,34 @@ cape_utils version
 
 - `mime_to_packages` :: Show the mime type to package settings.
 
+- `completion` :: Print a bash or zsh completion script. See
+  [Shell Completion](#shell-completion).
+
 `submit`, `exec`, `poetry`, and `uv` have to run as the configured `cape_runas` user.
 When they are not, they prepend "sudo -u \<cape_runas\>" if `enable_sudo` is
 set, and die otherwise. `submit --dry-run` is the exception and may be run by
 anyone, as it submits nothing.
+
+### Shell Completion
+
+`cape_utils completion <bash|zsh>` prints a completion script built from the
+installed sub commands and their options. Regenerate it after upgrading.
+
+For bash, this needs bash-completion installed.
+
+```
+# FreeBSD
+cape_utils completion bash > /usr/local/share/bash-completion/completions/cape_utils
+cape_utils completion zsh > /usr/local/share/zsh/site-functions/_cape_utils
+
+# Debian
+cape_utils completion bash > /usr/share/bash-completion/completions/cape_utils
+cape_utils completion zsh > /usr/share/zsh/vendor-completions/_cape_utils
+```
+
+Or for just your user, add `source <(cape_utils completion bash)` to
+`~/.bashrc`, or `source <(cape_utils completion zsh)` to `~/.zshrc` after
+`compinit`.
 
 ### Legacy Command Line
 

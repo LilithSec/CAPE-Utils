@@ -38,13 +38,15 @@ cape_utils munge [B<-i> <config>] B<-r> <report json>
 
 cape_utils post [B<-i> <config>] [B<-d>] B<-r> <ID>
 
-cape_utils exec [B<-i> <config>] [B<--quiet>] [B<--verbose>] [B<--json>] [B<--pretty>] B<--> <command> [<arg>...]
+cape_utils exec [B<-i> <config>] [B<-d> <dir>] [B<--quiet>] [B<--verbose>] [B<--json>] [B<--pretty>] B<--> <command> [<arg>...]
 
 cape_utils poetry [B<-i> <config>] [B<--quiet>] [B<--verbose>] [B<--json>] [B<--pretty>] B<--> <arg>...
 
 cape_utils uv [B<-i> <config>] [B<--quiet>] [B<--verbose>] [B<--json>] [B<--pretty>] B<--> <arg>...
 
 cape_utils mime_to_packages [B<-i> <config>] [B<--as-ini>] [B<--diff>] [B<--json>] [B<--pretty>]
+
+cape_utils completion <bash|zsh>
 
 cape_utils commands
 
@@ -150,6 +152,23 @@ L<CAPE::Utils/python_mgr>.
 Show the mime type to package settings used by C<submit --mime-package>.
 C<--as-ini> prints them as INI and C<--diff> limits it to what differs from the
 shipped defaults. See L<CAPE::Utils/mime_packages>.
+
+=head2 completion
+
+Print a bash or zsh completion script, built from the installed sub commands and
+their options. Regenerate it after upgrading.
+
+    # FreeBSD
+    cape_utils completion bash > /usr/local/share/bash-completion/completions/cape_utils
+    cape_utils completion zsh > /usr/local/share/zsh/site-functions/_cape_utils
+
+    # Debian
+    cape_utils completion bash > /usr/share/bash-completion/completions/cape_utils
+    cape_utils completion zsh > /usr/share/zsh/vendor-completions/_cape_utils
+
+Or for just one user, add C<source E<lt>(cape_utils completion bash)> to
+F<~/.bashrc>, or C<source E<lt>(cape_utils completion zsh)> to F<~/.zshrc> after
+C<compinit>.
 
 =head1 CONFIG FILE
 
