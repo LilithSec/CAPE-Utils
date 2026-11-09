@@ -14,6 +14,7 @@ lib/CAPE/Utils/Cmd/Command/resub.pm
 lib/CAPE/Utils/Cmd/Command/running.pm
 lib/CAPE/Utils/Cmd/Command/submit.pm
 lib/CAPE/Utils/Cmd/Command/tasks.pm
+lib/CAPE/Utils/Cmd/Command/uv.pm
 lib/CAPE/Utils/Cmd/Command/version.pm
 lib/CAPE/Utils/LogDrek.pm
 lib/CAPE/Utils/Nergal.pm

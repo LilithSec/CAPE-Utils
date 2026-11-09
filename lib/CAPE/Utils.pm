@@ -210,6 +210,24 @@ sub new {
 		}
 	} ## end else [ if ( !defined($config) ) ]
 
+	# python_mgr has no shipped default so that older configs, which only know
+	# poetry=0/1 and poetry_path, keep doing what they did
+	my $settings = $config->{'_'};
+	if ( !defined( $settings->{'python_mgr'} ) || $settings->{'python_mgr'} eq '' ) {
+		$settings->{'python_mgr'} = $settings->{'poetry'} ? 'poetry' : 'none';
+	}
+	my %default_python_mgr_paths = (
+		'poetry' => $settings->{'poetry_path'},
+		'uv'     => '/usr/local/bin/uv',
+		'none'   => '',
+	);
+	if ( !exists( $default_python_mgr_paths{ $settings->{'python_mgr'} } ) ) {
+		die( 'python_mgr, "' . $settings->{'python_mgr'} . '", is not one of poetry, uv, or none' );
+	}
+	if ( !defined( $settings->{'python_mgr_path'} ) || $settings->{'python_mgr_path'} eq '' ) {
+		$settings->{'python_mgr_path'} = $default_python_mgr_paths{ $settings->{'python_mgr'} };
+	}
+
 	# init the object
 	my $self = { 'config' => $config, };
 	bless $self;
@@ -1740,8 +1758,8 @@ sub submit {
 		@to_run = $self->_cape_runas_prefix;
 	}
 
-	if ( $self->{'config'}->{'_'}->{poetry} ) {
-		push( @to_run, $self->{'config'}->{'_'}->{poetry_path}, 'run' );
+	if ( $self->{'config'}->{'_'}->{'python_mgr'} ne 'none' ) {
+		push( @to_run, $self->{'config'}->{'_'}->{'python_mgr_path'}, 'run' );
 	}
 
 	push( @to_run, 'python3', $self->{'config'}->{'_'}->{'base'} . '/utils/submit.py' );
@@ -1858,8 +1876,8 @@ sub submit {
 =head2 exec
 
 Run an arbitrary command from the CAPE base directory, the same way submissions
-are executed. When poetry is enabled in the config, the command is wrapped in
-"poetry run" so it runs inside CAPEv2's poetry environment.
+are executed. When python_mgr is poetry or uv, the command is wrapped in
+"<python_mgr_path> run" so it runs inside CAPEv2's Python environment.
 
 This must be ran as the configured cape_runas user. If it is not and enable_sudo
 is set, the command is prefixed with "sudo -u <cape_runas>"; otherwise it dies.
@@ -1877,8 +1895,8 @@ The following options are supported.
 
 The returned value is a hash ref as below.
 
-    - command :: An array ref of the command actually run, including any poetry
-      wrapping.
+    - command :: An array ref of the command actually run, including any
+      python_mgr wrapping.
 
     - success :: 0/1 for if the command exited successfully.
 
@@ -1900,12 +1918,16 @@ sub exec {
 	}
 
 	my @command_tail;
-	if ( $self->{'config'}->{'_'}->{poetry} ) {
+	my $python_mgr      = $self->{'config'}->{'_'}->{'python_mgr'};
+	my $python_mgr_path = $self->{'config'}->{'_'}->{'python_mgr_path'};
+	if ( $python_mgr ne 'none' ) {
 		if ( $opts{verbose} ) {
-			print STDERR 'exec: poetry enabled, wrapping command in "'
-				. $self->{'config'}->{'_'}->{poetry_path} . ' run"' . "\n";
+			print STDERR 'exec: python_mgr is '
+				. $python_mgr
+				. ', wrapping command in "'
+				. $python_mgr_path . ' run"' . "\n";
 		}
-		push( @command_tail, $self->{'config'}->{'_'}->{poetry_path}, 'run' );
+		push( @command_tail, $python_mgr_path, 'run' );
 	}
 	push( @command_tail, @{ $opts{command} } );
 
@@ -1918,7 +1940,7 @@ sub exec {
 } ## end sub exec
 
 # Runs a command from the CAPE base directory as the configured cape_runas user,
-# shared by exec() and poetry().
+# shared by exec() and python_mgr().
 #
 # CDs to the base dir, works out the runas prefix via _cape_runas_prefix, runs
 # the command, and prints the combined output unless quiet is set. The verbose
@@ -1928,7 +1950,7 @@ sub exec {
 # Args:
 #     - label :: The prefix put in front of the verbose STDERR messages, so the
 #       caller can be told apart in the output. A string such as 'exec' or
-#       'poetry'. Defaults to 'exec' when undef.
+#       'uv'. Defaults to 'exec' when undef.
 #
 #     - command_tail :: An array ref of the command and its arguments, minus the
 #       cape_runas prefix, such as [ 'python3', 'utils/process.py', '-r', '1' ].
@@ -1941,7 +1963,7 @@ sub exec {
 #     - verbose :: 0/1 for printing to STDERR what it is doing.
 #       - Default :: 0
 #
-# Returns a hash ref, the same shape exec() and poetry() are documented as
+# Returns a hash ref, the same shape exec() and python_mgr() are documented as
 # returning.
 #
 #     - command :: An array ref of what was actually ran, runas prefix included.
@@ -2016,22 +2038,27 @@ sub _run_in_base {
 
 =pod
 
-=head2 poetry
+=head2 python_mgr
 
-Run an arbitrary poetry command from the CAPE base directory as the configured
-cape_runas user. This is like L</exec>, but instead of wrapping the command in
-"poetry run", the passed arguments are handed directly to poetry, so anything
-poetry accepts may be run, e.g. "install", "add foo", "lock", or "env info".
+Run an arbitrary command of the configured Python manager, poetry or uv, from
+the CAPE base directory as the configured cape_runas user. This is like
+L</exec>, but instead of wrapping the command in "<python_mgr_path> run", the
+passed arguments are handed directly to the manager. So "install" or "env info"
+for poetry, or "sync" or "pip list" for uv.
 
 This must be ran as the configured cape_runas user. If it is not and enable_sudo
 is set, the command is prefixed with "sudo -u <cape_runas>"; otherwise it dies.
 
-Poetry must be enabled in the config. If poetry is disabled (poetry=0) this dies,
-as there is nothing to run.
+Dies if python_mgr is none, as there is nothing to run.
 
 The following options are supported.
 
-    - args :: An array ref of the arguments to pass to poetry. Required.
+    - args :: An array ref of the arguments to pass to the manager. Required.
+
+    - manager :: The manager the args are meant for, poetry or uv. If given and
+      it is not the configured python_mgr, it dies rather than handing poetry
+      arguments to uv or the other way around.
+        - Default :: undef
 
     - quiet :: Do not print the output from the command.
         - Default :: 0
@@ -2042,30 +2069,53 @@ The following options are supported.
 
 The returned value is the same hash ref shape as documented for L</exec>.
 
-    my $poetry_results = $cape_util->poetry( args => [ 'install' ], quiet => 1 );
+    my $uv_results = $cape_util->python_mgr( args => [ 'sync' ], manager => 'uv', quiet => 1 );
     use JSON;
-    print encode_json($poetry_results) . "\n";
+    print encode_json($uv_results) . "\n";
+
+=cut
+
+sub python_mgr {
+	my ( $self, %opts ) = @_;
+
+	my $python_mgr = $self->{'config'}->{'_'}->{'python_mgr'};
+
+	if ( ref( $opts{args} ) ne 'ARRAY' || !defined( $opts{args}[0] ) ) {
+		die 'No python_mgr arguments passed';
+	}
+
+	if ( $python_mgr eq 'none' ) {
+		die 'python_mgr is none in the config, so there is no Python manager to run';
+	}
+
+	if ( defined( $opts{manager} ) && $opts{manager} ne $python_mgr ) {
+		die( 'Arguments are for ' . $opts{manager} . ', but python_mgr is ' . $python_mgr );
+	}
+
+	return $self->_run_in_base(
+		label        => $python_mgr,
+		command_tail => [ $self->{'config'}->{'_'}->{'python_mgr_path'}, @{ $opts{args} } ],
+		quiet        => $opts{quiet},
+		verbose      => $opts{verbose},
+	);
+} ## end sub python_mgr
+
+=pod
+
+=head2 poetry
+
+Kept for compatibility. The same as L</python_mgr> with manager set to poetry,
+so it dies unless python_mgr is poetry.
+
+    my $poetry_results = $cape_util->poetry( args => [ 'install' ], quiet => 1 );
 
 =cut
 
 sub poetry {
 	my ( $self, %opts ) = @_;
 
-	if ( ref( $opts{args} ) ne 'ARRAY' || !defined( $opts{args}[0] ) ) {
-		die 'No poetry arguments passed';
-	}
-
-	if ( !$self->{'config'}->{'_'}->{poetry} ) {
-		die 'poetry is disabled in the config (poetry=0)';
-	}
-
-	return $self->_run_in_base(
-		label        => 'poetry',
-		command_tail => [ $self->{'config'}->{'_'}->{'poetry_path'}, @{ $opts{args} } ],
-		quiet        => $opts{quiet},
-		verbose      => $opts{verbose},
-	);
-} ## end sub poetry
+	return $self->python_mgr( %opts, manager => 'poetry' );
+}
 
 =pod
 
@@ -2623,10 +2673,16 @@ default with CAPEv2 in the default config.
     pass=
     # the install base for CAPEv2
     base=/opt/CAPEv2/
+    # the Python manager CAPEv2 was installed with: poetry, uv, or none
+    # when unset, it is poetry if poetry=1 and none if poetry=0
+    #python_mgr=poetry
+    # the path for python_mgr... when unset, poetry_path for poetry and
+    # /usr/local/bin/uv for uv, matching the CAPEv2 installer
+    #python_mgr_path=
+    # older settings, only used when python_mgr is unset
     # 0/1 if poetry should be used
     poetry=1
-    # the path for poetry... point this at where poetry is setup for your CAPEv2 install
-    # defaults to /etc/poetry/bin/poetry to be compatible with new CAPEv2 installs
+    # the path for poetry, defaults to /etc/poetry/bin/poetry
     poetry_path=/etc/poetry/bin/poetry
     # the user that submit/exec must be ran as
     cape_runas=cape

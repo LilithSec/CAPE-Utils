@@ -66,7 +66,7 @@ my $disabled_ini = $base . '/disabled.ini';
 write_file( $disabled_ini, "base=$base\npoetry=0\ncape_runas=$current_user\n" );
 my $disabled_cape = CAPE::Utils->new($disabled_ini);
 eval { $disabled_cape->poetry( args => ['install'], quiet => 1 ); };
-like( $@, qr/poetry is disabled in the config/, 'poetry dies when poetry=0' );
+like( $@, qr/python_mgr is none/, 'poetry dies when poetry=0' );
 
 #
 # running as the wrong user with enable_sudo set prepends "sudo -u <cape_runas>"
@@ -109,5 +109,40 @@ my $stderr_buffer = '';
 #
 eval { $poetry_cape->poetry( args => [], quiet => 1 ); };
 ok( $@, 'poetry dies when no args are passed' );
+
+#
+# poetry() refuses to run when python_mgr is uv, so poetry args never reach uv
+#
+my $uv_ini = $base . '/uv.ini';
+write_file( $uv_ini, "base=$base\npython_mgr=uv\ncape_runas=$current_user\n" );
+my $uv_cape = CAPE::Utils->new($uv_ini);
+undef($captured_command);
+eval { $uv_cape->poetry( args => ['install'], quiet => 1 ); };
+like( $@, qr/Arguments are for poetry, but python_mgr is uv/, 'poetry dies when python_mgr is uv' );
+ok( !defined($captured_command), 'nothing ran when poetry was refused' );
+
+#
+# python_mgr hands args straight to uv at its default path
+#
+$results = $uv_cape->python_mgr( args => [ 'pip', 'list' ], manager => 'uv', quiet => 1 );
+is_deeply( $captured_command, [ '/usr/local/bin/uv', 'pip', 'list' ], 'args handed straight to uv' );
+is( $results->{success}, 1, 'uv success reflected as 1' );
+
+#
+# python_mgr with no manager given runs whichever is configured
+#
+$poetry_cape->python_mgr( args => ['lock'], quiet => 1 );
+is_deeply(
+	$captured_command,
+	[ '/etc/poetry/bin/poetry', 'lock' ],
+	'python_mgr without manager uses the configured one'
+);
+
+#
+# the uv sub command is the poetry one with the manager swapped
+#
+use_ok('CAPE::Utils::Cmd::Command::uv');
+is( CAPE::Utils::Cmd::Command::poetry->manager, 'poetry', 'poetry sub command manager' );
+is( CAPE::Utils::Cmd::Command::uv->manager,     'uv',     'uv sub command manager' );
 
 done_testing();

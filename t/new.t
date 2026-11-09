@@ -65,4 +65,34 @@ is( $cape3->{config}->{_}->{post_link_format_template},
 );
 
 
+#
+# python_mgr resolution... falls back to the older poetry settings when unset
+#
+is( $cape->{config}->{_}->{python_mgr},      'poetry',                 'default python_mgr from poetry=1' );
+is( $cape->{config}->{_}->{python_mgr_path}, '/etc/poetry/bin/poetry', 'default python_mgr_path from poetry_path' );
+
+my %python_mgr_cases = (
+	"poetry=0\n"                               => [ 'none',   '' ],
+	"poetry_path=/opt/poetry/bin/poetry\n"     => [ 'poetry', '/opt/poetry/bin/poetry' ],
+	"python_mgr=uv\n"                          => [ 'uv',     '/usr/local/bin/uv' ],
+	"python_mgr=uv\npoetry=0\n"                => [ 'uv',     '/usr/local/bin/uv' ],
+	"python_mgr=uv\npython_mgr_path=/opt/uv\n" => [ 'uv',     '/opt/uv' ],
+	"python_mgr=none\npoetry=1\n"              => [ 'none',   '' ],
+);
+my $python_mgr_ini = $tempdir . '/python_mgr.ini';
+foreach my $ini_text ( sort( keys(%python_mgr_cases) ) ) {
+	write_file( $python_mgr_ini, $ini_text );
+	my $settings = CAPE::Utils->new($python_mgr_ini)->{config}->{_};
+	( my $label = $ini_text ) =~ s/\n/ /g;
+	is_deeply(
+		[ $settings->{python_mgr}, $settings->{python_mgr_path} ],
+		$python_mgr_cases{$ini_text},
+		'python_mgr resolution for: ' . $label
+	);
+} ## end foreach my $ini_text ( sort( keys(%python_mgr_cases...)))
+
+write_file( $python_mgr_ini, "python_mgr=pip\n" );
+eval { CAPE::Utils->new($python_mgr_ini); };
+like( $@, qr/python_mgr, "pip", is not one of poetry, uv, or none/, 'unknown python_mgr dies' );
+
 done_testing;

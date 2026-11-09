@@ -5,6 +5,9 @@ Revision history for CAPE-Utils
         - eve look back now compares in CAPE's timezone via new cape_timezone setting, fixing missed or
           rescanned tasks when the DB session timezone differs; eve_look_back is now bound, not interpolated
         - update CAPE::Utils::Schema for current CAPE
+        - add uv support via python_mgr (poetry/uv/none) and python_mgr_path; poetry and poetry_path
+          still work when python_mgr is unset. Add CAPE::Utils->python_mgr and cape_utils uv;
+          poetry() is now a wrapper for python_mgr()
         - no longer uses shortened md5 in suricata_extract_submit but full sha1
         - add $ENV{MOJO_CAPE_SUBMIT_MAX_REQ_SIZE} for controlling max request size for mojo_cape_submit
         - fix handling of MOJO_CAPE_SUBMIT_MAX_REQ_SIZE

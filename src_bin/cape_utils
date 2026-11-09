@@ -42,6 +42,8 @@ cape_utils exec [B<-i> <config>] [B<--quiet>] [B<--verbose>] [B<--json>] [B<--pr
 
 cape_utils poetry [B<-i> <config>] [B<--quiet>] [B<--verbose>] [B<--json>] [B<--pretty>] B<--> <arg>...
 
+cape_utils uv [B<-i> <config>] [B<--quiet>] [B<--verbose>] [B<--json>] [B<--pretty>] B<--> <arg>...
+
 cape_utils mime_to_packages [B<-i> <config>] [B<--as-ini>] [B<--diff>] [B<--json>] [B<--pretty>]
 
 cape_utils commands
@@ -129,14 +131,19 @@ that would be taken. See L<CAPE::Utils/post>.
 =head2 exec
 
 Run an arbitrary command from the CAPE base directory, wrapped in "poetry run"
-when poetry is enabled in the config, the same way submissions are executed.
+or "uv run" per python_mgr in the config, the same way submissions are executed.
 Everything after C<--> is the command and its arguments. See L<CAPE::Utils/exec>.
 
 =head2 poetry
 
 Run an arbitrary poetry command from the CAPE base directory. Unlike L</exec>,
 which wraps the command in "poetry run", everything after C<--> is handed
-straight to poetry. See L<CAPE::Utils/poetry>.
+straight to poetry. python_mgr must be poetry. See L<CAPE::Utils/python_mgr>.
+
+=head2 uv
+
+The same as L</poetry>, but for uv. python_mgr must be uv. See
+L<CAPE::Utils/python_mgr>.
 
 =head2 mime_to_packages
 

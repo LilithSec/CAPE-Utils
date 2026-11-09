@@ -104,6 +104,26 @@ is_deeply(
 );
 
 #
+# python_mgr=uv wraps submit.py in "uv run"
+#
+my $uv_ini = $base . '/uv.ini';
+write_file( $uv_ini, "base=$base\npython_mgr=uv\ncape_runas=$current_user\n" );
+{
+	no warnings qw( redefine once );
+	local *CAPE::Utils::run = sub {
+		my (%run_opts) = @_;
+		@captured_command = @{ $run_opts{command} };
+		return ( 1, undef, [''], [''], [] );
+	};
+	CAPE::Utils->new($uv_ini)->submit( items => [$sample], quiet => 1 );
+}
+is_deeply(
+	[ @captured_command[ 0 .. 2 ] ],
+	[ '/usr/local/bin/uv', 'run', 'python3' ],
+	'submit wraps submit.py in uv run when python_mgr is uv'
+);
+
+#
 # mime based package selection
 #
 # the sample is a PDF so that it resolves to a package that is not the

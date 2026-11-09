@@ -92,15 +92,17 @@ cape_utils version
 - `post` :: Run the configured post detonation actions for a run ID. `-d`
   describes what would be done instead of doing it.
 
-- `exec` :: Run a command from the CAPE base dir, wrapped in "poetry run" when
-  poetry is enabled. Everything after `--` is the command.
+- `exec` :: Run a command from the CAPE base dir, wrapped in "poetry run" or
+  "uv run" per `python_mgr`. Everything after `--` is the command.
 
 - `poetry` :: Run a poetry command from the CAPE base dir. Unlike `exec`,
-  everything after `--` goes straight to poetry.
+  everything after `--` goes straight to poetry. Needs `python_mgr` to be poetry.
+
+- `uv` :: The same as `poetry`, but for uv. Needs `python_mgr` to be uv.
 
 - `mime_to_packages` :: Show the mime type to package settings.
 
-`submit`, `exec`, and `poetry` have to run as the configured `cape_runas` user.
+`submit`, `exec`, `poetry`, and `uv` have to run as the configured `cape_runas` user.
 When they are not, they prepend "sudo -u \<cape_runas\>" if `enable_sudo` is
 set, and die otherwise. `submit --dry-run` is the exception and may be run by
 anyone, as it submits nothing.
@@ -202,10 +204,16 @@ user=cape
 pass=
 # the install base for CAPEv2
 base=/opt/CAPEv2/
+# the Python manager CAPEv2 was installed with: poetry, uv, or none
+# when unset, it is poetry if poetry=1 and none if poetry=0
+#python_mgr=poetry
+# the path for python_mgr... when unset, poetry_path for poetry and
+# /usr/local/bin/uv for uv, matching the CAPEv2 installer
+#python_mgr_path=
+# older settings, only used when python_mgr is unset
 # 0/1 if poetry should be used
 poetry=1
-# the path for poetry... point this at where poetry is setup for your CAPEv2 install
-# defaults to /etc/poetry/bin/poetry to be compatible with new CAPEv2 installs
+# the path for poetry, defaults to /etc/poetry/bin/poetry
 poetry_path=/etc/poetry/bin/poetry
 # the user that submit/exec must be ran as
 cape_runas=cape

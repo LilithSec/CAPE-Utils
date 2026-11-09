@@ -16,7 +16,7 @@ our $VERSION = '0.1.0';
 #
 #     print CAPE::Utils::Cmd::Command::exec->abstract . "\n";
 sub abstract {
-	return 'exec a command in the CAPE base dir via poetry';
+	return 'exec a command in the CAPE base dir via poetry or uv';
 }
 
 # The usage block App::Cmd prints for "cape_utils help exec" and on a usage
@@ -35,7 +35,7 @@ sub usage_desc {
 	return 'cape_utils exec [-i <config>] [--quiet] [--verbose] [--json] [--pretty] -- <command> [<arg>...]
 
 Run an arbitrary command from the CAPE base directory, wrapped in "poetry run"
-(when poetry is enabled in the config), the same way submissions are executed.
+or "uv run" per python_mgr in the config, the same way submissions are executed.
 
 Use "--" to separate cape_utils options from the command and its arguments so
 that flags meant for the command are not parsed by cape_utils, e.g.

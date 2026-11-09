@@ -98,7 +98,7 @@ my $stderr_buffer = '';
 	close($save_stderr);
 
 	like( $stderr_buffer, qr/changing directory to/, 'verbose reports the chdir on STDERR' );
-	like( $stderr_buffer, qr/poetry enabled/,        'verbose reports the poetry wrapping on STDERR' );
+	like( $stderr_buffer, qr/python_mgr is poetry/,  'verbose reports the poetry wrapping on STDERR' );
 	like(
 		$stderr_buffer,
 		qr{running command:.*/etc/poetry/bin/poetry run python3 utils/process\.py},
@@ -113,5 +113,18 @@ my $stderr_buffer = '';
 #
 eval { $cape_util->exec( command => [], quiet => 1 ); };
 ok( $@, 'exec dies when no command is passed' );
+
+#
+# python_mgr=uv -> command is wrapped in "uv run", with python_mgr_path honored
+#
+my $uv_ini = $base . '/uv.ini';
+write_file( $uv_ini, "base=$base\npython_mgr=uv\npython_mgr_path=/opt/uv/bin/uv\ncape_runas=$current_user\n" );
+$canned_success = 1;
+CAPE::Utils->new($uv_ini)->exec( command => [ 'python3', 'utils/process.py' ], quiet => 1 );
+is_deeply(
+	$captured_command,
+	[ '/opt/uv/bin/uv', 'run', 'python3', 'utils/process.py' ],
+	'command wrapped in uv run when python_mgr is uv'
+);
 
 done_testing();

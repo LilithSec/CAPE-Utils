@@ -4,7 +4,21 @@ use strict;
 use warnings;
 use parent 'CAPE::Utils::Cmd::Base';
 
-our $VERSION = '0.1.0';
+our $VERSION = '0.2.0';
+
+# The Python manager this sub command hands its arguments to. The uv sub command
+# subclasses this one and overrides it, which is all that differs between them
+# beyond the help text.
+#
+# Args:
+#     - none
+#
+# Returns the manager name as a string, matching a python_mgr config value.
+#
+#     print CAPE::Utils::Cmd::Command::poetry->manager . "\n";    # poetry
+sub manager {
+	return 'poetry';
+}
 
 # The one line summary App::Cmd shows beside this sub command in the listing
 # printed by "cape_utils commands" and by the top level usage output.
@@ -37,7 +51,7 @@ Run an arbitrary poetry command from the CAPE base directory as the configured
 cape_runas user. Unlike "exec", which wraps the command in "poetry run", the
 arguments are handed straight to poetry, so anything poetry accepts may be run.
 
-Poetry must be enabled in the config; if it is disabled (poetry=0) this dies.
+python_mgr must be poetry in the config, otherwise this dies.
 
 Use "--" to separate cape_utils options from poetry and its arguments so that
 flags meant for poetry are not parsed by cape_utils, e.g.
@@ -68,15 +82,15 @@ sub opt_spec {
 	);
 }
 
-# Checks the sub command was given something to hand to poetry before execute is
-# reached, as poetry with no arguments just prints its own usage.
+# Checks the sub command was given something to hand to the manager before
+# execute is reached, as poetry or uv with no arguments just prints its own usage.
 #
 # Args:
 #     - opt :: The options hash ref built from opt_spec, unused here. Required,
 #       and supplied by App::Cmd.
 #
 #     - args :: An array ref of the leftover positional arguments, that being the
-#       arguments for poetry. Required, and supplied by App::Cmd.
+#       arguments for the manager. Required, and supplied by App::Cmd.
 #
 # Returns nothing when the arguments are usable. Calls usage_error, which prints
 # the usage and exits non zero, when nothing was given.
@@ -87,14 +101,15 @@ sub validate_args {
 	my ( $self, $opt, $args ) = @_;
 
 	if ( !defined( $args->[0] ) ) {
-		$self->usage_error('No poetry arguments specified');
+		$self->usage_error( 'No ' . $self->manager . ' arguments specified' );
 	}
 
 	return;
 }
 
-# Runs the sub command, handing the arguments off to CAPE::Utils->poetry, which
-# runs poetry from the CAPE base directory as the configured cape_runas user.
+# Runs the sub command, handing the arguments off to CAPE::Utils->python_mgr,
+# which runs the manager from the CAPE base directory as the configured
+# cape_runas user.
 #
 # --json implies --quiet, as the command output is already in the JSON and
 # printing it as well would leave the JSON on STDOUT mixed in with it.
@@ -104,13 +119,13 @@ sub validate_args {
 #       are 0/1, 'json' and 'pretty' control the JSON output, and 'ini' is the
 #       config file to use. Required, and supplied by App::Cmd.
 #
-#     - args :: An array ref of the arguments for poetry, such as
+#     - args :: An array ref of the arguments for the manager, such as
 #       [ 'run', 'python3', 'utils/process.py', '-r', '1' ]. Required, and
 #       supplied by App::Cmd.
 #
-# Returns nothing, but exits 1 if poetry failed, so the exit status is usable
-# from a shell. Dies if the config can not be read, poetry is disabled in the
-# config, or the CAPE base directory can not be entered.
+# Returns nothing, but exits 1 if the manager failed, so the exit status is
+# usable from a shell. Dies if the config can not be read, python_mgr is not
+# this sub command's manager, or the CAPE base directory can not be entered.
 #
 #     $ cape_utils poetry --json --pretty -- install
 sub execute {
@@ -121,8 +136,9 @@ sub execute {
 		$quiet = 1;
 	}
 
-	my $results = $self->cape_utils($opt)->poetry(
+	my $results = $self->cape_utils($opt)->python_mgr(
 		args    => $args,
+		manager => $self->manager,
 		quiet   => $quiet,
 		verbose => $opt->{verbose},
 	);
