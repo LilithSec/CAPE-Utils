@@ -32,7 +32,7 @@ sub abstract {
 #
 #     print CAPE::Utils::Cmd::Command::exec->usage_desc;
 sub usage_desc {
-	return 'cape_utils exec [-i <config>] [--quiet] [--verbose] [--json] [--pretty] -- <command> [<arg>...]
+	return 'cape_utils exec [-i <config>] [-d <dir>] [--quiet] [--verbose] [--json] [--pretty] -- <command> [<arg>...]
 
 Run an arbitrary command from the CAPE base directory, wrapped in "poetry run"
 or "uv run" per python_mgr in the config, the same way submissions are executed.
@@ -41,11 +41,17 @@ Use "--" to separate cape_utils options from the command and its arguments so
 that flags meant for the command are not parsed by cape_utils, e.g.
 
     cape_utils exec -- python3 utils/process.py -r 1
+
+The command is not ran via a shell, so "cd" and "&&" do not work. Use -d to run
+it from a directory under the base dir instead, e.g.
+
+    cape_utils exec -d utils/db_migration_db -- alembic upgrade head
 ';
 } ## end sub usage_desc
 
-# The switches this sub command takes, those being --quiet and --verbose for
-# controlling what gets printed, plus the shared JSON and config switches.
+# The switches this sub command takes, those being --dir for where to run the
+# command from, --quiet and --verbose for controlling what gets printed, plus
+# the shared JSON and config switches.
 #
 # Args:
 #     - none beyond the invoking class, which App::Cmd also hands the
@@ -58,11 +64,13 @@ that flags meant for the command are not parsed by cape_utils, e.g.
 sub opt_spec {
 	my ($class) = @_;
 	return (
+		[ 'dir|d=s', 'dir to run the command from, relative to the CAPE base dir' ],
 		[ 'quiet',   'do not print the output from the command' ],
 		[ 'verbose', 'print to STDERR what it is doing' ],
-		$class->json_opts, $class->ini_opt,
+		$class->json_opts,
+		$class->ini_opt,
 	);
-}
+} ## end sub opt_spec
 
 # Checks the sub command was given something to run before execute is reached.
 #
@@ -95,9 +103,10 @@ sub validate_args {
 # printing it as well would leave the JSON on STDOUT mixed in with it.
 #
 # Args:
-#     - opt :: The options hash ref built from opt_spec. 'quiet' and 'verbose'
-#       are 0/1, 'json' and 'pretty' control the JSON output, and 'ini' is the
-#       config file to use. Required, and supplied by App::Cmd.
+#     - opt :: The options hash ref built from opt_spec. 'dir' is the dir to run
+#       from or undef, 'quiet' and 'verbose' are 0/1, 'json' and 'pretty'
+#       control the JSON output, and 'ini' is the config file to use. Required,
+#       and supplied by App::Cmd.
 #
 #     - args :: An array ref of the command to run and its arguments, such as
 #       [ 'python3', 'utils/process.py', '-r', '1' ]. Required, and supplied by
@@ -105,9 +114,10 @@ sub validate_args {
 #
 # Returns nothing, but exits 1 if the command it ran failed, so the exit status
 # is usable from a shell. Dies if the config can not be read or the CAPE base
-# directory can not be entered.
+# directory or --dir can not be entered.
 #
 #     $ cape_utils exec --json --pretty -- python3 utils/process.py -r 1
+#     $ cape_utils exec -d utils/db_migration_db -- alembic upgrade head
 sub execute {
 	my ( $self, $opt, $args ) = @_;
 
@@ -118,6 +128,7 @@ sub execute {
 
 	my $results = $self->cape_utils($opt)->exec(
 		command => $args,
+		dir     => $opt->{dir},
 		quiet   => $quiet,
 		verbose => $opt->{verbose},
 	);

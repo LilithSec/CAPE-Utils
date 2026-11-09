@@ -93,7 +93,9 @@ cape_utils version
   describes what would be done instead of doing it.
 
 - `exec` :: Run a command from the CAPE base dir, wrapped in "poetry run" or
-  "uv run" per `python_mgr`. Everything after `--` is the command.
+  "uv run" per `python_mgr`. Everything after `--` is the command. It is not
+  ran via a shell, so use `-d <dir>` in place of `cd`, e.g.
+  `cape_utils exec -d utils/db_migration_db -- alembic upgrade head`.
 
 - `poetry` :: Run a poetry command from the CAPE base dir. Unlike `exec`,
   everything after `--` goes straight to poetry. Needs `python_mgr` to be poetry.

@@ -1886,6 +1886,11 @@ The following options are supported.
 
     - command :: An array ref of the command and its arguments to run. Required.
 
+    - dir :: The directory to run the command from instead of the base dir. A
+      relative path is taken as relative to the base dir. This is what to use in
+      place of "cd" as the command is not ran via a shell.
+        - Default :: undef
+
     - quiet :: Do not print the output from the command.
         - Default :: 0
 
@@ -1898,6 +1903,8 @@ The returned value is a hash ref as below.
     - command :: An array ref of the command actually run, including any
       python_mgr wrapping.
 
+    - dir :: The directory the command was ran from.
+
     - success :: 0/1 for if the command exited successfully.
 
     - error :: The error message from IPC::Cmd::run, if any.
@@ -1906,6 +1913,13 @@ The returned value is a hash ref as below.
 
     my $exec_results = $cape_util->exec( command => [ 'python3', 'utils/foo.py', '--bar' ], quiet => 1 );
     use JSON;
+    print encode_json($exec_results) . "\n";
+
+    # the equivalent of 'cd utils/db_migration_db && alembic upgrade head'
+    $exec_results = $cape_util->exec(
+        command => [ 'alembic', 'upgrade', 'head' ],
+        dir     => 'utils/db_migration_db',
+    );
     print encode_json($exec_results) . "\n";
 
 =cut
@@ -1934,6 +1948,7 @@ sub exec {
 	return $self->_run_in_base(
 		label        => 'exec',
 		command_tail => \@command_tail,
+		dir          => $opts{dir},
 		quiet        => $opts{quiet},
 		verbose      => $opts{verbose},
 	);
@@ -1956,6 +1971,11 @@ sub exec {
 #       cape_runas prefix, such as [ 'python3', 'utils/process.py', '-r', '1' ].
 #       Required.
 #
+#     - dir :: A directory to CD into after the base dir, so a relative path is
+#       relative to the base dir and an absolute one is used as is. Such as
+#       'utils/db_migration_db'. Undef stays in the base dir.
+#       - Default :: undef
+#
 #     - quiet :: 0/1 for not printing the output from the command. The output is
 #       returned either way.
 #       - Default :: 0
@@ -1968,19 +1988,28 @@ sub exec {
 #
 #     - command :: An array ref of what was actually ran, runas prefix included.
 #
+#     - dir :: The directory the command was ran from, being the base dir or the
+#       dir arg as given.
+#
 #     - success :: 0/1 for if the command exited zero.
 #
 #     - error :: The error message from IPC::Cmd, or undef when it succeeded.
 #
 #     - output :: The combined STDOUT and STDERR of the command as a string.
 #
-# Dies if the base dir can not be entered, or if _cape_runas_prefix can not
-# arrange to run as the right user.
+# Dies if the base dir or dir can not be entered, or if _cape_runas_prefix can
+# not arrange to run as the right user.
 #
 #     my $results = $self->_run_in_base(
 #         label        => 'exec',
 #         command_tail => [ 'python3', 'utils/process.py', '-r', '1' ],
 #         quiet        => 1,
+#     );
+#
+#     $results = $self->_run_in_base(
+#         label        => 'exec',
+#         command_tail => [ 'uv', 'run', 'alembic', 'upgrade', 'head' ],
+#         dir          => 'utils/db_migration_db',
 #     );
 #     if ( !$results->{success} ) { warn( $results->{output} ); }
 sub _run_in_base {
@@ -1994,6 +2023,16 @@ sub _run_in_base {
 	}
 	chdir($base)
 		|| die( 'Unable to CD to "' . $base . '"' );
+
+	my $run_dir = $base;
+	if ( defined( $opts{dir} ) ) {
+		$run_dir = $opts{dir};
+		if ( $opts{verbose} ) {
+			print STDERR $label . ': changing directory to "' . $run_dir . '"' . "\n";
+		}
+		chdir($run_dir)
+			|| die( 'Unable to CD to "' . $run_dir . '" from "' . $base . '"' );
+	}
 
 	my @to_run = $self->_cape_runas_prefix;
 	if ( $opts{verbose} && @to_run ) {
@@ -2030,6 +2069,7 @@ sub _run_in_base {
 
 	return {
 		command => \@to_run,
+		dir     => $run_dir,
 		success => ( $success ? 1 : 0 ),
 		error   => $error_message,
 		output  => $output,
